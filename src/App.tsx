@@ -15,9 +15,9 @@ const reportTypes = [
 ]
 
 const startingReports = [
-  { type: "زحمة", area: "الحمرا", distance: "700 متر", lat: 33.8938, lng: 35.5018, color: "#dc2626", emoji: "🚗" },
-  { type: "ما معي بنزين", area: "بدارو", distance: "2 كم", lat: 33.879, lng: 35.514, color: "#eab308", emoji: "⛽" },
-  { type: "محتاج دفشي", area: "الحازمية", distance: "1.1 كم", lat: 33.857, lng: 35.535, color: "#16a34a", emoji: "🛵" },
+  { type: "زحمة", area: "الحمرا", distance: "700 متر", lat: 33.8938, lng: 35.5018, color: "#dc2626", emoji: "🚗" , priority: "high", },
+  { type: "ما معي بنزين", area: "بدارو", distance: "2 كم", lat: 33.879, lng: 35.514, color: "#eab308", emoji: "⛽" , priority: "high", },
+  { type: "محتاج دفشي", area: "الحازمية", distance: "1.1 كم", lat: 33.857, lng: 35.535, color: "#16a34a", emoji: "🛵", priority: "medium", },
 ]
 
 function makeIcon(emoji: string, color: string) {
@@ -262,7 +262,12 @@ const helperMarker = {
         )}
 
 
-{reports.map((r, index) => (
+{[...reports]
+  .sort((a, b) => {
+    const priorityOrder: any = { high: 3, medium: 2, low: 1 }
+    return priorityOrder[b.priority] - priorityOrder[a.priority]
+  })
+  .map((r, index) => (
 
 
 <Marker
