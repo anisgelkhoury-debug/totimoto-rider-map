@@ -81,6 +81,16 @@ function App() {
   }))
 )
 
+const [, forceUpdate] = useState(0)
+
+useEffect(() => {
+  const timer = setInterval(() => {
+    forceUpdate(prev => prev + 1)
+  }, 1000)
+
+  return () => clearInterval(timer)
+}, [])
+
 const needsHelper =
   selectedReport?.type === "حادث" ||
   selectedReport?.type === "محتاج دفشة" ||
@@ -120,7 +130,7 @@ helperComing: false,
         return minutesPassed < report.expiry
       })
     )
-  }, 5000)
+  }, 1000)
 
   return () => clearInterval(interval)
 }, [])
