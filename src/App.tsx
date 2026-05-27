@@ -400,7 +400,7 @@ const helperMarker = {
             <button onClick={() => setSelectedReport({
   ...selectedReport,
   helperComing: true,
-  helpers: selectedReport.helpers + 1,
+  helpers: (selectedReport.helpers || 0) + 1,
   helpersList: [...(selectedReport.helpersList || []), "أنت"],
 })} style={{ width: "100%", padding: 16, borderRadius: 18, border: "none", background: "#16a34a", color: "white", fontWeight: "bold", fontSize: 18 }}>
               أنا قريب
