@@ -4,14 +4,14 @@ import "leaflet/dist/leaflet.css"
 import L from "leaflet"
 
 const reportTypes = [
-  { label: "زحمة", emoji: "🚗", color: "#dc2626", expiry: 15 },
-  { label: "حادث", emoji: "⚠️", color: "#f97316", expiry: 45 },
-  { label: "طريق مسكر", emoji: "⛔", color: "#1d4ed8", expiry: 45 },
-  { label: "طريق زلق", emoji: "🌊", color: "#06b6d4", expiry: 45 },
-  { label: "عطل بالدراجة", emoji: "🔧", color: "#7c3aed", expiry: 45 },
-  { label: "محتاج دفشي", emoji: "🛵", color: "#16a34a", expiry: 30 },
-  { label: "ما معي بنزين", emoji: "⛽", color: "#eab308", expiry: 30 },
-  { label: "وصلني معك", emoji: "🤝", color: "#db2777", expiry: 20 },
+  { label: "زحمة", emoji: "🚗", color: "#dc2626", expiry: 15, priority: "high" },
+  { label: "حادث", emoji: "⚠️", color: "#f97316", expiry: 45, priority: "high" },
+  { label: "طريق مسكر", emoji: "⛔", color: "#1d4ed8", expiry: 45, priority: "high" },
+  { label: "طريق زلق", emoji: "🌊", color: "#06b6d4", expiry: 45, priority: "high" },
+  { label: "عطل بالدراجة", emoji: "🔧", color: "#7c3aed", expiry: 45, priority: "medium" },
+  { label: "محتاج دفشي", emoji: "🛵", color: "#16a34a", expiry: 30, priority: "medium" },
+  { label: "ما معي بنزين", emoji: "⛽", color: "#eab308", expiry: 30, priority: "medium" },
+  { label: "وصلني معك", emoji: "🤝", color: "#db2777", expiry: 20, priority: "low" },
 ]
 
 const startingReports = [
