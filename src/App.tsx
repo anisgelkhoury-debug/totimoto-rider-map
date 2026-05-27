@@ -81,6 +81,24 @@ function App() {
   }))
 )
 
+function addReport(type: string, color: string, emoji: string) {
+  if (!myLocation) return
+
+  const newReport = {
+    type,
+    area: "موقع مباشر",
+    distance: "الآن",
+    lat: myLocation[0],
+    lng: myLocation[1],
+    color,
+    emoji,
+    createdAt: Date.now(),
+    expiry: 45,
+  }
+
+  setReports((prev: any) => [newReport, ...prev])
+}
+
   const [myLocation, setMyLocation] = useState<any>(null)
 
   useEffect(() => {
