@@ -33,8 +33,8 @@ function makeIcon(emoji: string, color: string) {
   align-items:center;
   justify-content:center;
   font-size:22px;
-  box-shadow:0 0 0 0 ${color};
-  animation:pulseMarker 1.6s infinite;
+  box-shadow:0 0 18px 6px ${color};
+  animation:pulseMarker 1.2s infinite;
 ">
   ${emoji}
 </div>
@@ -200,11 +200,14 @@ const helperMarker = {
 {reports.map((r, index) => (
 
 
-  <Marker
-    key={index}
-    position={[r.lat, r.lng]}
-    icon={makeIcon(r.emoji, r.color)}
-  >
+<Marker
+  key={index}
+  position={[r.lat, r.lng]}
+  icon={makeIcon(r.emoji, r.color)}
+  eventHandlers={{
+    click: () => setSelectedReport(r),
+  }}
+>
     <Popup>
       <div style={{ textAlign: "right", direction: "rtl" }}>
         <b>{r.type}</b>
@@ -226,6 +229,9 @@ const helperMarker = {
       <div style={{ position: "absolute", top: 18, right: 18, left: 18, zIndex: 1000, display: "flex", justifyContent: "space-between" }}>
         <div style={{ background: "#020617", color: "white", padding: "12px 18px", borderRadius: 20, fontWeight: "bold" }}>
           🔴 {reports.length} بلاغ مباشر
+        <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 4 }}>
+  آخر تحديث الآن
+</div>
         </div>
 
         <button
