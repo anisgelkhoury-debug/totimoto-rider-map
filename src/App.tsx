@@ -33,8 +33,15 @@ function makeIcon(emoji: string, color: string) {
   align-items:center;
   justify-content:center;
   font-size:22px;
-  box-shadow:0 0 18px 6px ${color};
-  animation:pulseMarker 1.2s infinite;
+box-shadow:
+  color === "#dc2626"
+    ? "0 0 25px rgba(220,38,38,0.9)"
+    : "0 0 12px rgba(0,0,0,0.4)";
+
+animation:
+  color === "#dc2626"
+    ? "pulseMarker 1.2s infinite"
+    : "none";
 ">
   ${emoji}
 </div>
@@ -412,6 +419,25 @@ const helperMarker = {
     fontSize: 15
   }}>
     {selectedReport.area}
+
+<div style={{
+  marginTop: 10,
+  display: "inline-block",
+  padding: "6px 12px",
+  borderRadius: 999,
+  background:
+    selectedReport.priority === "high" ? "#dc2626" :
+    selectedReport.priority === "medium" ? "#f97316" :
+    "#2563eb",
+  color: "white",
+  fontWeight: "bold",
+  fontSize: 13
+}}>
+  {selectedReport.priority === "high" ? "خطورة عالية" :
+   selectedReport.priority === "medium" ? "متوسط الخطورة" :
+   "منخفض الخطورة"}
+</div>
+
   </div>
 
   <div style={{
