@@ -304,7 +304,10 @@ const helperMarker = {
 
       <div style={{ position: "absolute", bottom: 0, right: 0, left: 0, zIndex: 1000, background: "rgba(2,6,23,.96)", padding: 12, display: "flex", gap: 10, overflowX: "auto" }}>
         {reportTypes.map((btn) => (
-          <button key={btn.label} onClick={() => setSelectedType(btn)} style={{ minWidth: 108, border: "none", borderRadius: 18, padding: "13px 10px", background: btn.color, color: "white", fontWeight: "bold", fontSize: 14 }}>
+          <button key={btn.label} onClick={() => {
+  setSelectedType(btn)
+  addReport(btn.label, btn.color, btn.emoji)
+}} style={{ minWidth: 108, border: "none", borderRadius: 18, padding: "13px 10px", background: btn.color, color: "white", fontWeight: "bold", fontSize: 14 }}>
             <div style={{ fontSize: 23 }}>{btn.emoji}</div>
             {btn.label}
           </button>
