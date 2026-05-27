@@ -316,7 +316,17 @@ const helperMarker = {
 
       {selectedType && (
         <div style={{ position: "fixed", inset: 0, zIndex: 2000, background: "rgba(0,0,0,.55)", display: "flex", alignItems: "end", justifyContent: "center", padding: 20 }}>
-          <div style={{ background: "white", width: "100%", maxWidth: 420, borderRadius: 28, padding: 24 }}>
+          <div style={{
+  background: "linear-gradient(180deg,#071226,#0b1d3a)",
+  width: "100%",
+  maxWidth: 430,
+  borderRadius: 32,
+  padding: 26,
+  boxShadow: "0 0 40px rgba(0,0,0,.45)",
+  border: "1px solid rgba(255,255,255,.08)",
+  color: "white",
+  animation: "popupShow .25s ease"
+}}>
             <h2>إرسال البلاغ؟</h2>
 
             <button onClick={sendReport} style={{ width: "100%", padding: 16, borderRadius: 18, border: "none", background: "#16a34a", color: "white", fontWeight: "bold", fontSize: 18 }}>
@@ -333,7 +343,40 @@ const helperMarker = {
       {selectedReport && (
         <div style={{ position: "fixed", inset: 0, zIndex: 2000, background: "rgba(0,0,0,.55)", display: "flex", alignItems: "end", justifyContent: "center", padding: 20 }}>
           <div style={{ background: "white", width: "100%", maxWidth: 420, borderRadius: 28, padding: 24 }}>
-            <h2>{selectedReport.type}</h2>
+            <div style={{ textAlign: "center", marginBottom: 20 }}>
+  <div style={{
+    fontSize: 52,
+    marginBottom: 10
+  }}>
+    {selectedReport.emoji}
+  </div>
+
+  <h2 style={{
+    margin: 0,
+    fontSize: 32,
+    fontWeight: "bold"
+  }}>
+    {selectedReport.type}
+  </h2>
+
+  <div style={{
+    color: "#94a3b8",
+    marginTop: 8,
+    fontSize: 15
+  }}>
+    {selectedReport.area}
+  </div>
+
+  <div style={{
+    marginTop: 10,
+    display: "inline-block",
+    background: "rgba(255,255,255,.08)",
+    padding: "8px 14px",
+    borderRadius: 999
+  }}>
+    {selectedReport.distance}
+  </div>
+</div>
 
             <button onClick={() => helperRespond(selectedReport)} style={{ width: "100%", padding: 16, borderRadius: 18, border: "none", background: "#16a34a", color: "white", fontWeight: "bold", fontSize: 18 }}>
               أنا قريب
