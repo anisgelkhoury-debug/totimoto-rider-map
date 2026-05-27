@@ -404,16 +404,21 @@ const helperMarker = {
   </div>
 </div>
 
-            <button onClick={() => setSelectedReport({
+            <button
+disabled={selectedReport.joined}
+onClick={() => setSelectedReport({
   ...selectedReport,
   helperComing: true,
+  joined: true,
   helpers: (selectedReport.helpers || 0) + 1,
   helpersList: [...(selectedReport.helpersList || []), "أنت"],
 })} style={{ width: "100%", padding: 16, borderRadius: 18, border: "none", background: "#16a34a", color: "white", fontWeight: "bold", fontSize: 18 }}>
-              أنا قريب
+             {selectedReport.joined ? "تم الانضمام ✅" : "أنا قريب"}
             </button>
 
-            <button onClick={() => setSelectedReport(null)} style={{ width: "100%", padding: 14, borderRadius: 18, border: "none", marginTop: 10, background: "#e5e7eb", fontWeight: "bold" }}>
+            <button
+
+onClick={() => setSelectedReport(null)} style={{ width: "100%", padding: 14, borderRadius: 18, border: "none", marginTop: 10, background: "#e5e7eb", fontWeight: "bold" }}>
               إغلاق
             </button>
           </div>
