@@ -70,6 +70,16 @@ function timeAgo(timestamp: number) {
   return `منذ ${hours} ساعات`
 }
 
+function timeLeft(report: any) {
+  const minutesPassed = Math.floor((Date.now() - report.createdAt) / 1000 / 60)
+  const remaining = report.expiry - minutesPassed
+
+  if (remaining <= 0) return "انتهى"
+  if (remaining === 1) return "ينتهي خلال دقيقة"
+
+  return `ينتهي خلال ${remaining} دقيقة`
+}
+
 function App() {
   const [selectedType, setSelectedType] = useState<any>(null)
   const [selectedReport, setSelectedReport] = useState<any>(null)
@@ -85,7 +95,18 @@ const [, forceUpdate] = useState(0)
 
 useEffect(() => {
   const timer = setInterval(() => {
+
     forceUpdate(prev => prev + 1)
+
+    setReports(prev =>
+      prev.filter(r => {
+        const minutesPassed =
+          Math.floor((Date.now() - r.createdAt) / 1000 / 60)
+
+        return minutesPassed < r.expiry
+      })
+    )
+
   }, 1000)
 
   return () => clearInterval(timer)
@@ -256,6 +277,13 @@ const helperMarker = {
 
         <p style={{ color: "#94a3b8", marginTop: 6 }}>
           {timeAgo(r.createdAt)}
+          <div style={{
+  color: "#ffcc70",
+  fontSize: 12,
+  marginTop: 4
+}}>
+  ⏳ {timeLeft(r)}
+</div>
         </p>
       </div>
     </Popup>
@@ -394,6 +422,14 @@ const helperMarker = {
     borderRadius: 999
   }}>
     {selectedReport.distance}
+    <div style={{
+  marginTop: 10,
+  color: "#facc15",
+  fontWeight: "bold",
+  fontSize: 14
+}}>
+  ⏳ {timeLeft(selectedReport)}
+</div>
     {needsHelper && (
 <div style={{
   marginTop: 14,
