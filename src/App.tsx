@@ -94,6 +94,9 @@ function addReport(type: string, color: string, emoji: string) {
     emoji,
     createdAt: Date.now(),
     expiry: 45,
+    helpers: 0,
+    helpersList: [],
+helperComing: false,
   }
 
   setReports((prev: any) => [newReport, ...prev])
@@ -375,10 +378,31 @@ const helperMarker = {
     borderRadius: 999
   }}>
     {selectedReport.distance}
+<div style={{
+  marginTop: 14,
+  fontWeight: "bold",
+  color: "#16a34a",
+  fontSize: 16
+}}>
+  👥 {selectedReport.helpers} أشخاص قادمين للمساعدة
+<div style={{
+  marginTop: 8,
+  color: "#64748b",
+  fontSize: 14
+}}>
+  {selectedReport.helpersList?.join(" • ")}
+</div>
+</div>
+
   </div>
 </div>
 
-            <button onClick={() => helperRespond(selectedReport)} style={{ width: "100%", padding: 16, borderRadius: 18, border: "none", background: "#16a34a", color: "white", fontWeight: "bold", fontSize: 18 }}>
+            <button onClick={() => setSelectedReport({
+  ...selectedReport,
+  helperComing: true,
+  helpers: selectedReport.helpers + 1,
+  helpersList: [...(selectedReport.helpersList || []), "أنت"],
+})} style={{ width: "100%", padding: 16, borderRadius: 18, border: "none", background: "#16a34a", color: "white", fontWeight: "bold", fontSize: 18 }}>
               أنا قريب
             </button>
 
