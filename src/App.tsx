@@ -81,6 +81,12 @@ function App() {
   }))
 )
 
+const needsHelper =
+  selectedReport?.type === "حادث" ||
+  selectedReport?.type === "محتاج دفشة" ||
+  selectedReport?.type === "ما معي بنزين" ||
+  selectedReport?.type === "عطل بالدراجة"
+
 function addReport(type: string, color: string, emoji: string) {
   if (!myLocation) return
 
@@ -378,6 +384,7 @@ const helperMarker = {
     borderRadius: 999
   }}>
     {selectedReport.distance}
+    {needsHelper && (
 <div style={{
   marginTop: 14,
   fontWeight: "bold",
@@ -393,7 +400,7 @@ const helperMarker = {
   {selectedReport.helpersList?.join(" • ")}
 </div>
 </div>
-
+)}
   </div>
 </div>
 
