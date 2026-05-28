@@ -123,6 +123,25 @@ function App() {
   const [selectedType, setSelectedType] = useState<any>(null)
   const [selectedReport, setSelectedReport] = useState<any>(null)
   const [showReportModal, setShowReportModal] = useState(false)
+  
+  
+  useEffect(() => {
+  const timer = setInterval(() => {
+    setReports((prev: any) =>
+      prev.map((item: any) => {
+        if (!item.moving) return item
+
+        return {
+          ...item,
+          lat: item.lat + (item.targetLat - item.lat) * 0.18,
+          lng: item.lng + (item.targetLng - item.lng) * 0.18,
+        }
+      })
+    )
+  }, 1000)
+
+  return () => clearInterval(timer)
+}, [])
 
 
 const [, forceUpdate] = useState(0)
@@ -316,8 +335,8 @@ const helperMarker = {
   type: "أنا قريب",
   area: "مساعد قريب منك",
   distance: "يتجه للمساعدة",
-  lat: report.lat + 0.02,
-  lng: report.lng + 0.02,
+  lat: report.lat + 0.005,
+  lng: report.lng + 0.005,
   targetLat: report.lat,
   targetLng: report.lng,
   isHelper: true,
@@ -327,15 +346,17 @@ const helperMarker = {
   expiry: 20,
 }
 
-    setReports([
-  helperMarker,
+setReports([
+  { ...helperMarker, moving: true },
   ...reports.map((r: any) =>
     r === report
-      ? { ...r, helperComing: true }
+      ? { ...r, helperComing: true, helperStatus: "بالطريق" }
       : r
   ),
 ])
+
     setSelectedReport(null)
+
   }
 
   return (
