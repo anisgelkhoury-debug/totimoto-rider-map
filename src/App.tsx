@@ -296,6 +296,21 @@ helperComing: false,
     setSelectedType(null)
   }
 
+function createUserReport(type: any) {
+  const newReport = {
+    ...type,
+    area: "موقعك الحالي",
+    distance: "مباشر",
+    lat: myLocation ? myLocation[0] : 33.8938,
+    lng: myLocation ? myLocation[1] : 35.5018,
+    createdAt: Date.now(),
+  }
+
+  setReports(prev => [newReport, ...prev])
+  setShowReportModal(false)
+}
+
+
   function helperRespond(report: any) {
 const helperMarker = {
   type: "أنا قريب",
@@ -538,12 +553,37 @@ const helperMarker = {
 
 {showReportModal && (
   <div style={{ position: "fixed", inset: 0, zIndex: 2500, background: "rgba(0,0,0,0.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-    <div style={{ background: "white", width: "100%", maxWidth: 420, borderRadius: 28, padding: 24, textAlign: "center", direction: "rtl" }}>
+    <div style={{ background: "white", width: "100%", maxWidth: 420, maxHeight: "80vh", overflowY: "auto", borderRadius: 28, padding: 24, textAlign: "center", direction: "rtl" }}>
       <h2 style={{ marginTop: 0 }}>شو بدك تبلّغ؟</h2>
 
-      <button onClick={() => setShowReportModal(false)} style={{ width: "100%", padding: 14, borderRadius: 18, border: "none", marginTop: 10 }}>
-        إغلاق
-      </button>
+<div style={{ display: "grid", gap: 10, marginTop: 18 }}>
+  {reportTypes.map((type) => (
+    <button
+      key={type.label}
+      onClick={() => createUserReport(type)}
+      style={{
+        padding: "14px",
+        borderRadius: 18,
+        border: "none",
+        background: type.color,
+        color: "white",
+        fontWeight: "bold",
+        fontSize: 16,
+        cursor: "pointer"
+      }}
+    >
+      <div style={{ fontSize: 24 }}>{type.emoji}</div>
+      {type.label}
+    </button>
+  ))}
+</div>
+
+<button
+  onClick={() => setShowReportModal(false)}
+  style={{ width: "100%", padding: 14, borderRadius: 18, border: "none", marginTop: 12 }}
+>
+  إغلاق
+</button>
     </div>
   </div>
 )}
