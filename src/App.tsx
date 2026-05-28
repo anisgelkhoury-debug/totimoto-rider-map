@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
-import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet"
+import { MapContainer, TileLayer, Marker, Popup, useMap, Circle } from "react-leaflet"
 import "leaflet/dist/leaflet.css"
-import L from "leaflet"
+import L, { DivIcon } from "leaflet"
 
 const reportTypes = [
   { label: "زحمة", emoji: "🚗", color: "#dc2626", expiry: 15, priority: "high" },
@@ -15,9 +15,39 @@ const reportTypes = [
 ]
 
 const startingReports = [
-  { type: "زحمة", area: "الحمرا", distance: "700 متر", lat: 33.8938, lng: 35.5018, color: "#dc2626", emoji: "🚗" , priority: "high", },
-  { type: "ما معي بنزين", area: "بدارو", distance: "2 كم", lat: 33.879, lng: 35.514, color: "#eab308", emoji: "⛽" , priority: "high", },
-  { type: "محتاج دفشي", area: "الحازمية", distance: "1.1 كم", lat: 33.857, lng: 35.535, color: "#16a34a", emoji: "🛵", priority: "medium", },
+  { 
+    type: "زحمة",
+    area: "الحمرا",
+    distance: "700 متر",
+    lat: 33.8938, 
+    lng: 35.5018, 
+    color: "#dc2626", 
+    emoji: "🚗" , 
+    priority: "high",
+    createdAt: Date.now(),
+  },
+  { 
+     type: "ما معي بنزين",
+     area: "بدارو", 
+     distance: "2 كم", 
+     lat: 33.879, 
+     lng: 35.514, 
+     color: "#eab308", 
+     emoji: "⛽" , 
+     priority: "high",
+     createdAt: Date.now(),
+    },
+    { 
+    type: "محتاج دفشي", 
+    area: "الحازمية", 
+    distance: "1.1 كم",
+     lat: 33.857, 
+     lng: 35.535, 
+     color: "#16a34a", 
+     emoji: "🛵", 
+     priority: "medium",
+     createdAt: Date.now(),
+    },
 ]
 
 function makeIcon(emoji: string, color: string) {
@@ -34,6 +64,7 @@ function makeIcon(emoji: string, color: string) {
   justify-content:center;
   font-size:22px;
 box-shadow:
+
   color === "#dc2626"
     ? "0 0 25px rgba(220,38,38,0.9)"
     : "0 0 12px rgba(0,0,0,0.4)";
@@ -88,15 +119,10 @@ function timeLeft(report: any) {
 }
 
 function App() {
+  const [reports, setReports] = useState(startingReports)
   const [selectedType, setSelectedType] = useState<any>(null)
   const [selectedReport, setSelectedReport] = useState<any>(null)
-  const [reports, setReports] = useState(
-  startingReports.map((r) => ({
-    ...r,
-    createdAt: Date.now(),
-    expiry: 45,
-  }))
-)
+
 
 const [, forceUpdate] = useState(0)
 
@@ -263,14 +289,21 @@ const helperMarker = {
 
 
 {[...reports]
-  .sort((a, b) => {
-    const priorityOrder: any = { high: 3, medium: 2, low: 1 }
+.sort((a, b) => {
+  const priorityOrder: any = { high: 3, medium: 2, low: 1 }
+
+  if (priorityOrder[b.priority] !== priorityOrder[a.priority]) {
     return priorityOrder[b.priority] - priorityOrder[a.priority]
-  })
+  }
+
+  return b.createdAt - a.createdAt
+})
   .map((r, index) => (
 
 
+<>
 <Marker
+
   key={index}
   position={[r.lat, r.lng]}
   icon={makeIcon(r.emoji, r.color)}
@@ -300,6 +333,32 @@ const helperMarker = {
       </div>
     </Popup>
   </Marker>
+{r.priority === "high" && (
+<>
+  <Circle
+    center={[r.lat, r.lng]}
+    radius={120}
+    pathOptions={{
+      color: r.color,
+      fillColor: r.color,
+      fillOpacity: r.priority === "high" ? 0.18 : 0.10,
+      weight: r.priority === "high" ? 3 : 1
+    }}
+  />
+<></>
+  <Circle
+    center={[r.lat, r.lng]}
+    radius={180}
+    pathOptions={{
+      color: r.color,
+      fillColor: r.color,
+      fillOpacity: r.priority === "high" ? 0.10 : 0.04,
+      weight: r.priority === "high" ? 2 : 1
+    }}
+  />
+</>
+)}
+</>
 ))}
 
 </MapContainer>
