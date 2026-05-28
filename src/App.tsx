@@ -122,6 +122,7 @@ function App() {
   const [reports, setReports] = useState(startingReports)
   const [selectedType, setSelectedType] = useState<any>(null)
   const [selectedReport, setSelectedReport] = useState<any>(null)
+  const [showReportModal, setShowReportModal] = useState(false)
 
 
 const [, forceUpdate] = useState(0)
@@ -336,6 +337,27 @@ const helperMarker = {
         <TileLayer attribution="&copy; OpenStreetMap" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
 
         <MyLocation position={myLocation} />
+
+        <button
+  onClick={() => setShowReportModal(true)}
+  style={{
+    position: "absolute",
+    bottom: "20px",
+    right: "20px",
+    zIndex: 2000,
+    background: "#dc2626",
+    color: "white",
+    border: "none",
+    borderRadius: "16px",
+    padding: "14px 18px",
+    fontSize: "16px",
+    fontWeight: "bold",
+    cursor: "pointer",
+    boxShadow: "0 6px 20px rgba(0,0,0,0.4)"
+  }}
+>
+  🚨 تبليغ مباشر
+</button>
 
         {myLocation && (
           <Marker position={myLocation} icon={makeIcon("🔵", "#2563eb")}>
