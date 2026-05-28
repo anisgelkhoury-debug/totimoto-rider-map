@@ -521,9 +521,9 @@ setReports([
   </div>
 
   {r.helperComing && (
-    <span style={{ color: "#22c55e", marginRight: 8, fontWeight: "bold" }}>
-      🛵 مساعد بالطريق
-    </span>
+<span style={{ color: "#22c55e", marginRight: 8, fontWeight: "bold" }}>
+  🛵 المساعد بالطريق · يصل خلال 4 دقائق
+</span>
   )}
 </div>
 
