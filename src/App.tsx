@@ -342,15 +342,15 @@ const helperMarker = {
   onClick={() => setShowReportModal(true)}
   style={{
     position: "absolute",
-    bottom: "20px",
-    right: "20px",
+    bottom: "30px",
+    left: "28px",
     zIndex: 2000,
     background: "#dc2626",
     color: "white",
     border: "none",
     borderRadius: "16px",
-    padding: "14px 18px",
-    fontSize: "16px",
+    padding: "12px 16px",
+    fontSize: "15px",
     fontWeight: "bold",
     cursor: "pointer",
     boxShadow: "0 6px 20px rgba(0,0,0,0.4)"
@@ -498,7 +498,7 @@ const helperMarker = {
      ))}
      </div>
 
-      <div style={{ position: "absolute", bottom: 0, right: 0, left: 0, zIndex: 1000, background: "rgba(2,6,23,.96)", padding: 12, display: "flex", gap: 10, overflowX: "auto" }}>
+      <div style={{ position: "absolute", bottom: 0, right: 0, left: 0, zIndex: 1500, background: "rgba(2,6,23,.96)", padding: 12, display: "flex", gap: 10, overflowX: "auto" }}>
         {reportTypes.map((btn) => (
           <button key={btn.label} onClick={() => {
   setSelectedType(btn)
@@ -511,7 +511,7 @@ const helperMarker = {
       </div>
 
       {selectedType && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 2000, background: "rgba(0,0,0,.55)", display: "flex", alignItems: "end", justifyContent: "center", padding: 20 }}>
+        <div style={{ position: "fixed", inset: 0, zIndex: 2000, background: "rgba(0,0,0,.35)", display: "flex", alignItems: "end", justifyContent: "center", padding: 20 }}>
           <div style={{
   background: "linear-gradient(180deg,#071226,#0b1d3a)",
   width: "100%",
@@ -535,6 +535,18 @@ const helperMarker = {
           </div>
         </div>
       )}
+
+{showReportModal && (
+  <div style={{ position: "fixed", inset: 0, zIndex: 2500, background: "rgba(0,0,0,0.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+    <div style={{ background: "white", width: "100%", maxWidth: 420, borderRadius: 28, padding: 24, textAlign: "center", direction: "rtl" }}>
+      <h2 style={{ marginTop: 0 }}>شو بدك تبلّغ؟</h2>
+
+      <button onClick={() => setShowReportModal(false)} style={{ width: "100%", padding: 14, borderRadius: 18, border: "none", marginTop: 10 }}>
+        إغلاق
+      </button>
+    </div>
+  </div>
+)}
 
       {selectedReport && (
         <div style={{ position: "fixed", inset: 0, zIndex: 2000, background: "rgba(0,0,0,.55)", display: "flex", alignItems: "end", justifyContent: "center", padding: 20 }}>
