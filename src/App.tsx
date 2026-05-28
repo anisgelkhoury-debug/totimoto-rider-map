@@ -126,7 +126,63 @@ function App() {
 
 const [, forceUpdate] = useState(0)
 
-useEffect(() => {
+const fakeReports = [
+  {
+    type: "زحمة",
+    area: "الحمرا",
+    distance: "400 متر",
+    lat: 33.895,
+    lng: 35.482,
+    color: "#dc2626",
+    emoji: "🚗",
+    priority: "high",
+    expiry: 45,
+  },
+
+  {
+    type: "حادث",
+    area: "الروشة",
+    distance: "1 كم",
+    lat: 33.889,
+    lng: 35.471,
+    color: "#f97316",
+    emoji: "⚠️",
+    priority: "high",
+    expiry: 60,
+  },
+
+  {
+    type: "محتاج دفش",
+    area: "الأشرفية",
+    distance: "2 كم",
+    lat: 33.882,
+    lng: 35.521,
+    color: "#16a34a",
+    emoji: "🛵",
+    priority: "medium",
+    expiry: 35,
+  },
+]
+
+  useEffect(() => {
+  const interval = setInterval(() => {
+
+    const randomReport =
+      fakeReports[Math.floor(Math.random() * fakeReports.length)]
+
+    const newReport = {
+      ...randomReport,
+      createdAt: Date.now(),
+      lat: randomReport.lat + (Math.random() - 0.5) * 0.01,
+      lng: randomReport.lng + (Math.random() - 0.5) * 0.01,
+    }
+
+    setReports(prev => [newReport, ...prev])
+
+  }, 12000)
+
+  return () => clearInterval(interval)
+
   const timer = setInterval(() => {
 
     forceUpdate(prev => prev + 1)
