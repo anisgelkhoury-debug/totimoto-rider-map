@@ -2,6 +2,8 @@ import { useEffect, useState } from "react"
 import { MapContainer, TileLayer, Marker, Popup, useMap, Circle } from "react-leaflet"
 import "leaflet/dist/leaflet.css"
 import L, { DivIcon } from "leaflet"
+import { db } from "./firebase"
+import { collection, addDoc, onSnapshot, doc, updateDoc } from "firebase/firestore"
 
 const reportTypes = [
   { label: "زحمة", emoji: "🚗", color: "#dc2626", expiry: 15, priority: "high" },
@@ -120,6 +122,20 @@ function timeLeft(report: any) {
 
 function App() {
   const [reports, setReports] = useState(startingReports)
+
+useEffect(() => {
+  const unsubscribe = onSnapshot(collection(db, "reports"), (snapshot) => {
+   const liveReports: any = snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }))
+
+    setReports(liveReports)
+  })
+
+  return () => unsubscribe()
+}, [])
+
   const [selectedType, setSelectedType] = useState<any>(null)
   const [selectedReport, setSelectedReport] = useState<any>(null)
   const [showReportModal, setShowReportModal] = useState(false)
@@ -131,11 +147,11 @@ function App() {
       prev.map((item: any) => {
         if (!item.moving) return item
 
-        return {
-          ...item,
-          lat: item.lat + (item.targetLat - item.lat) * 0.18,
-          lng: item.lng + (item.targetLng - item.lng) * 0.18,
-        }
+return {
+  ...item,
+  lat: item.lat + (item.targetLat - item.lat) * 0.35,
+  lng: item.lng + (item.targetLng - item.lng) * 0.35,
+}
       })
     )
   }, 1000)
@@ -197,7 +213,7 @@ const fakeReports = [
       lng: randomReport.lng + (Math.random() - 0.5) * 0.01,
     }
 
-    setReports(prev => [newReport, ...prev])
+   addDoc(collection(db, "reports"), newReport)
 
   }, 12000)
 
@@ -245,7 +261,7 @@ function addReport(type: string, color: string, emoji: string) {
 helperComing: false,
   }
 
-  setReports((prev: any) => [newReport, ...prev])
+ addDoc(collection(db, "reports"), newReport)
 }
 
   const [myLocation, setMyLocation] = useState<any>(null)
@@ -330,43 +346,28 @@ function createUserReport(type: any) {
 }
 
 
-  function helperRespond(report: any) {
-const helperMarker = {
-  type: "أنا قريب",
-  area: "مساعد قريب منك",
-  distance: "يتجه للمساعدة",
-  lat: report.lat + 0.005,
-  lng: report.lng + 0.005,
-  targetLat: report.lat,
-  targetLng: report.lng,
-  isHelper: true,
-  color: "#22c55e",
-  emoji: "🛵",
-  createdAt: Date.now(),
-  expiry: 20,
+async function helperRespond(report: any) {
+  console.log("HELPER CLICKED ID:", report.id)
+  alert("Report ID: " + report.id)
+
+  await updateDoc(doc(db, "reports", report.id), {
+    helperComing: true,
+    helperStatus: "بالطريق",
+    helpers: (report.helpers || 0) + 1,
+    debugHelper: "YES",
+  })
+
+  setSelectedReport(null)
 }
-
-setReports([
-  { ...helperMarker, moving: true },
-  ...reports.map((r: any) =>
-    r === report
-      ? { ...r, helperComing: true, helperStatus: "بالطريق" }
-      : r
-  ),
-])
-
-    setSelectedReport(null)
-
-  }
 
   return (
     <>
 <style>{`
-  @keyframes pulseMarker {
-    0% { transform: scale(1); }
-    50% { transform: scale(1.18); }
-    100% { transform: scale(1); }
-  }
+@keyframes pulseMarker {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.18); }
+  100% { transform: scale(1); }
+}
 `}</style>
     <div style={{ height: "100vh", width: "100%", background: "#020617", direction: "rtl", fontFamily: "Arial", position: "relative", overflow: "hidden" }}>
       <MapContainer center={[33.8938, 35.5018]} zoom={12} style={{ height: "100%", width: "100%" }}>
@@ -420,7 +421,7 @@ setReports([
 
   key={index}
   position={[r.lat, r.lng]}
-  icon={makeIcon(r.emoji, r.color)}
+  icon={makeIcon(r.helperComing ? "🟢" : r.emoji, r.color)}
   eventHandlers={{
     click: () => setSelectedReport(r),
   }}
@@ -521,13 +522,19 @@ setReports([
   </div>
 
   {r.helperComing && (
-<span style={{ color: "#22c55e", marginRight: 8, fontWeight: "bold" }}>
-  🛵 المساعد بالطريق · يصل خلال 4 دقائق
-</span>
-  )}
+  <div style={{
+    color: "#22c55e",
+    fontSize: 13,
+    fontWeight: "bold",
+    marginTop: 4
+  }}>
+    🟢 المساعد بالطريق • يصل خلال 3 دقائق
+  </div>
+)}
+
 </div>
 
-<button onClick={() => setSelectedReport(r)} style={{ background: "white", border: "none", borderRadius: 12, padding: "9px 12px", fontWeight: "bold" }}>
+<button onClick={() => helperRespond(r)} style={{ background: "white", border: "none", borderRadius: 12, padding: "9px 12px", fontWeight: "bold" }}>
   أنا قريب
 </button>
           </div>
@@ -691,29 +698,35 @@ setReports([
   </div>
 </div>
 
-            <button
-disabled={selectedReport.joined}
-onClick={() => setSelectedReport({
-  ...selectedReport,
-  helperComing: true,
-  joined: true,
-  helpers: (selectedReport.helpers || 0) + 1,
-  helpersList: [...(selectedReport.helpersList || []), "أنت"],
-})} style={{ width: "100%", padding: 16, borderRadius: 18, border: "none", background: "#16a34a", color: "white", fontWeight: "bold", fontSize: 18 }}>
-             {selectedReport.joined ? "تم الانضمام ✅" : "أنا قريب"}
-            </button>
+<button
+  disabled={selectedReport.joined}
+  onClick={() => helperRespond(selectedReport)}
+  style={{ width: "100%", padding: 16, borderRadius: 18, border: "none", background: "#16a34a", color: "white", fontWeight: "bold", fontSize: 18 }}
+>
+  {selectedReport.joined ? "تم الانضمام ✅" : "أنا قريب"}
+</button>
 
-            <button
-
-onClick={() => setSelectedReport(null)} style={{ width: "100%", padding: 14, borderRadius: 18, border: "none", marginTop: 10, background: "#e5e7eb", fontWeight: "bold" }}>
-              إغلاق
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-    </>
-  )
+<button
+  onClick={() => setSelectedReport(null)}
+  style={{
+    width: "100%",
+    padding: 14,
+    borderRadius: 18,
+    border: "none",
+    marginTop: 10,
+    background: "#e5e7eb",
+    fontWeight: "bold"
+  }}
+>
+  إلغاء
+</button>
+</div>
+</div>
+)}
+</div>
+</>
+)
 }
+
 
 export default App
