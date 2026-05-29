@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { MapContainer, TileLayer, Marker, Popup, useMap, Circle } from "react-leaflet"
+import { MapContainer, TileLayer, Marker, Popup, useMap, Circle, useMapEvents } from "react-leaflet"
 import "leaflet/dist/leaflet.css"
 import L, { DivIcon } from "leaflet"
 import { db } from "./firebase"
@@ -58,13 +58,13 @@ function makeIcon(emoji: string, color: string) {
     html: `
 <div style="
   background:${color};
-  width:44px;
-  height:44px;
+  width:18px;
+  height:18px;
   border-radius:50%;
   display:flex;
   align-items:center;
   justify-content:center;
-  font-size:22px;
+  font-size:9px;
 box-shadow:
 
   color === "#dc2626"
@@ -80,7 +80,7 @@ animation:
 </div>
 `,
 
-    iconSize: [44, 44],
+    iconSize: [24, 24],
     iconAnchor: [22, 22],
   })
 }
@@ -120,6 +120,18 @@ function timeLeft(report: any) {
   return `ينتهي خلال ${remaining} دقيقة`
 }
 
+function FlyToReport({ target }: any) {
+  const map = useMap()
+
+  useEffect(() => {
+    if (target) {
+      map.flyTo(target, 15, { duration: 1.2 })
+    }
+  }, [target, map])
+
+  return null
+}
+
 function App() {
   const [reports, setReports] = useState(startingReports)
 
@@ -139,6 +151,8 @@ useEffect(() => {
   const [selectedType, setSelectedType] = useState<any>(null)
   const [selectedReport, setSelectedReport] = useState<any>(null)
   const [showReportModal, setShowReportModal] = useState(false)
+
+  const [mapTarget, setMapTarget] = useState<any>(null)
   
   
   useEffect(() => {
@@ -215,7 +229,7 @@ const fakeReports = [
 
    addDoc(collection(db, "reports"), newReport)
 
-  }, 12000)
+  }, 45000)
 
   return () => clearInterval(interval)
 
@@ -228,7 +242,7 @@ const fakeReports = [
         const minutesPassed =
           Math.floor((Date.now() - r.createdAt) / 1000 / 60)
 
-        return minutesPassed < r.expiry
+        return minutesPassed < r.expiry || 45
       })
     )
 
@@ -323,6 +337,7 @@ helperComing: false,
       lng: myLocation[1],
       color: selectedType.color,
       emoji: selectedType.emoji,
+      priority: selectedType.priority,
       createdAt: Date.now(),
       expiry: selectedType.expiry,
     }
@@ -348,13 +363,12 @@ function createUserReport(type: any) {
 
 async function helperRespond(report: any) {
   console.log("HELPER CLICKED ID:", report.id)
-  alert("Report ID: " + report.id)
 
   await updateDoc(doc(db, "reports", report.id), {
     helperComing: true,
     helperStatus: "بالطريق",
     helpers: (report.helpers || 0) + 1,
-    debugHelper: "YES",
+    joined: true,
   })
 
   setSelectedReport(null)
@@ -372,6 +386,8 @@ async function helperRespond(report: any) {
     <div style={{ height: "100vh", width: "100%", background: "#020617", direction: "rtl", fontFamily: "Arial", position: "relative", overflow: "hidden" }}>
       <MapContainer center={[33.8938, 35.5018]} zoom={12} style={{ height: "100%", width: "100%" }}>
         <TileLayer attribution="&copy; OpenStreetMap" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+
+        <FlyToReport target={mapTarget} />
 
         <MyLocation position={myLocation} />
 
@@ -452,22 +468,22 @@ async function helperRespond(report: any) {
 <>
   <Circle
     center={[r.lat, r.lng]}
-    radius={120}
+    radius={40}
     pathOptions={{
       color: r.color,
       fillColor: r.color,
-      fillOpacity: r.priority === "high" ? 0.18 : 0.10,
+      fillOpacity: r.priority === "high" ? 0.10 : 0.05,
       weight: r.priority === "high" ? 3 : 1
     }}
   />
 <></>
   <Circle
     center={[r.lat, r.lng]}
-    radius={180}
+    radius={60}
     pathOptions={{
       color: r.color,
       fillColor: r.color,
-      fillOpacity: r.priority === "high" ? 0.10 : 0.04,
+      fillOpacity: r.priority === "high" ? 0.05 : 0.02,
       weight: r.priority === "high" ? 2 : 1
     }}
   />
@@ -509,7 +525,7 @@ async function helperRespond(report: any) {
         <div style={{ color: "white", fontWeight: "bold", marginBottom: 10 }}>بلاغات قريبة</div>
 
 {reports.map((r, index) => (
-  <div key={index} style={{ background: "#111827", borderRadius: 16, padding: 12, marginBottom: 8, display: "flex", alignItems: "center", gap: 10 }}>
+  <div key={index} onClick={() => setMapTarget([r.lat, r.lng])} style={{ background: "#111827", borderRadius: 16, padding: 12, marginBottom: 8, display: "flex", alignItems: "center", gap: 10 }}>
     <div style={{ background: r.color, width: 40, height: 40, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center" }}>
       {r.emoji}
     </div>
@@ -528,7 +544,7 @@ async function helperRespond(report: any) {
     fontWeight: "bold",
     marginTop: 4
   }}>
-    🟢 المساعد بالطريق • يصل خلال 3 دقائق
+    🟢 {r.helpers || 1} مساعد بالطريق • يصل خلال 3 دقائق
   </div>
 )}
 
