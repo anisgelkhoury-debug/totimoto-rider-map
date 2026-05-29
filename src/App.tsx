@@ -132,6 +132,23 @@ function FlyToReport({ target }: any) {
   return null
 }
 
+function MapZoomTracker({ setMapZoom }: any) {
+  const map = useMap()
+
+  useEffect(() => {
+    const updateZoom = () => setMapZoom(map.getZoom())
+
+    updateZoom()
+    map.on("zoomend", updateZoom)
+
+    return () => {
+      map.off("zoomend", updateZoom)
+    }
+  }, [map, setMapZoom])
+
+  return null
+}
+
 function App() {
   const [reports, setReports] = useState(startingReports)
 
@@ -151,7 +168,7 @@ useEffect(() => {
   const [selectedType, setSelectedType] = useState<any>(null)
   const [selectedReport, setSelectedReport] = useState<any>(null)
   const [showReportModal, setShowReportModal] = useState(false)
-
+const [mapZoom, setMapZoom] = useState(12)
   const [mapTarget, setMapTarget] = useState<any>(null)
   
   
@@ -383,6 +400,12 @@ async function helperRespond(report: any) {
   setSelectedReport(null)
 }
 
+const visibleReports = reports.filter((r: any) => {
+  if (mapZoom >= 14) return true
+  if (mapZoom >= 12) return r.priority !== "low"
+  return r.priority === "high"
+})
+
   return (
     <>
 <style>{`
@@ -397,6 +420,7 @@ async function helperRespond(report: any) {
         <TileLayer attribution="&copy; OpenStreetMap" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
 
         <FlyToReport target={mapTarget} />
+        <MapZoomTracker setMapZoom={setMapZoom} />
 
         <MyLocation position={myLocation} />
 
@@ -428,7 +452,7 @@ async function helperRespond(report: any) {
         )}
 
 
-{[...reports]
+{[...visibleReports]
 .sort((a, b) => {
   const priorityOrder: any = { high: 3, medium: 2, low: 1 }
 
