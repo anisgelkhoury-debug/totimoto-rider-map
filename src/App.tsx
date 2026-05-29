@@ -223,6 +223,7 @@ const fakeReports = [
     const newReport = {
       ...randomReport,
       createdAt: Date.now(),
+      expiry: randomReport.expiry || 45,
       lat: randomReport.lat + (Math.random() - 0.5) * 0.01,
       lng: randomReport.lng + (Math.random() - 0.5) * 0.01,
     }
@@ -269,7 +270,15 @@ function addReport(type: string, color: string, emoji: string) {
     color,
     emoji,
     createdAt: Date.now(),
-    expiry: 45,
+    expiry:
+  type === "زحمة" ? 30 :
+  type === "حادث" ? 60 :
+  type === "طريق مسكر" ? 120 :
+  type === "ما معي بنزين" ? 20 :
+  type === "محتاج دفشة" ? 45 :
+  type === "عطل بالدراجة" ? 60 :
+  type === "وصّلني معك" ? 20 :
+  45,
     helpers: 0,
     helpersList: [],
 helperComing: false,
