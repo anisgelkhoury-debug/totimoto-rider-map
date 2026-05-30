@@ -5,6 +5,27 @@ import L, { DivIcon } from "leaflet"
 import { db } from "./firebase"
 import { collection, addDoc, onSnapshot, doc, updateDoc } from "firebase/firestore"
 
+type ReportItem = {
+  id?: number
+  type: string
+  area: string
+  distance: string
+  lat: number
+  lng: number
+  color: string
+  emoji: string
+  priority: string
+  createdAt: number
+  expiry?: number
+  helperComing?: boolean
+  helperArrived?: boolean
+  resolved?: boolean
+  solvedAt?: number
+  helperStatus?: string
+  helpers?: number
+  joined?: boolean
+}
+
 const reportTypes = [
   { label: "زحمة", emoji: "🚗", color: "#dc2626", expiry: 15, priority: "high" },
   { label: "حادث", emoji: "⚠️", color: "#f97316", expiry: 45, priority: "high" },
@@ -120,6 +141,39 @@ function timeLeft(report: any) {
   return `ينتهي خلال ${remaining} دقيقة`
 }
 
+function calculateDistance(from: any, to: any) {
+  if (!from || !to) return null
+
+  const R = 6371
+
+  const dLat = ((to[0] - from[0]) * Math.PI) / 180
+  const dLng = ((to[1] - from[1]) * Math.PI) / 180
+
+  const lat1 = (from[0] * Math.PI) / 180
+  const lat2 = (to[0] * Math.PI) / 180
+
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.sin(dLng / 2) *
+      Math.sin(dLng / 2) *
+      Math.cos(lat1) *
+      Math.cos(lat2)
+
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+
+  return R * c
+}
+
+function formatDistance(km: number | null) {
+  if (km === null) return "المسافة غير معروفة"
+
+  if (km < 1) {
+    return `${Math.round(km * 1000)} متر منك`
+  }
+
+  return `${km.toFixed(1)} كم منك`
+}
+
 function FlyToReport({ target }: any) {
   const map = useMap()
 
@@ -150,7 +204,7 @@ function MapZoomTracker({ setMapZoom }: any) {
 }
 
 function App() {
-  const [reports, setReports] = useState(startingReports)
+  const [reports, setReports] = useState<ReportItem[]>(startingReports)
 
 useEffect(() => {
   const unsubscribe = onSnapshot(collection(db, "reports"), (snapshot) => {
@@ -171,7 +225,65 @@ useEffect(() => {
 const [mapZoom, setMapZoom] = useState(12)
   const [mapTarget, setMapTarget] = useState<any>(null)
   
-  
+ async function helperRespond(report: any) {
+  if (report.helperComing) {
+  alert("✅ المساعدة قادمة بالفعل")
+  return
+}
+
+
+
+  setReports((prev: any[]) =>
+    prev.map((r) =>
+      r.id === report.id
+        ? {
+            ...r,
+            helperComing: true,
+            resolved: false,
+            helperStatus: "بالطريق",
+            helpers: 1,
+            joined: true,
+          }
+        : r
+    )
+  )
+
+  alert("🚑 تم إبلاغ صاحب الدراجة أن المساعدة في الطريق")
+} 
+
+function helperArrived(report: any) {
+  setReports((prev: any[]) =>
+    prev.map((r) =>
+      r.id === report.id
+        ? {
+            ...r,
+            helperArrived: true,
+            helperStatus: "وصل للموقع",
+          }
+        : r
+    )
+  )
+
+  alert("📍 تم تسجيل وصول المساعدة للموقع")
+}
+
+function resolveReport(report: any) {
+  setReports((prev: any[]) =>
+    prev.map((r) =>
+      r.id === report.id
+        ? {
+            ...r,
+            resolved: true,
+solvedAt: Date.now(),
+helperStatus: "تم حل المشكلة",
+          }
+        : r
+    )
+  )
+
+  alert("✅ تم تسجيل حل المشكلة")
+}
+
   useEffect(() => {
   const timer = setInterval(() => {
     setReports((prev: any) =>
@@ -204,6 +316,10 @@ const fakeReports = [
     emoji: "🚗",
     priority: "high",
     expiry: 45,
+    helperComing: false,
+    helperArrived: false,
+    helperStatus: "",
+    helpers: 0,
   },
 
   {
@@ -216,6 +332,10 @@ const fakeReports = [
     emoji: "⚠️",
     priority: "high",
     expiry: 60,
+    helperComing: false,
+    helperArrived: false,
+    helperStatus: "",
+    helpers: 0,
   },
 
   {
@@ -228,6 +348,11 @@ const fakeReports = [
     emoji: "🛵",
     priority: "medium",
     expiry: 35,
+    helperComing: false,
+    helperArrived: false,
+    resolved: false,
+    helperStatus: "",
+    helpers: 0,
   },
 ]
 
@@ -237,13 +362,14 @@ const fakeReports = [
     const randomReport =
       fakeReports[Math.floor(Math.random() * fakeReports.length)]
 
-    const newReport = {
-      ...randomReport,
-      createdAt: Date.now(),
-      expiry: randomReport.expiry || 45,
-      lat: randomReport.lat + (Math.random() - 0.5) * 0.01,
-      lng: randomReport.lng + (Math.random() - 0.5) * 0.01,
-    }
+const newReport = {
+  ...randomReport,
+  createdAt: Date.now(),
+  resolved: false,
+  expiry: randomReport.expiry || 45,
+  lat: randomReport.lat + (Math.random() - 0.5) * 0.01,
+  lng: randomReport.lng + (Math.random() - 0.5) * 0.01,
+}
 
    addDoc(collection(db, "reports"), newReport)
 
@@ -260,7 +386,14 @@ const fakeReports = [
         const minutesPassed =
           Math.floor((Date.now() - r.createdAt) / 1000 / 60)
 
-        return minutesPassed < r.expiry || 45
+        if (r.resolved && r.solvedAt) {
+  const solvedMinutes =
+    Math.floor((Date.now() - r.solvedAt) / 1000 / 60)
+
+  if (solvedMinutes >= 1) return false
+}
+
+return minutesPassed < (r.expiry || 45)
       })
     )
 
@@ -321,14 +454,26 @@ helperComing: false,
   return () => clearInterval(interval)
 }, [])
 
-  useEffect(() => {
-    navigator.geolocation.getCurrentPosition((position) => {
+useEffect(() => {
+  const watchId = navigator.geolocation.watchPosition(
+    (position) => {
       setMyLocation([
         position.coords.latitude,
         position.coords.longitude,
       ])
-    })
-  }, [])
+    },
+    (error) => {
+      console.log("GPS error:", error)
+    },
+    {
+      enableHighAccuracy: true,
+      maximumAge: 5000,
+      timeout: 10000,
+    }
+  )
+
+  return () => navigator.geolocation.clearWatch(watchId)
+}, [])
 
   useEffect(() => {
   const moveInterval = setInterval(() => {
@@ -387,19 +532,6 @@ function createUserReport(type: any) {
 }
 
 
-async function helperRespond(report: any) {
-  console.log("HELPER CLICKED ID:", report.id)
-
-  await updateDoc(doc(db, "reports", report.id), {
-    helperComing: true,
-    helperStatus: "بالطريق",
-    helpers: (report.helpers || 0) + 1,
-    joined: true,
-  })
-
-  setSelectedReport(null)
-}
-
 const visibleReports = reports.filter((r: any) => {
   if (mapZoom >= 14) return true
   if (mapZoom >= 12) return r.priority !== "low"
@@ -423,6 +555,26 @@ const visibleReports = reports.filter((r: any) => {
         <MapZoomTracker setMapZoom={setMapZoom} />
 
         <MyLocation position={myLocation} />
+
+        {myLocation && (
+  <div
+    style={{
+      position: "absolute",
+      top: "95px",
+      left: "20px",
+      zIndex: 9999,
+      background: "#00c853",
+      color: "white",
+      padding: "8px 12px",
+      borderRadius: "12px",
+      fontWeight: "bold",
+      fontSize: "13px",
+      boxShadow: "0 4px 10px rgba(0,0,0,0.3)"
+    }}
+  >
+    GPS مباشر ✅
+  </div>
+)}
 
         <button
   onClick={() => setShowReportModal(true)}
@@ -460,7 +612,14 @@ const visibleReports = reports.filter((r: any) => {
     return priorityOrder[b.priority] - priorityOrder[a.priority]
   }
 
-  return b.createdAt - a.createdAt
+  const distanceA = calculateDistance(myLocation, [a.lat, a.lng]) ?? 999999
+const distanceB = calculateDistance(myLocation, [b.lat, b.lng]) ?? 999999
+
+if (distanceA !== distanceB) {
+  return distanceA - distanceB
+}
+
+return b.createdAt - a.createdAt
 })
   .map((r, index) => (
 
@@ -469,7 +628,7 @@ const visibleReports = reports.filter((r: any) => {
 
   key={index}
   position={[r.lat, r.lng]}
-  icon={makeIcon(r.helperComing ? "🟢" : r.emoji, r.color)}
+  icon={makeIcon(r.helperComing ? "🟢" : r.emoji, r.helperComing ? "#16a34a" : r.color)}
   eventHandlers={{
     click: () => setSelectedReport(r),
   }}
@@ -480,8 +639,87 @@ const visibleReports = reports.filter((r: any) => {
         <br />
         {r.area}
         <br />
-        {r.distance}
+        {formatDistance(calculateDistance(myLocation, [r.lat, r.lng]))}
         <br />
+
+        <button
+  onClick={() =>
+    window.open(
+      `https://www.google.com/maps?q=${r.lat},${r.lng}`,
+      "_blank"
+    )
+  }
+  style={{
+    marginTop: 8,
+    padding: "6px 10px",
+    borderRadius: 8,
+    border: "none",
+    background: "#2563eb",
+    color: "white",
+    cursor: "pointer",
+    fontWeight: "bold"
+  }}
+>
+  📍 افتح الطريق
+</button>
+
+<button
+  onClick={() => !r.helperComing && helperRespond(r)}
+  style={{
+    marginTop: 8,
+    padding: "6px 10px",
+    borderRadius: 8,
+    border: "none",
+    background: "#16a34a",
+    color: "white",
+    cursor: "pointer",
+    fontWeight: "bold",
+    display: "block",
+    width: "100%"
+  }}
+>
+ {r.helperComing ? "✅ المساعدة بالطريق" : "🚑 أنا جاي أساعدك"}
+</button>
+
+{r.helperComing && (
+  <button
+    onClick={() => helperArrived(r)}
+    style={{
+      marginTop: 8,
+      padding: "6px 10px",
+      borderRadius: 8,
+      border: "none",
+      background: "#0f766e",
+      color: "white",
+      cursor: "pointer",
+      fontWeight: "bold",
+      display: "block",
+      width: "100%"
+    }}
+  >
+  {r.helperArrived ? "✅ المساعدة وصلت" : "📍 وصلت للموقع"}
+  </button>
+)}
+
+{r.helperArrived && !r.resolved && (
+  <button
+    onClick={() => resolveReport(r)}
+    style={{
+      marginTop: 8,
+      padding: "6px 10px",
+      borderRadius: 8,
+      border: "none",
+      background: "#22c55e",
+      color: "white",
+      cursor: "pointer",
+      fontWeight: "bold",
+      display: "block",
+      width: "100%"
+    }}
+  >
+    {r.resolved ? "✅ تم حل المشكلة" : "🛠️ تم حل المشكلة"}
+  </button>
+)}
 
         <p style={{ color: "#94a3b8", marginTop: 6 }}>
           {timeAgo(r.createdAt)}
@@ -534,11 +772,11 @@ const visibleReports = reports.filter((r: any) => {
         </div>
 
         <button
-          onClick={() => {
-            if (myLocation) {
-              alert("تم تحديد موقعك")
-            }
-          }}
+onClick={() => {
+  if (myLocation) {
+    setMapTarget(myLocation)
+  }
+}}
           style={{
             background: "white",
             color: "#020617",
@@ -576,15 +814,71 @@ const visibleReports = reports.filter((r: any) => {
     fontWeight: "bold",
     marginTop: 4
   }}>
-    🟢 {r.helpers || 1} مساعد بالطريق • يصل خلال 3 دقائق
+{r.helperArrived ? (
+  <>✅ المساعدة وصلت للموقع</>
+) : (
+  <>🟢 {r.helpers || 1} مساعد بالطريق • يصل خلال 3 دقائق</>
+)}
   </div>
 )}
 
 </div>
 
-<button onClick={() => helperRespond(r)} style={{ background: "white", border: "none", borderRadius: 12, padding: "9px 12px", fontWeight: "bold" }}>
-  أنا قريب
-</button>
+{r.resolved ? (
+  <button
+    style={{
+      background: "#22c55e",
+      color: "white",
+      border: "none",
+      borderRadius: 12,
+      padding: "9px 12px",
+      fontWeight: "bold"
+    }}
+  >
+    ✅ تم الحل
+  </button>
+) : r.helperArrived ? (
+  <button
+    onClick={() => resolveReport(r)}
+    style={{
+      background: "#22c55e",
+      color: "white",
+      border: "none",
+      borderRadius: 12,
+      padding: "9px 12px",
+      fontWeight: "bold"
+    }}
+  >
+    🛠️ تم حل المشكلة
+  </button>
+) : r.helperComing ? (
+  <button
+    onClick={() => helperArrived(r)}
+    style={{
+      background: "#0f766e",
+      color: "white",
+      border: "none",
+      borderRadius: 12,
+      padding: "9px 12px",
+      fontWeight: "bold"
+    }}
+  >
+    📍 وصلت للموقع
+  </button>
+) : (
+  <button
+    onClick={() => helperRespond(r)}
+    style={{
+      background: "white",
+      border: "none",
+      borderRadius: 12,
+      padding: "9px 12px",
+      fontWeight: "bold"
+    }}
+  >
+    أنا قريب
+  </button>
+)}
           </div>
      ))}
      </div>
