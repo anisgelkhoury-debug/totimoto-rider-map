@@ -24,6 +24,11 @@ type ReportItem = {
   helperStatus?: string
   helpers?: number
   joined?: boolean
+helperLat?: number
+helperLng?: number
+helperTargetLat?: number
+helperTargetLng?: number
+helperMoving?: boolean
 }
 
 const reportTypes = [
@@ -238,15 +243,35 @@ const [mapZoom, setMapZoom] = useState(12)
       r.id === report.id
         ? {
             ...r,
-            helperComing: true,
-            resolved: false,
-            helperStatus: "بالطريق",
-            helpers: 1,
-            joined: true,
+helperComing: true,
+resolved: false,
+helperStatus: "بالطريق",
+helpers: 1,
+joined: true,
+helperLat: r.lat + 0.02,
+helperLng: r.lng + 0.02,
+helperTargetLat: r.lat,
+helperTargetLng: r.lng,
+helperMoving: true,
           }
         : r
     )
   )
+
+if (report.id) {
+  await updateDoc(doc(db, "reports", report.id), {
+    helperComing: true,
+    resolved: false,
+    helperStatus: "بالطريق",
+    helpers: 1,
+    joined: true,
+    helperLat: report.lat + 0.006,
+    helperLng: report.lng + 0.006,
+    helperTargetLat: report.lat,
+    helperTargetLng: report.lng,
+    helperMoving: true,
+  })
+}  
 
   alert("🚑 تم إبلاغ صاحب الدراجة أن المساعدة في الطريق")
 } 
@@ -373,34 +398,63 @@ const newReport = {
 
    addDoc(collection(db, "reports"), newReport)
 
-  }, 45000)
+  }, 9999999)
 
   return () => clearInterval(interval)
 
   const timer = setInterval(() => {
 
+    console.log("TIMER RUNNING")
+
     forceUpdate(prev => prev + 1)
 
-    setReports(prev =>
-      prev.filter(r => {
-        const minutesPassed =
-          Math.floor((Date.now() - r.createdAt) / 1000 / 60)
+setReports(prev =>
+  prev
+    .map((r: any) => {
 
-        if (r.resolved && r.solvedAt) {
-  const solvedMinutes =
-    Math.floor((Date.now() - r.solvedAt) / 1000 / 60)
+      console.log("CHECK REPORT", r.type, r.helperMoving, r.helperLat, r.helperLng)
 
-  if (solvedMinutes >= 1) return false
-}
+      if (!r.helperMoving) return r
+      if (!r.helperLat || !r.helperLng || !r.helperTargetLat || !r.helperTargetLng) return r
 
-return minutesPassed < (r.expiry || 45)
-      })
-    )
+      const nextLat = r.helperLat + (r.helperTargetLat - r.helperLat) * 0.18
+      const nextLng = r.helperLng + (r.helperTargetLng - r.helperLng) * 0.18
+
+      console.log("HELPER MOVING", nextLat, nextLng)
+
+      const closeEnough =
+        Math.abs(nextLat - r.helperTargetLat) < 0.00015 &&
+        Math.abs(nextLng - r.helperTargetLng) < 0.00015
+
+      return {
+        ...r,
+        helperLat: nextLat,
+        helperLng: nextLng,
+        helperMoving: !closeEnough,
+        helperArrived: closeEnough ? true : r.helperArrived,
+        helperStatus: closeEnough ? "وصل للموقع" : r.helperStatus,
+      }
+    })
+    .filter((r: any) => {
+      const minutesPassed =
+        Math.floor((Date.now() - r.createdAt) / 1000 / 60)
+
+      if (r.resolved && r.solvedAt) {
+        const solvedMinutes =
+          Math.floor((Date.now() - r.solvedAt) / 1000 / 60)
+
+        if (solvedMinutes >= 1) return false
+      }
+
+      return minutesPassed < (r.expiry || 45)
+    })
+)
 
   }, 1000)
 
   return () => clearInterval(timer)
 }, [])
+
 
 const needsHelper =
   selectedReport?.type === "حادث" ||
@@ -603,6 +657,17 @@ const visibleReports = reports.filter((r: any) => {
           </Marker>
         )}
 
+{visibleReports.map((r: any) =>
+  r.helperComing && r.helperLat && r.helperLng && !r.resolved ? (
+    <Marker
+      key={`helper-${r.id}`}
+      position={[r.helperLat, r.helperLng]}
+      icon={makeIcon("🟢", "#00ff00")}
+    >
+      <Popup>HELPER MARKER HERE</Popup>
+    </Marker>
+  ) : null
+)}
 
 {[...visibleReports]
 .sort((a, b) => {
