@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { Fragment, useEffect, useState } from "react"
 import { MapContainer, TileLayer, Marker, Popup, useMap, Circle, useMapEvents } from "react-leaflet"
 import "leaflet/dist/leaflet.css"
 import L, { DivIcon } from "leaflet"
@@ -32,6 +32,7 @@ helperMoving?: boolean
 }
 
 const reportTypes = [
+  { label: "بلاغ عن دراجة مسروقة", emoji: "🚨", color: "#7f1d1d", expiry: 43200, priority: "high" },
   { label: "زحمة", emoji: "🚗", color: "#dc2626", expiry: 15, priority: "high" },
   { label: "حادث", emoji: "⚠️", color: "#f97316", expiry: 45, priority: "high" },
   { label: "طريق مسكر", emoji: "⛔", color: "#1d4ed8", expiry: 45, priority: "high" },
@@ -229,6 +230,57 @@ useEffect(() => {
   const [showReportModal, setShowReportModal] = useState(false)
 const [mapZoom, setMapZoom] = useState(12)
   const [mapTarget, setMapTarget] = useState<any>(null)
+  const [showStolenModal, setShowStolenModal] = useState(false)
+
+const [stolenBikeType, setStolenBikeType] = useState("")
+const [stolenBikeColor, setStolenBikeColor] = useState("")
+const [stolenBikePlate, setStolenBikePlate] = useState("")
+const [stolenBikePhone, setStolenBikePhone] = useState("")
+const [stolenBikePlace, setStolenBikePlace] = useState("")
+const [stolenBikeDate, setStolenBikeDate] = useState("")
+const [stolenBikeTime, setStolenBikeTime] = useState("")
+
+async function submitStolenBikeReport() {
+  try {
+
+    const reportData = {
+      id: Date.now(),
+
+      type: "بلاغ عن دراجة مسروقة",
+      emoji: "🚨",
+      priority: "high",
+
+      stolenBikeType,
+      stolenBikeColor,
+      stolenBikePlate,
+      stolenBikePhone,
+      stolenBikePlace,
+      stolenBikeDate,
+      stolenBikeTime,
+
+      lat: myLocation?.[0] || 0,
+      lng: myLocation?.[1] || 0,
+
+      createdAt: Date.now()
+    }
+
+    await addDoc(
+      collection(db, "reports"),
+      reportData
+    )
+
+    setShowStolenModal(false)
+
+    alert("✅ تم نشر البلاغ")
+
+  } catch (error) {
+
+    console.error(error)
+
+    alert("❌ فشل نشر البلاغ")
+
+  }
+}
   
  async function helperRespond(report: any) {
   if (report.helperComing) {
@@ -463,6 +515,14 @@ const needsHelper =
   selectedReport?.type === "عطل بالدراجة"
 
 function addReport(type: string, color: string, emoji: string) {
+  console.log("TYPE RECEIVED:", type)
+
+if (type.includes("مسروقة")) {
+  setShowReportModal(false)
+  setShowStolenModal(true)
+  return
+}
+
   if (!myLocation) return
 
   const newReport = {
@@ -691,9 +751,12 @@ return b.createdAt - a.createdAt
 <>
 <Marker
 
-  key={index}
+  key={r.id || `${r.lat}-${r.lng}-${r.createdAt}`}
   position={[r.lat, r.lng]}
-  icon={makeIcon(r.helperComing ? "🟢" : r.emoji, r.helperComing ? "#16a34a" : r.color)}
+icon={makeIcon(
+  r.type?.includes("مسروقة") ? "🚨" : r.helperComing ? "🟢" : r.emoji,
+  r.type?.includes("مسروقة") ? "#dc2626" : r.helperComing ? "#16a34a" : r.color
+)}
   eventHandlers={{
     click: () => setSelectedReport(r),
   }}
@@ -788,19 +851,22 @@ return b.createdAt - a.createdAt
 
         <p style={{ color: "#94a3b8", marginTop: 6 }}>
           {timeAgo(r.createdAt)}
-          <div style={{
+          <span style={{
   color: "#ffcc70",
   fontSize: 12,
   marginTop: 4
 }}>
   ⏳ {timeLeft(r)}
-</div>
+</span>
         </p>
       </div>
     </Popup>
   </Marker>
 {r.priority === "high" && (
-<>
+ <Fragment key={r.id || `${r.type}-${r.lat}-${r.lng}-${r.createdAt}`}>
+
+
+
   <Circle
     center={[r.lat, r.lng]}
     radius={40}
@@ -822,7 +888,7 @@ return b.createdAt - a.createdAt
       weight: r.priority === "high" ? 2 : 1
     }}
   />
-</>
+</Fragment>
 )}
 </>
 ))}
@@ -860,7 +926,24 @@ onClick={() => {
         <div style={{ color: "white", fontWeight: "bold", marginBottom: 10 }}>بلاغات قريبة</div>
 
 {reports.map((r, index) => (
-  <div key={index} onClick={() => setMapTarget([r.lat, r.lng])} style={{ background: "#111827", borderRadius: 16, padding: 12, marginBottom: 8, display: "flex", alignItems: "center", gap: 10 }}>
+
+<div
+  key={r.id || `${r.type}-${r.lat}-${r.lng}-${r.createdAt}`}
+  onClick={() => {
+    
+    setMapTarget([r.lat + Math.random() * 0.000001, r.lng])
+  }}
+  style={{
+    background: "#111827",
+    borderRadius: 16,
+    padding: 12,
+    marginBottom: 8,
+    display: "flex",
+    alignItems: "center",
+    gap: 10
+  }}
+>
+
     <div style={{ background: r.color, width: 40, height: 40, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center" }}>
       {r.emoji}
     </div>
@@ -995,7 +1078,14 @@ onClick={() => {
   {reportTypes.map((type) => (
     <button
       key={type.label}
-      onClick={() => createUserReport(type)}
+      onClick={() => {
+  if (type.label.includes("مسروقة")) {
+    setShowReportModal(false)
+    setShowStolenModal(true)
+    return
+  }
+  createUserReport(type)
+}}
       style={{
         padding: "14px",
         borderRadius: 18,
@@ -1019,6 +1109,36 @@ onClick={() => {
 >
   إغلاق
 </button>
+    </div>
+  </div>
+)}
+
+{showStolenModal && (
+  <div style={{ position: "fixed", inset: 0, zIndex: 3000, background: "rgba(0,0,0,.65)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+    <div style={{ background: "#020617", width: "100%", maxWidth: 430, borderRadius: 28, padding: 22, textAlign: "center", direction: "rtl", color: "white" }}>
+      <h2>🚨 الإبلاغ عن دراجة مسروقة</h2>
+
+      <p style={{ color: "#fca5a5", fontSize: 13 }}>
+        صورة الدراجة إلزامية لتجنب أي التباس أو مشاكل مع الآخرين
+      </p>
+
+<input value={stolenBikeType} onChange={(e) => setStolenBikeType(e.target.value)} placeholder="🏍️ نوع الدراجة" style={{ width: "100%", padding: 14, marginTop: 10, borderRadius: 14 }} />
+<input value={stolenBikeColor} onChange={(e) => setStolenBikeColor(e.target.value)} placeholder="🎨 اللون" style={{ width: "100%", padding: 14, marginTop: 10, borderRadius: 14 }} />
+<input value={stolenBikePlate} onChange={(e) => setStolenBikePlate(e.target.value)} placeholder="🔢 رقم اللوحة إذا موجود" style={{ width: "100%", padding: 14, marginTop: 10, borderRadius: 14 }} />
+<input value={stolenBikePhone} onChange={(e) => setStolenBikePhone(e.target.value)} placeholder="📞 رقم التواصل" style={{ width: "100%", padding: 14, marginTop: 10, borderRadius: 14 }} />
+<input value={stolenBikePlace} onChange={(e) => setStolenBikePlace(e.target.value)} placeholder="📍 مكان السرقة" style={{ width: "100%", padding: 14, marginTop: 10, borderRadius: 14 }} />
+<input value={stolenBikeDate} onChange={(e) => setStolenBikeDate(e.target.value)} type="date" style={{ width: "100%", padding: 14, marginTop: 10, borderRadius: 14 }} />
+<input value={stolenBikeTime} onChange={(e) => setStolenBikeTime(e.target.value)} type="time" style={{ width: "100%", padding: 14, marginTop: 10, borderRadius: 14 }} />
+
+      <input type="file" accept="image/*" style={{ width: "100%", padding: 14, marginTop: 10, borderRadius: 14, background: "white", color: "black" }} />
+
+      <button onClick={submitStolenBikeReport} style={{ width: "100%", padding: 15, marginTop: 14, borderRadius: 16, border: "none", background: "#dc2626", color: "white", fontWeight: "bold" }}>
+        🚨 نشر البلاغ
+      </button>
+
+      <button onClick={() => setShowStolenModal(false)} style={{ width: "100%", padding: 14, marginTop: 10, borderRadius: 16, border: "none" }}>
+        إلغاء
+      </button>
     </div>
   </div>
 )}
