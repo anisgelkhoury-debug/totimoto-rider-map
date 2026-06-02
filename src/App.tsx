@@ -244,6 +244,9 @@ const [stolenBikePlace, setStolenBikePlace] = useState("")
 const [stolenBikeDate, setStolenBikeDate] = useState("")
 const [stolenBikeTime, setStolenBikeTime] = useState("")
 
+const [stolenBikeImage, setStolenBikeImage] = useState<any>(null)
+const [stolenBikeImagePreview, setStolenBikeImagePreview] = useState<string>("")
+
 async function submitStolenBikeReport() {
   try {
 
@@ -1144,7 +1147,31 @@ onClick={() => {
 <input value={stolenBikeDate} onChange={(e) => setStolenBikeDate(e.target.value)} type="date" style={{ width: "100%", padding: 14, marginTop: 10, borderRadius: 14 }} />
 <input value={stolenBikeTime} onChange={(e) => setStolenBikeTime(e.target.value)} type="time" style={{ width: "100%", padding: 14, marginTop: 10, borderRadius: 14 }} />
 
-      <input type="file" accept="image/*" style={{ width: "100%", padding: 14, marginTop: 10, borderRadius: 14, background: "white", color: "black" }} />
+    <input
+  type="file"
+  accept="image/*"
+  onChange={(e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setStolenBikeImage(file)
+    setStolenBikeImagePreview(URL.createObjectURL(file))
+  }}
+  style={{ width: "100%", padding: 14, marginTop: 10, borderRadius: 14, background: "white", color: "black" }}
+/>
+
+{stolenBikeImagePreview && (
+  <img
+    src={stolenBikeImagePreview}
+    style={{
+      width: "100%",
+      maxHeight: 180,
+      objectFit: "cover",
+      borderRadius: 16,
+      marginTop: 10
+    }}
+  />
+)}
 
       <button onClick={submitStolenBikeReport} style={{ width: "100%", padding: 15, marginTop: 14, borderRadius: 16, border: "none", background: "#dc2626", color: "white", fontWeight: "bold" }}>
         🚨 نشر البلاغ
