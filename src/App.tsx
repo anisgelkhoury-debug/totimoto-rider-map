@@ -235,6 +235,7 @@ useEffect(() => {
 const [mapZoom, setMapZoom] = useState(12)
   const [mapTarget, setMapTarget] = useState<any>(null)
   const [showStolenModal, setShowStolenModal] = useState(false)
+const [showMobileDashboard, setShowMobileDashboard] = useState(true)
 
 const [stolenBikeType, setStolenBikeType] = useState("")
 const [stolenBikeColor, setStolenBikeColor] = useState("")
@@ -696,6 +697,9 @@ const visibleReports = reports.filter((r: any) => {
     bottom: "30px",
     left: "28px",
     zIndex: 2000,
+
+    display: showMobileDashboard && window.innerWidth <= 600 ? "none" : "block",
+
     background: "#dc2626",
     color: "white",
     border: "none",
@@ -1041,7 +1045,28 @@ onClick={() => {
      ))}
      </div>
 
-      <div style={{ position: "absolute", bottom: 0, right: 0, left: 0, zIndex: 1500, background: "rgba(2,6,23,.96)", padding: 12, display: "flex", gap: 10, overflowX: "auto" }}>
+
+
+      {showMobileDashboard && (
+<div style={{ position: window.innerWidth <= 600 ? "fixed" : "absolute", bottom: 0, right: 0, left: 0, zIndex: 1500, background: "rgba(2,6,23,.96)", padding: window.innerWidth <= 600 ? 8 : 12, display: window.innerWidth <= 600 ? "grid" : "flex", gridTemplateColumns: window.innerWidth <= 600 ? "repeat(3, 1fr)" : undefined, gap: 10, overflowX: window.innerWidth <= 600 ? "hidden" : "auto" }}>
+        <button
+  onClick={() => setShowMobileDashboard(false)}
+  style={{
+position: "fixed",
+bottom: 185,
+right: 12,
+display: window.innerWidth <= 600 ? "block" : "none",
+    background: "#111827",
+    color: "white",
+    border: "none",
+    borderRadius: 999,
+    padding: "10px 14px",
+    fontWeight: "bold",
+    zIndex: 2001
+  }}
+>
+  👁️ إخفاء
+</button>
         {reportTypes.map((btn) => (
           <button key={btn.label} onClick={() => {
 
@@ -1053,13 +1078,13 @@ onClick={() => {
   setSelectedType(btn)
   addReport(btn.label, btn.color, btn.emoji)
 
-}} style={{ minWidth: 108, border: "none", borderRadius: 18, padding: "13px 10px", background: btn.color, color: "white", fontWeight: "bold", fontSize: 14 }}>
+}} style={{ minWidth: window.innerWidth <= 600 ? 0 : 108, border: "none", borderRadius: 1, padding: "1px 1px", background: btn.color, color: "white", fontWeight: "bold", fontSize: 12 }}>
             <div style={{ fontSize: 23 }}>{btn.emoji}</div>
             {btn.label}
           </button>
         ))}
       </div>
-
+)}
       {selectedType && (
         <div style={{ position: "fixed", inset: 0, zIndex: 2000, background: "rgba(0,0,0,.35)", display: "flex", alignItems: "end", justifyContent: "center", padding: 20 }}>
           <div style={{
@@ -1085,6 +1110,26 @@ onClick={() => {
           </div>
         </div>
       )}
+
+  {!showMobileDashboard && window.innerWidth <= 600 && (
+  <button
+    onClick={() => setShowMobileDashboard(true)}
+    style={{
+      position: "fixed",
+      bottom: 10,
+      right: 12,
+      zIndex: 2000,
+      background: "#dc2626",
+      color: "white",
+      border: "none",
+      borderRadius: 999,
+      padding: "14px 24px",
+      fontWeight: "bold"
+    }}
+  >
+    👁️ إظهار الأدوات
+  </button>
+)}    
 
 {showReportModal && (
   <div style={{ position: "fixed", inset: 0, zIndex: 2500, background: "rgba(0,0,0,0.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
