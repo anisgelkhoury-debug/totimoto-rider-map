@@ -219,6 +219,10 @@ useEffect(() => {
       ...doc.data(),
     }))
 
+    console.log("LIVE REPORTS")
+    console.log(liveReports)
+
+
     setReports(liveReports)
   })
 
@@ -250,6 +254,15 @@ async function submitStolenBikeReport() {
       emoji: "🚨",
       priority: "high",
 
+      area: "موقعك الحالي",
+distance: "الآن",
+color: "#7f1d1d",
+expiry: 43200,
+helperComing: false,
+helperArrived: false,
+helpers: 0,
+resolved: false,
+
       stolenBikeType,
       stolenBikeColor,
       stolenBikePlate,
@@ -263,6 +276,8 @@ async function submitStolenBikeReport() {
 
       createdAt: Date.now()
     }
+
+alert(JSON.stringify(reportData, null, 2))
 
     await addDoc(
       collection(db, "reports"),
@@ -282,51 +297,32 @@ async function submitStolenBikeReport() {
   }
 }
   
- async function helperRespond(report: any) {
+async function helperRespond(report: any) {
   if (report.helperComing) {
-  alert("✅ المساعدة قادمة بالفعل")
-  return
+    alert("✅ المساعدة قادمة بالفعل")
+    return
+  }
+
+  try {
+   await updateDoc(doc(db, "reports", String(report.id)), {
+      helperComing: true,
+      resolved: false,
+      helperStatus: "بالطريق",
+      helpers: 1,
+      joined: true,
+      helperLat: report.lat + 0.02,
+      helperLng: report.lng + 0.02,
+      helperTargetLat: report.lat,
+      helperTargetLng: report.lng,
+      helperMoving: true
+    })
+
+    alert("✅ أنت قريب - المساعدة بالطريق")
+  } catch (error) {
+    console.error(error)
+    alert("❌ فشل تحديث المساعدة")
+  }
 }
-
-
-
-  setReports((prev: any[]) =>
-    prev.map((r) =>
-      r.id === report.id
-        ? {
-            ...r,
-helperComing: true,
-resolved: false,
-helperStatus: "بالطريق",
-helpers: 1,
-joined: true,
-helperLat: r.lat + 0.02,
-helperLng: r.lng + 0.02,
-helperTargetLat: r.lat,
-helperTargetLng: r.lng,
-helperMoving: true,
-          }
-        : r
-    )
-  )
-
-if (report.id) {
-  await updateDoc(doc(db, "reports", report.id), {
-    helperComing: true,
-    resolved: false,
-    helperStatus: "بالطريق",
-    helpers: 1,
-    joined: true,
-    helperLat: report.lat + 0.006,
-    helperLng: report.lng + 0.006,
-    helperTargetLat: report.lat,
-    helperTargetLng: report.lng,
-    helperMoving: true,
-  })
-}  
-
-  alert("🚑 تم إبلاغ صاحب الدراجة أن المساعدة في الطريق")
-} 
 
 function helperArrived(report: any) {
   setReports((prev: any[]) =>
@@ -758,7 +754,10 @@ icon={makeIcon(
   r.type?.includes("مسروقة") ? "#dc2626" : r.helperComing ? "#16a34a" : r.color
 )}
   eventHandlers={{
-    click: () => setSelectedReport(r),
+    click: () => {
+ 
+  setSelectedReport(r)
+},
   }}
 >
     <Popup>
@@ -790,9 +789,9 @@ icon={makeIcon(
 >
   📍 افتح الطريق
 </button>
-
+{!r.type?.includes("مسروقة") && (
 <button
-  onClick={() => !r.helperComing && helperRespond(r)}
+  onClick={() => setSelectedReport(r)}
   style={{
     marginTop: 8,
     padding: "6px 10px",
@@ -808,8 +807,8 @@ icon={makeIcon(
 >
  {r.helperComing ? "✅ المساعدة بالطريق" : "🚑 أنا جاي أساعدك"}
 </button>
-
-{r.helperComing && (
+)}
+{r.helperComing && !r.type?.includes("مسروقة") && (
   <button
     onClick={() => helperArrived(r)}
     style={{
@@ -863,7 +862,7 @@ icon={makeIcon(
     </Popup>
   </Marker>
 {r.priority === "high" && (
- <Fragment key={r.id || `${r.type}-${r.lat}-${r.lng}-${r.createdAt}`}>
+ <Fragment key={`circle-${r.id || r.createdAt}-${index}`}>
 
 
 
@@ -929,10 +928,18 @@ onClick={() => {
 
 <div
   key={r.id || `${r.type}-${r.lat}-${r.lng}-${r.createdAt}`}
-  onClick={() => {
-    
-    setMapTarget([r.lat + Math.random() * 0.000001, r.lng])
-  }}
+
+onClick={() => {
+
+
+  console.log("NEARBY CLICK REPORT:", r)
+
+  setSelectedReport(r)
+
+  setMapTarget([r.lat + Math.random() * 0.000001, r.lng])
+
+}}
+
   style={{
     background: "#111827",
     borderRadius: 16,
@@ -1034,8 +1041,15 @@ onClick={() => {
       <div style={{ position: "absolute", bottom: 0, right: 0, left: 0, zIndex: 1500, background: "rgba(2,6,23,.96)", padding: 12, display: "flex", gap: 10, overflowX: "auto" }}>
         {reportTypes.map((btn) => (
           <button key={btn.label} onClick={() => {
+
+  if (btn.label.includes("مسروقة")) {
+    setShowStolenModal(true)
+    return
+  }
+
   setSelectedType(btn)
   addReport(btn.label, btn.color, btn.emoji)
+
 }} style={{ minWidth: 108, border: "none", borderRadius: 18, padding: "13px 10px", background: btn.color, color: "white", fontWeight: "bold", fontSize: 14 }}>
             <div style={{ fontSize: 23 }}>{btn.emoji}</div>
             {btn.label}
@@ -1143,112 +1157,90 @@ onClick={() => {
   </div>
 )}
 
-      {selectedReport && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 2000, background: "rgba(0,0,0,.55)", display: "flex", alignItems: "end", justifyContent: "center", padding: 20 }}>
-          <div style={{ background: "white", width: "100%", maxWidth: 420, borderRadius: 28, padding: 24 }}>
-            <div style={{ textAlign: "center", marginBottom: 20 }}>
-  <div style={{
-    fontSize: 52,
-    marginBottom: 10
-  }}>
-    {selectedReport.emoji}
-  </div>
+{selectedReport && (
+  <div style={{ position: "fixed", inset: 0, zIndex: 2000, background: "rgba(0,0,0,.55)", display: "flex", alignItems: "end", justifyContent: "center" }}>
+    {selectedReport.type?.includes("مسروقة") ? (
+      <div style={{ background: "white", width: "100%", maxWidth: 430, borderRadius: 28, padding: 24, textAlign: "center", direction: "rtl" }}>
+        <div style={{ fontSize: 52 }}>🚨</div>
 
-  <h2 style={{
-    margin: 0,
-    fontSize: 32,
-    fontWeight: "bold"
-  }}>
-    {selectedReport.type}
-  </h2>
+        <h2 style={{ margin: 0, fontSize: 30, fontWeight: "bold" }}>
+          بلاغ عن دراجة مسروقة
+        </h2>
 
-  <div style={{
-    color: "#94a3b8",
-    marginTop: 8,
-    fontSize: 15
-  }}>
-    {selectedReport.area}
+        <div style={{ marginTop: 18, textAlign: "right", lineHeight: 2 }}>
+<div>🏍️ نوع الدراجة: <b>{selectedReport.stolenBikeType || "غير محدد"}</b></div>
+<div>🎨 اللون: <b>{selectedReport.stolenBikeColor || "غير محدد"}</b></div>
+<div>🔢 رقم اللوحة: <b>{selectedReport.stolenBikePlate || "غير محدد"}</b></div>
+<div>📍 مكان السرقة: <b>{selectedReport.stolenBikePlace || selectedReport.area || "غير محدد"}</b></div>
+<div>🗓️ التاريخ: <b>{selectedReport.stolenBikeDate || "غير محدد"}</b></div>
+<div>⏰ الوقت: <b>{selectedReport.stolenBikeTime || "غير محدد"}</b></div>
+<div>📞 رقم التواصل: <b>{selectedReport.stolenBikePhone || "غير محدد"}</b></div>
+        </div>
 
-<div style={{
-  marginTop: 10,
-  display: "inline-block",
-  padding: "6px 12px",
-  borderRadius: 999,
-  background:
-    selectedReport.priority === "high" ? "#dc2626" :
-    selectedReport.priority === "medium" ? "#f97316" :
-    "#2563eb",
-  color: "white",
-  fontWeight: "bold",
-  fontSize: 13
-}}>
-  {selectedReport.priority === "high" ? "خطورة عالية" :
-   selectedReport.priority === "medium" ? "متوسط الخطورة" :
-   "منخفض الخطورة"}
-</div>
+        {selectedReport.stolenBikePhone && (
+          <>
+            <button
+              onClick={() => window.location.href = `tel:${selectedReport.stolenBikePhone}`}
+              style={{ width: "100%", padding: 16, borderRadius: 18, border: "none", background: "#16a34a", color: "white", fontWeight: "bold", fontSize: 18, marginTop: 20 }}
+            >
+              📞 اتصال بصاحب الدراجة
+            </button>
 
-  </div>
+            <button
+              onClick={() => window.open(`https://wa.me/${selectedReport.stolenBikePhone}`, "_blank")}
+              style={{ width: "100%", padding: 16, borderRadius: 18, border: "none", background: "#22c55e", color: "white", fontWeight: "bold", fontSize: 18, marginTop: 10 }}
+            >
+              💬 واتساب
+            </button>
+          </>
+        )}
 
-  <div style={{
-    marginTop: 10,
-    display: "inline-block",
-    background: "rgba(255,255,255,.08)",
-    padding: "8px 14px",
-    borderRadius: 999
-  }}>
-    {selectedReport.distance}
-    <div style={{
-  marginTop: 10,
-  color: "#facc15",
-  fontWeight: "bold",
-  fontSize: 14
-}}>
-  ⏳ {timeLeft(selectedReport)}
-</div>
-    {needsHelper && (
-<div style={{
-  marginTop: 14,
-  fontWeight: "bold",
-  color: "#16a34a",
-  fontSize: 16
-}}>
-  👥 {selectedReport.helpers} أشخاص قادمين للمساعدة
-<div style={{
-  marginTop: 8,
-  color: "#64748b",
-  fontSize: 14
-}}>
-  {selectedReport.helpersList?.join(" • ")}
-</div>
-</div>
+
+
+        <button
+          onClick={() => window.open(`https://www.google.com/maps?q=${selectedReport.lat},${selectedReport.lng}`, "_blank")}
+          style={{ width: "100%", padding: 16, borderRadius: 18, border: "none", background: "#2563eb", color: "white", fontWeight: "bold", fontSize: 18, marginTop: 10 }}
+        >
+          📍 فتح الموقع
+        </button>
+
+        <button
+          onClick={() => setSelectedReport(null)}
+          style={{ width: "100%", padding: 14, borderRadius: 18, border: "none", marginTop: 10, background: "#e5e7eb", fontWeight: "bold" }}
+        >
+          إغلاق
+        </button>
+      </div>
+    ) : (
+      <div style={{ background: "white", width: "100%", maxWidth: 420, borderRadius: 28, padding: 24, textAlign: "center" }}>
+        <div style={{ fontSize: 52, marginBottom: 10 }}>{selectedReport.emoji}</div>
+
+        <h2 style={{ margin: 0, fontSize: 32, fontWeight: "bold" }}>
+          {selectedReport.type}
+        </h2>
+
+        <div style={{ color: "#94a3b8", marginTop: 8, fontSize: 15 }}>
+          {selectedReport.area}
+        </div>
+{!selectedReport.type?.includes("مسروقة") &&
+ !selectedReport.helperComing && (
+        <button
+          disabled={selectedReport.joined}
+          onClick={() => helperRespond(selectedReport)}
+          style={{ width: "100%", padding: 16, borderRadius: 18, border: "none", background: "#16a34a", color: "white", fontWeight: "bold", fontSize: 18, marginTop: 20 }}
+        >
+          {selectedReport.joined ? "تم الانضمام ✅" : "أنا قريب"}
+        </button>
 )}
+        <button
+          onClick={() => setSelectedReport(null)}
+          style={{ width: "100%", padding: 14, borderRadius: 18, border: "none", marginTop: 10, background: "#e5e7eb", fontWeight: "bold" }}
+        >
+          إلغاء
+        </button>
+      </div>
+    )}
   </div>
-</div>
-
-<button
-  disabled={selectedReport.joined}
-  onClick={() => helperRespond(selectedReport)}
-  style={{ width: "100%", padding: 16, borderRadius: 18, border: "none", background: "#16a34a", color: "white", fontWeight: "bold", fontSize: 18 }}
->
-  {selectedReport.joined ? "تم الانضمام ✅" : "أنا قريب"}
-</button>
-
-<button
-  onClick={() => setSelectedReport(null)}
-  style={{
-    width: "100%",
-    padding: 14,
-    borderRadius: 18,
-    border: "none",
-    marginTop: 10,
-    background: "#e5e7eb",
-    fontWeight: "bold"
-  }}
->
-  إلغاء
-</button>
-</div>
-</div>
 )}
 </div>
 </>
