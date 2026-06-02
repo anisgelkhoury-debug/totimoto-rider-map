@@ -237,6 +237,10 @@ const [mapZoom, setMapZoom] = useState(12)
   const [showStolenModal, setShowStolenModal] = useState(false)
 const [showMobileDashboard, setShowMobileDashboard] = useState(true)
 
+const [showNearbyReports, setShowNearbyReports] = useState(true)
+const [expandNearbyReports, setExpandNearbyReports] = useState(false)
+
+
 const [stolenBikeType, setStolenBikeType] = useState("")
 const [stolenBikeColor, setStolenBikeColor] = useState("")
 const [stolenBikePlate, setStolenBikePlate] = useState("")
@@ -928,7 +932,8 @@ onClick={() => {
         </button>
       </div>
 
-      <div style={{ position: "absolute", bottom: 115, right: 14, left: 14, zIndex: 1000, background: "rgba(2,6,23,.92)", borderRadius: 26, padding: 14, maxHeight: 210, overflowY: "auto" }}>
+      {showNearbyReports && (
+<div style={{ position: "absolute", bottom: 115, right: 14, left: 14, zIndex: 1000, background: "rgba(2,6,23,.92)", borderRadius: 26, padding: 14, maxHeight: 210, overflowY: "auto" }}>
         <div style={{ color: "white", fontWeight: "bold", marginBottom: 10 }}>بلاغات قريبة</div>
 
 {reports.map((r, index) => (
@@ -1045,7 +1050,7 @@ onClick={() => {
      ))}
      </div>
 
-
+)}
 
       {showMobileDashboard && (
 <div style={{ position: window.innerWidth <= 600 ? "fixed" : "absolute", bottom: 0, right: 0, left: 0, zIndex: 1500, background: "rgba(2,6,23,.96)", padding: window.innerWidth <= 600 ? 8 : 12, display: window.innerWidth <= 600 ? "grid" : "flex", gridTemplateColumns: window.innerWidth <= 600 ? "repeat(3, 1fr)" : undefined, gap: 10, overflowX: window.innerWidth <= 600 ? "hidden" : "auto" }}>
