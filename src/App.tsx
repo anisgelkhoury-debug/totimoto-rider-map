@@ -214,10 +214,10 @@ function App() {
 
 useEffect(() => {
   const unsubscribe = onSnapshot(collection(db, "reports"), (snapshot) => {
-   const liveReports: any = snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    }))
+const liveReports: any = snapshot.docs.map((doc) => ({
+  ...doc.data(),
+  id: doc.id,
+}))
 
     console.log("LIVE REPORTS")
     console.log(liveReports)
@@ -753,9 +753,10 @@ if (distanceA !== distanceB) {
 
 return b.createdAt - a.createdAt
 })
-  .map((r, index) => (
 
-<>
+.map((r, index) => (
+
+<Fragment key={r.id || `${r.lat}-${r.lng}-${r.createdAt}-${index}`}>
 <Marker
 
   key={r.id || `${r.lat}-${r.lng}-${r.createdAt}`}
@@ -887,7 +888,7 @@ icon={makeIcon(
       weight: r.priority === "high" ? 3 : 1
     }}
   />
-<></>
+
   <Circle
     center={[r.lat, r.lng]}
     radius={60}
@@ -900,7 +901,7 @@ icon={makeIcon(
   />
 </Fragment>
 )}
-</>
+</Fragment>
 ))}
 
 </MapContainer>
@@ -936,7 +937,7 @@ onClick={() => {
 <div style={{ position: "absolute", bottom: 115, right: 14, left: 14, zIndex: 1000, background: "rgba(2,6,23,.92)", borderRadius: 26, padding: 14, maxHeight: 210, overflowY: "auto" }}>
         <div style={{ color: "white", fontWeight: "bold", marginBottom: 10 }}>بلاغات قريبة</div>
 
-{reports.map((r, index) => (
+{visibleReports.map((r, index) => (
 
 <div
   key={r.id || `${r.type}-${r.lat}-${r.lng}-${r.createdAt}`}
@@ -1080,7 +1081,7 @@ display: window.innerWidth <= 600 ? "block" : "none",
     return
   }
 
-  setSelectedType(btn)
+  
   addReport(btn.label, btn.color, btn.emoji)
 
 }} style={{ minWidth: window.innerWidth <= 600 ? 0 : 108, border: "none", borderRadius: 1, padding: "1px 1px", background: btn.color, color: "white", fontWeight: "bold", fontSize: 12 }}>
