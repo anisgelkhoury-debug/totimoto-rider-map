@@ -219,9 +219,6 @@ const liveReports: any = snapshot.docs.map((doc) => ({
   id: doc.id,
 }))
 
-    console.log("LIVE REPORTS")
-    console.log(liveReports)
-
 
     setReports(liveReports)
   })
@@ -460,7 +457,7 @@ const newReport = {
 
   const timer = setInterval(() => {
 
-    console.log("TIMER RUNNING")
+   
 
     forceUpdate(prev => prev + 1)
 
@@ -468,7 +465,7 @@ setReports(prev =>
   prev
     .map((r: any) => {
 
-      console.log("CHECK REPORT", r.type, r.helperMoving, r.helperLat, r.helperLng)
+      
 
       if (!r.helperMoving) return r
       if (!r.helperLat || !r.helperLng || !r.helperTargetLat || !r.helperTargetLng) return r
@@ -476,7 +473,7 @@ setReports(prev =>
       const nextLat = r.helperLat + (r.helperTargetLat - r.helperLat) * 0.18
       const nextLng = r.helperLng + (r.helperTargetLng - r.helperLng) * 0.18
 
-      console.log("HELPER MOVING", nextLat, nextLng)
+    
 
       const closeEnough =
         Math.abs(nextLat - r.helperTargetLat) < 0.00015 &&
@@ -519,7 +516,7 @@ const needsHelper =
   selectedReport?.type === "عطل بالدراجة"
 
 function addReport(type: string, color: string, emoji: string) {
-  console.log("TYPE RECEIVED:", type)
+ 
 
 if (type.includes("مسروقة")) {
   setShowReportModal(false)
@@ -581,7 +578,7 @@ useEffect(() => {
       ])
     },
     (error) => {
-      console.log("GPS error:", error)
+      // console.log("GPS error:", error)
     },
     {
       enableHighAccuracy: true,
@@ -945,7 +942,7 @@ onClick={() => {
 onClick={() => {
 
 
-  console.log("NEARBY CLICK REPORT:", r)
+
 
   setSelectedReport(r)
 
