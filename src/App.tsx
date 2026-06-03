@@ -941,9 +941,63 @@ onClick={() => {
       </div>
 
       {showNearbyReports && (
-<div style={{ position: "absolute", bottom: 115, right: 14, left: 14, zIndex: 1000, background: "rgba(2,6,23,.92)", borderRadius: 26, padding: 14, maxHeight: 210, overflowY: "auto" }}>
-        <div style={{ color: "white", fontWeight: "bold", marginBottom: 10 }}>بلاغات قريبة</div>
+<div style={{
+  position: "absolute",
+  bottom: 115,
+  right: 14,
+  left: 14,
+  zIndex: 1000,
+  background: "rgba(2,6,23,.92)",
+  borderRadius: 26,
+  padding: 14,
+  maxHeight: expandNearbyReports ? 420 : 210,
+  overflowY: "auto"
+}}>
 
+
+
+<div
+  style={{
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 10
+  }}
+>
+  <div style={{ color: "white", fontWeight: "bold" }}>
+    بلاغات قريبة
+  </div>
+
+  <div>
+  <button
+    onClick={() => setShowNearbyReports(false)}
+    style={{
+      background: "transparent",
+      color: "white",
+      border: "none",
+      fontSize: 14,
+      cursor: "pointer",
+      marginRight: 8
+    }}
+  >
+    👁️ إخفاء
+  </button>
+
+  <button
+    onClick={() => setExpandNearbyReports(!expandNearbyReports)}
+    style={{
+      background: "transparent",
+      color: "white",
+      border: "none",
+      fontSize: 18,
+      cursor: "pointer"
+    }}
+  >
+    {expandNearbyReports ? "🔽" : "🔼"}
+  </button>
+</div>
+</div>
+        
 {visibleReports.map((r, index) => (
 
 <div
@@ -1058,6 +1112,27 @@ onClick={() => {
      ))}
      </div>
 
+)}
+
+{!showNearbyReports && (
+  <button
+    onClick={() => setShowNearbyReports(true)}
+    style={{
+      position: "absolute",
+      bottom: 115,
+      right: 14,
+      zIndex: 1200,
+      background: "#020617",
+      color: "white",
+      border: "none",
+      borderRadius: 999,
+      padding: "12px 18px",
+      fontWeight: "bold",
+      cursor: "pointer"
+    }}
+  >
+    👁️ إظهار البلاغات
+  </button>
 )}
 
       {showMobileDashboard && (
