@@ -40,7 +40,7 @@ const reportTypes = [
   { label: "عطل بالدراجة", emoji: "🔧", color: "#7c3aed", expiry: 45, priority: "medium" },
   { label: "محتاج دفشي", emoji: "🛵", color: "#16a34a", expiry: 30, priority: "medium" },
   { label: "ما معي بنزين", emoji: "⛽", color: "#eab308", expiry: 30, priority: "medium" },
-  { label: "وصلني معك", emoji: "🤝", color: "#db2777", expiry: 20, priority: "low" },
+  { label: "وصلني معك", emoji: "🤝", color: "#db2777", expiry: 10, priority: "medium" },
 ]
 
 const startingReports = [
@@ -309,7 +309,7 @@ async function helperRespond(report: any) {
   }
 
   try {
-   await updateDoc(doc(db, "reports", String(report.id)), {
+   await updateDoc(doc(db, "reports", (report.id)), {
       helperComing: true,
       resolved: false,
       helperStatus: "بالطريق",
@@ -329,38 +329,26 @@ async function helperRespond(report: any) {
   }
 }
 
-function helperArrived(report: any) {
-  setReports((prev: any[]) =>
-    prev.map((r) =>
-      r.id === report.id
-        ? {
-            ...r,
-            helperArrived: true,
-            helperStatus: "وصل للموقع",
-          }
-        : r
-    )
-  )
+async function helperArrived(report: any) {
+  try {
 
-  alert("📍 تم تسجيل وصول المساعدة للموقع")
+    await updateDoc(
+      doc(db, "reports", report.id),
+      {
+        helperArrived: true,
+        helperStatus: "وصل للموقع"
+      }
+    )
+
+    alert("📍 تم تسجيل وصول المساعدة للموقع")
+
+  } catch (error) {
+    console.error(error)
+    alert("❌ فشل تسجيل الوصول")
+  }
 }
 
-function resolveReport(report: any) {
-  setReports((prev: any[]) =>
-    prev.map((r) =>
-      r.id === report.id
-        ? {
-            ...r,
-            resolved: true,
-solvedAt: Date.now(),
-helperStatus: "تم حل المشكلة",
-          }
-        : r
-    )
-  )
 
-  alert("✅ تم تسجيل حل المشكلة")
-}
 
   useEffect(() => {
   const timer = setInterval(() => {
@@ -520,10 +508,11 @@ function canReceiveHelp(report: any) {
 }
 
 const needsHelper =
-  selectedReport?.type === "حادث" ||
-  selectedReport?.type === "محتاج دفشة" ||
-  selectedReport?.type === "ما معي بنزين" ||
-  selectedReport?.type === "عطل بالدراجة"
+selectedReport?.type === "حادث" ||
+selectedReport?.type === "محتاج دفشة" ||
+selectedReport?.type === "ما معي بنزين" ||
+selectedReport?.type === "عطل بالدراجة" ||
+selectedReport?.type === "وصلني معك"
 
 function addReport(type: string, color: string, emoji: string) {
  
@@ -645,6 +634,17 @@ useEffect(() => {
 function createUserReport(type: any) {
   const newReport = {
     ...type,
+type: type.label,
+color: type.color,
+emoji: type.emoji,
+priority: type.priority,
+expiry: type.expiry,
+helperComing: false,
+helperArrived: false,
+helpers: 0,
+helpersList: [],
+resolved: false,
+
     area: "موقعك الحالي",
     distance: "مباشر",
     lat: myLocation ? myLocation[0] : 33.8938,
@@ -652,12 +652,14 @@ function createUserReport(type: any) {
     createdAt: Date.now(),
   }
 
-  setReports(prev => [newReport, ...prev])
-  setShowReportModal(false)
+addDoc(collection(db, "reports"), newReport)
+setShowReportModal(false)
 }
 
 
 const visibleReports = reports.filter((r: any) => {
+  if (r.resolved) return false
+
   if (mapZoom >= 14) return true
   if (mapZoom >= 12) return r.priority !== "low"
   return r.priority === "high"
@@ -1228,6 +1230,19 @@ display: window.innerWidth <= 600 ? "block" : "none",
   {reportTypes.map((type) => (
     <button
       key={type.label}
+
+onTouchEnd={(e) => {
+  e.preventDefault()
+
+  if (type.label.includes("مسروقة")) {
+    setShowReportModal(false)
+    setShowStolenModal(true)
+    return
+  }
+
+  createUserReport(type)
+}}
+
       onClick={() => {
   if (type.label.includes("مسروقة")) {
     setShowReportModal(false)
