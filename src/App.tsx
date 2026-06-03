@@ -508,6 +508,16 @@ setReports(prev =>
   return () => clearInterval(timer)
 }, [])
 
+const assistanceTypes = [
+  "عطل بالدراجة",
+  "ما معي بنزين",
+  "محتاج دفشي",
+  "وصلني معك"
+]
+
+function canReceiveHelp(report: any) {
+  return assistanceTypes.includes(report.type)
+}
 
 const needsHelper =
   selectedReport?.type === "حادث" ||
@@ -798,7 +808,7 @@ icon={makeIcon(
 >
   📍 افتح الطريق
 </button>
-{!r.type?.includes("مسروقة") && (
+{canReceiveHelp(r) && (
 <button
   onClick={() => setSelectedReport(r)}
   style={{
@@ -1030,7 +1040,7 @@ onClick={() => {
   >
     📍 وصلت للموقع
   </button>
-) : (
+) : canReceiveHelp(r) ? (
   <button
     onClick={() => helperRespond(r)}
     style={{
@@ -1043,7 +1053,7 @@ onClick={() => {
   >
     أنا قريب
   </button>
-)}
+) : null}
           </div>
      ))}
      </div>
