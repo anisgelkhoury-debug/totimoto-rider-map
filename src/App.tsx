@@ -1114,25 +1114,48 @@ onClick={() => {
 )}
 
 {r.helperId === deviceId && (
-  <button
-    onClick={(e) => {
-      e.stopPropagation()
-      cancelHelp(r)
-    }}
-    style={{
-      background: "#f97316",
-      color: "white",
-      border: "none",
-      borderRadius: 12,
-      padding: "9px 12px",
-      fontWeight: "bold",
-      marginTop: 8
-    }}
-  >
-    🚫 إلغاء المساعدة
-  </button>
-)}
+  <div>
+    <button
+      onClick={(e) => {
+        e.stopPropagation()
+        window.open(
+          `https://www.google.com/maps?q=${r.lat},${r.lng}`,
+          "_blank"
+        )
+      }}
+      style={{
+        background: "#2563eb",
+        color: "white",
+        border: "none",
+        borderRadius: 12,
+        padding: "9px 12px",
+        fontWeight: "bold",
+        marginTop: 8,
+        marginRight: 8
+      }}
+    >
+      📍 افتح الخريطة
+    </button>
 
+    <button
+      onClick={(e) => {
+        e.stopPropagation()
+        cancelHelp(r)
+      }}
+      style={{
+        background: "#f97316",
+        color: "white",
+        border: "none",
+        borderRadius: 12,
+        padding: "9px 12px",
+        fontWeight: "bold",
+        marginTop: 8
+      }}
+    >
+      🚫 إلغاء المساعدة
+    </button>
+  </div>
+)}
           </div>
      ))}
      </div>
