@@ -317,10 +317,7 @@ alert(JSON.stringify(reportData, null, 2))
 }
   
 async function helperRespond(report: any) {
-  if (report.helperComing) {
-    alert("✅ المساعدة قادمة بالفعل")
-    return
-  }
+
 
   try {
    await updateDoc(doc(db, "reports", (report.id)), {
@@ -332,7 +329,8 @@ helperId: deviceId,
 helperAcceptedAt: Date.now()
     })
 
-    alert("✅ أنت قريب - المساعدة بالطريق")
+  setSelectedReport(null)  
+   
   } catch (error) {
     console.error(error)
     alert("❌ فشل تحديث المساعدة")
@@ -350,7 +348,23 @@ async function cancelReport(report: any) {
   }
 }
 
+async function cancelHelp(report: any) {
+  try {
+    await updateDoc(doc(db, "reports", String(report.id)), {
+      helperComing: false,
+      helperStatus: "",
+      helpers: 0,
+      joined: false,
+      helperId: "",
+      helperAcceptedAt: null
+    })
 
+  
+  } catch (error) {
+    console.error(error)
+    alert("❌ فشل إلغاء المساعدة")
+  }
+}
 
   useEffect(() => {
   const timer = setInterval(() => {
@@ -814,7 +828,7 @@ icon={makeIcon(
 >
   📍 افتح الطريق
 </button>
-{canReceiveHelp(r) && (
+{canReceiveHelp(r) && r.ownerId !== deviceId && (
 <button
   onClick={() => setSelectedReport(r)}
   style={{
@@ -1042,7 +1056,7 @@ onClick={() => {
 {r.helperArrived ? (
   <>✅ المساعدة وصلت للموقع</>
 ) : (
-  <>🟢 {r.helpers || 1} مساعد بالطريق • يصل خلال 3 دقائق</>
+  <>{r.helpers || 1} مساعد بالطريق</>
 )}
   </div>
 )}
@@ -1062,22 +1076,22 @@ onClick={() => {
   >
     ✅ تم الحل
   </button>
-
-
-) : canReceiveHelp(r) ? (
-  <button
-    onClick={() => helperRespond(r)}
-    style={{
-      background: "white",
-      border: "none",
-      borderRadius: 12,
-      padding: "9px 12px",
-      fontWeight: "bold"
-    }}
-  >
-    أنا قريب
-  </button>
-) : null}
+) : (
+  canReceiveHelp(r) && r.ownerId !== deviceId && !r.helperComing && (
+    <button
+      onClick={() => helperRespond(r)}
+      style={{
+        background: "white",
+        border: "none",
+        borderRadius: 12,
+        padding: "9px 12px",
+        fontWeight: "bold"
+      }}
+    >
+      أنا قريب
+    </button>
+  )
+)}
 
 {r.ownerId === deviceId && (
   <button
@@ -1103,7 +1117,7 @@ onClick={() => {
   <button
     onClick={(e) => {
       e.stopPropagation()
-      cancelReport(r)
+      cancelHelp(r)
     }}
     style={{
       background: "#f97316",
