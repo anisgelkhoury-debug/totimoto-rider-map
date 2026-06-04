@@ -3,7 +3,7 @@ import { MapContainer, TileLayer, Marker, Popup, useMap, Circle, useMapEvents } 
 import "leaflet/dist/leaflet.css"
 import L, { DivIcon } from "leaflet"
 import { db } from "./firebase"
-import { collection, addDoc, onSnapshot, doc, updateDoc } from "firebase/firestore"
+import { collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc } from "firebase/firestore"
 
 type ReportItem = {
   id?: number
@@ -12,6 +12,9 @@ type ReportItem = {
   distance: string
   lat: number
   lng: number
+  ownerId?: string
+  helperId?: string
+  helperAcceptedAt?: number
   color: string
   emoji: string
   priority: string
@@ -212,6 +215,17 @@ function MapZoomTracker({ setMapZoom }: any) {
 function App() {
   const [reports, setReports] = useState<ReportItem[]>(startingReports)
 
+  const [deviceId] = useState(() => {
+  let id = localStorage.getItem("deviceId")
+
+  if (!id) {
+   id = Date.now().toString() + "-" + Math.random().toString(36).slice(2)
+    localStorage.setItem("deviceId", id)
+  }
+
+  return id
+})
+
 useEffect(() => {
   const unsubscribe = onSnapshot(collection(db, "reports"), (snapshot) => {
 const liveReports: any = snapshot.docs.map((doc) => ({
@@ -310,16 +324,12 @@ async function helperRespond(report: any) {
 
   try {
    await updateDoc(doc(db, "reports", (report.id)), {
-      helperComing: true,
-      resolved: false,
-      helperStatus: "بالطريق",
-      helpers: 1,
-      joined: true,
-      helperLat: report.lat + 0.02,
-      helperLng: report.lng + 0.02,
-      helperTargetLat: report.lat,
-      helperTargetLng: report.lng,
-      helperMoving: true
+helperComing: true,
+helperStatus: "مساعد بالطريق",
+helpers: 1,
+joined: true,
+helperId: deviceId,
+helperAcceptedAt: Date.now()
     })
 
     alert("✅ أنت قريب - المساعدة بالطريق")
@@ -329,22 +339,14 @@ async function helperRespond(report: any) {
   }
 }
 
-async function helperArrived(report: any) {
+async function cancelReport(report: any) {
   try {
-
-    await updateDoc(
-      doc(db, "reports", report.id),
-      {
-        helperArrived: true,
-        helperStatus: "وصل للموقع"
-      }
-    )
-
-    alert("📍 تم تسجيل وصول المساعدة للموقع")
-
+    await deleteDoc(doc(db, "reports", String(report.id)))
+    setSelectedReport(null)
+    alert("✅ تم إلغاء الطلب")
   } catch (error) {
     console.error(error)
-    alert("❌ فشل تسجيل الوصول")
+    alert("❌ فشل إلغاء الطلب")
   }
 }
 
@@ -526,6 +528,7 @@ if (type.includes("مسروقة")) {
   if (!myLocation) return
 
   const newReport = {
+    ownerId: deviceId,
     type,
     area: "موقع مباشر",
     distance: "الآن",
@@ -633,6 +636,7 @@ useEffect(() => {
 
 function createUserReport(type: any) {
   const newReport = {
+    ownerId: deviceId,
     ...type,
 type: type.label,
 color: type.color,
@@ -829,45 +833,35 @@ icon={makeIcon(
  {r.helperComing ? "✅ المساعدة بالطريق" : "🚑 أنا جاي أساعدك"}
 </button>
 )}
+
 {r.helperComing && !r.type?.includes("مسروقة") && (
-  <button
-    onClick={() => helperArrived(r)}
-    style={{
-      marginTop: 8,
-      padding: "6px 10px",
-      borderRadius: 8,
-      border: "none",
-      background: "#0f766e",
-      color: "white",
-      cursor: "pointer",
-      fontWeight: "bold",
-      display: "block",
-      width: "100%"
-    }}
-  >
-  {r.helperArrived ? "✅ المساعدة وصلت" : "📍 وصلت للموقع"}
-  </button>
+  <div style={{ marginTop: 8 }}>
+    <div style={{ color: "#22c55e", fontWeight: "bold", marginBottom: 8 }}>
+      ✅ مساعد بالطريق
+    </div>
+
+    <button
+      onClick={() =>
+        window.open(`https://www.google.com/maps?q=${r.lat},${r.lng}`, "_blank")
+      }
+      style={{
+        padding: "6px 10px",
+        borderRadius: 8,
+        border: "none",
+        background: "#2563eb",
+        color: "white",
+        cursor: "pointer",
+        fontWeight: "bold",
+        display: "block",
+        width: "100%",
+        marginBottom: 6
+      }}
+    >
+      📍 فتح الموقع
+    </button>
+  </div>
 )}
 
-{r.helperArrived && !r.resolved && (
-  <button
-    onClick={() => resolveReport(r)}
-    style={{
-      marginTop: 8,
-      padding: "6px 10px",
-      borderRadius: 8,
-      border: "none",
-      background: "#22c55e",
-      color: "white",
-      cursor: "pointer",
-      fontWeight: "bold",
-      display: "block",
-      width: "100%"
-    }}
-  >
-    {r.resolved ? "✅ تم حل المشكلة" : "🛠️ تم حل المشكلة"}
-  </button>
-)}
 
         <p style={{ color: "#94a3b8", marginTop: 6 }}>
           {timeAgo(r.createdAt)}
@@ -1068,34 +1062,8 @@ onClick={() => {
   >
     ✅ تم الحل
   </button>
-) : r.helperArrived ? (
-  <button
-    onClick={() => resolveReport(r)}
-    style={{
-      background: "#22c55e",
-      color: "white",
-      border: "none",
-      borderRadius: 12,
-      padding: "9px 12px",
-      fontWeight: "bold"
-    }}
-  >
-    🛠️ تم حل المشكلة
-  </button>
-) : r.helperComing ? (
-  <button
-    onClick={() => helperArrived(r)}
-    style={{
-      background: "#0f766e",
-      color: "white",
-      border: "none",
-      borderRadius: 12,
-      padding: "9px 12px",
-      fontWeight: "bold"
-    }}
-  >
-    📍 وصلت للموقع
-  </button>
+
+
 ) : canReceiveHelp(r) ? (
   <button
     onClick={() => helperRespond(r)}
@@ -1110,6 +1078,47 @@ onClick={() => {
     أنا قريب
   </button>
 ) : null}
+
+{r.ownerId === deviceId && (
+  <button
+    onClick={(e) => {
+      e.stopPropagation()
+      cancelReport(r)
+    }}
+    style={{
+      background: "#dc2626",
+      color: "white",
+      border: "none",
+      borderRadius: 12,
+      padding: "9px 12px",
+      fontWeight: "bold",
+      marginTop: 8
+    }}
+  >
+    ❌ إلغاء الطلب
+  </button>
+)}
+
+{r.helperId === deviceId && (
+  <button
+    onClick={(e) => {
+      e.stopPropagation()
+      cancelReport(r)
+    }}
+    style={{
+      background: "#f97316",
+      color: "white",
+      border: "none",
+      borderRadius: 12,
+      padding: "9px 12px",
+      fontWeight: "bold",
+      marginTop: 8
+    }}
+  >
+    🚫 إلغاء المساعدة
+  </button>
+)}
+
           </div>
      ))}
      </div>
