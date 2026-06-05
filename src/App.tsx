@@ -348,6 +348,20 @@ async function cancelReport(report: any) {
   }
 }
 
+async function resolveReport(report: any) {
+  try {
+    await updateDoc(doc(db, "reports", String(report.id)), {
+      resolved: true,
+      solvedAt: Date.now()
+    })
+
+    setSelectedReport(null)
+  } catch (error) {
+    console.error(error)
+    alert("❌ فشل إنهاء الطلب")
+  }
+}
+
 async function cancelHelp(report: any) {
   try {
     await updateDoc(doc(db, "reports", String(report.id)), {
@@ -924,7 +938,7 @@ icon={makeIcon(
 </MapContainer>
       <div style={{ position: "absolute", top: 18, right: 18, left: 18, zIndex: 1000, display: "flex", justifyContent: "space-between" }}>
         <div style={{ background: "#020617", color: "white", padding: "12px 18px", borderRadius: 20, fontWeight: "bold" }}>
-          🔴 {reports.length} بلاغ مباشر
+          {visibleReports.length} بلاغ مباشر 🔴
         <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 4 }}>
   آخر تحديث الآن
 </div>
@@ -1091,6 +1105,27 @@ onClick={() => {
       أنا قريب
     </button>
   )
+)}
+
+{r.ownerId === deviceId && r.helperComing && (
+  <button
+    onClick={(e) => {
+      e.stopPropagation()
+      resolveReport(r)
+    }}
+    style={{
+      background: "#22c55e",
+      color: "white",
+      border: "none",
+      borderRadius: 12,
+      padding: "9px 12px",
+      fontWeight: "bold",
+      marginTop: 8,
+      marginRight: 8
+    }}
+  >
+    ✅ تم الحل
+  </button>
 )}
 
 {r.ownerId === deviceId && (
