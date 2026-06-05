@@ -992,8 +992,8 @@ onClick={() => {
 color: "#111827",
   borderRadius: 26,
   padding: 14,
-  maxHeight: expandNearbyReports ? 420 : 210,
-  overflowY: "auto"
+  maxHeight: expandNearbyReports ? 560 : 420,
+  overflowY: "visible"
 }}>
 
 
@@ -1071,7 +1071,7 @@ onClick={() => {
       {r.emoji}
     </div>
 
-<div style={{ flex: 1, color: "white" }}>
+<div style={{ flex: 1, color: "white", lineHeight: 1.25 }}>
   <b>{r.type}</b>
 
   <div style={{ color: "#94a3b8", fontSize: 13 }}>
@@ -1132,11 +1132,12 @@ onClick={() => {
       resolveReport(r)
     }}
     style={{
+      width: "100%",
       background: "#22c55e",
       color: "white",
       border: "none",
       borderRadius: 12,
-      padding: "9px 12px",
+      padding: "14px",
       fontWeight: "bold",
       marginTop: 8,
       marginRight: 8
@@ -1153,11 +1154,12 @@ onClick={() => {
       cancelReport(r)
     }}
     style={{
+      width: "100%",
       background: "#dc2626",
       color: "white",
       border: "none",
       borderRadius: 12,
-      padding: "9px 12px",
+      padding: "14px",
       fontWeight: "bold",
       marginTop: 8
     }}
@@ -1167,28 +1169,72 @@ onClick={() => {
 )}
 
 {r.helperId === deviceId && (
-  <div>
+  <div style={{
+    display: "grid",
+    gap: 10,
+    width: 240,
+    flexShrink: 0
+  }}>
     <button
       onClick={(e) => {
         e.stopPropagation()
-        window.open(
-          `https://www.google.com/maps?q=${r.lat},${r.lng}`,
-          "_blank"
-        )
+        window.open(`https://www.google.com/maps?q=${r.lat},${r.lng}`, "_blank")
       }}
       style={{
-        background: "#2563eb",
+        width: "100%",
+        background: "#16a34a",
         color: "white",
         border: "none",
-        borderRadius: 12,
-        padding: "9px 12px",
-        fontWeight: "bold",
-        marginTop: 8,
-        marginRight: 8
+        borderRadius: 16,
+        padding: "14px",
+        fontSize: 18,
+        fontWeight: "bold"
       }}
     >
       📍 افتح الخريطة
     </button>
+
+    {r.phone && (
+      <>
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            window.location.href = `tel:${r.phone}`
+          }}
+          style={{
+            width: "100%",
+            background: "#16a34a",
+            color: "white",
+            border: "none",
+            borderRadius: 16,
+            padding: "14px",
+            fontSize: 18,
+            fontWeight: "bold"
+          }}
+        >
+          📞 اتصال
+        </button>
+
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+           window.open(`https://wa.me/961${String(r.phone || "").replace(/^0/, "")}`, "_blank")
+          }}
+          style={{
+            width: "100%",
+            background: "#16a34a",
+            color: "white",
+            border: "none",
+            borderRadius: 16,
+            padding: "14px",
+            fontSize: 18,
+            fontWeight: "bold"
+          }}
+        >
+          💬 واتساب
+        </button>
+      </>
+    )}
 
     <button
       onClick={(e) => {
@@ -1196,63 +1242,22 @@ onClick={() => {
         cancelHelp(r)
       }}
       style={{
-        background: "#f97316",
-        color: "white",
-        border: "none",
-        borderRadius: 12,
-        padding: "9px 12px",
-        fontWeight: "bold",
-        marginTop: 8
-      }}
-    >
-
-{r.phone && (
-<div style={{ display: "grid", gap: 8, marginTop: 10, width: 150 }}>
-    <button
-      onClick={(e) => {
-        e.stopPropagation()
-        window.location.href = `tel:${r.phone}`
-      }}
-      style={{
+        width: "100%",
         background: "#16a34a",
         color: "white",
         border: "none",
-        borderRadius: 12,
-        padding: "9px 12px",
-        fontWeight: "bold",
-        marginTop: 8,
-        marginRight: 8
+        borderRadius: 16,
+        padding: "14px",
+        fontSize: 18,
+        fontWeight: "bold"
       }}
     >
-      📞 اتصال
-    </button>
-
-    <button
-      onClick={(e) => {
-        e.stopPropagation()
-       if (!r.phone) return
-window.open(`https://wa.me/961${r.phone.replace(/^0/, "")}`, "_blank")
-      }}
-      style={{
-        background: "#22c55e",
-        color: "white",
-        border: "none",
-        borderRadius: 12,
-        padding: "9px 12px",
-        fontWeight: "bold",
-        marginTop: 8,
-        marginRight: 8
-      }}
-    >
-      💬 واتساب
+      ❌ إلغاء المساعدة
     </button>
   </div>
 )}
 
-      🚫 إلغاء المساعدة
-    </button>
-  </div>
-)}
+
           </div>
      ))}
      </div>
