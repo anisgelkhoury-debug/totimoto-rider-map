@@ -32,6 +32,10 @@ helperLng?: number
 helperTargetLat?: number
 helperTargetLng?: number
 helperMoving?: boolean
+
+phone?: string
+helperPhone?: string
+
 }
 
 const reportTypes = [
@@ -665,6 +669,7 @@ useEffect(() => {
 function createUserReport(type: any) {
   const newReport = {
     ownerId: deviceId,
+      phone: "03211183",
     ...type,
 type: type.label,
 color: type.color,
@@ -692,8 +697,20 @@ setShowReportModal(false)
 const visibleReports = reports.filter((r: any) => {
   if (r.resolved) return false
 
+  const isHelpRequest = canReceiveHelp(r)
+
+  if (isHelpRequest && myLocation) {
+    const distanceKm = calculateDistance(myLocation, [r.lat, r.lng])
+
+    if (distanceKm !== null && distanceKm > 10) {
+      return false
+    }
+  }
+
   if (mapZoom >= 14) return true
+
   if (mapZoom >= 12) return r.priority !== "low"
+
   return r.priority === "high"
 })
 
@@ -971,7 +988,8 @@ onClick={() => {
   right: 14,
   left: 14,
   zIndex: 1000,
-  background: "rgba(2,6,23,.92)",
+  background: "rgba(255,255,255,0.96)",
+color: "#111827",
   borderRadius: 26,
   padding: 14,
   maxHeight: expandNearbyReports ? 420 : 210,
@@ -988,7 +1006,7 @@ onClick={() => {
     marginBottom: 10
   }}
 >
-  <div style={{ color: "white", fontWeight: "bold" }}>
+<div style={{ color: "#111827", fontWeight: "bold" }}>
     بلاغات قريبة
   </div>
 
@@ -997,7 +1015,7 @@ onClick={() => {
     onClick={() => setShowNearbyReports(false)}
     style={{
       background: "transparent",
-      color: "white",
+      color: "#111827",
       border: "none",
       fontSize: 14,
       cursor: "pointer",
@@ -1187,6 +1205,50 @@ onClick={() => {
         marginTop: 8
       }}
     >
+
+{r.phone && (
+<div style={{ display: "grid", gap: 8, marginTop: 10, width: 150 }}>
+    <button
+      onClick={(e) => {
+        e.stopPropagation()
+        window.location.href = `tel:${r.phone}`
+      }}
+      style={{
+        background: "#16a34a",
+        color: "white",
+        border: "none",
+        borderRadius: 12,
+        padding: "9px 12px",
+        fontWeight: "bold",
+        marginTop: 8,
+        marginRight: 8
+      }}
+    >
+      📞 اتصال
+    </button>
+
+    <button
+      onClick={(e) => {
+        e.stopPropagation()
+       if (!r.phone) return
+window.open(`https://wa.me/961${r.phone.replace(/^0/, "")}`, "_blank")
+      }}
+      style={{
+        background: "#22c55e",
+        color: "white",
+        border: "none",
+        borderRadius: 12,
+        padding: "9px 12px",
+        fontWeight: "bold",
+        marginTop: 8,
+        marginRight: 8
+      }}
+    >
+      💬 واتساب
+    </button>
+  </div>
+)}
+
       🚫 إلغاء المساعدة
     </button>
   </div>
@@ -1478,6 +1540,32 @@ onTouchEnd={(e) => {
         <div style={{ color: "#94a3b8", marginTop: 8, fontSize: 15 }}>
           {selectedReport.area}
         </div>
+
+{selectedReport.phone && selectedReport.type === "وصلني معك" && (
+ <div style={{ display: "grid", gap: 8, marginTop: 16, width: 150 }}>
+    <button
+      onClick={() => window.location.href = `tel:${selectedReport.phone}`}
+      style={{ width: "100%", padding: 14, borderRadius: 16, border: "none", background: "#16a34a", color: "white", fontWeight: "bold", fontSize: 17 , marginRight: 0 }}
+    >
+      📞 اتصال
+    </button>
+
+    <button
+      onClick={() => window.open(`https://wa.me/961${selectedReport.phone.replace(/^0/, "")}`, "_blank")}
+      style={{ width: "100%", padding: 14, borderRadius: 16, border: "none", background: "#22c55e", color: "white", fontWeight: "bold", fontSize: 17 , marginRight: 0 }}
+    >
+      💬 واتساب
+    </button>
+
+    <button
+      onClick={() => window.open(`https://www.google.com/maps?q=${selectedReport.lat},${selectedReport.lng}`, "_blank")}
+      style={{ width: "100%", padding: 14, borderRadius: 16, border: "none", background: "#2563eb", color: "white", fontWeight: "bold", fontSize: 17 }}
+    >
+      📍 افتح الخريطة
+    </button>
+  </div>
+)}
+
 {!selectedReport.type?.includes("مسروقة") &&
  !selectedReport.helperComing && (
         <button
