@@ -276,6 +276,7 @@ async function submitStolenBikeReport() {
       type: "بلاغ عن دراجة مسروقة",
       emoji: "🚨",
       priority: "high",
+      ownerId: deviceId,
 
       area: "موقعك الحالي",
 distance: "الآن",
@@ -1147,7 +1148,7 @@ onClick={() => {
   </button>
 )}
 
-{r.ownerId === deviceId && (
+{r.ownerId === deviceId && !r.type?.includes("مسروقة") && (
   <button
     onClick={(e) => {
       e.stopPropagation()
@@ -1500,6 +1501,11 @@ onTouchEnd={(e) => {
 <div>📞 رقم التواصل: <b>{selectedReport.stolenBikePhone || "غير محدد"}</b></div>
         </div>
 
+        <div style={{ fontSize: 11, color: "red", marginTop: 8 }}>
+  owner: {selectedReport.ownerId || "none"} <br />
+  device: {deviceId}
+</div>
+
         {selectedReport.stolenBikePhone && (
           <>
             <button
@@ -1526,6 +1532,29 @@ onTouchEnd={(e) => {
         >
           📍 فتح الموقع
         </button>
+
+        {selectedReport.type?.includes("مسروقة") &&
+ selectedReport.ownerId === deviceId && (
+  <button
+    onClick={() => {
+      cancelReport(selectedReport)
+      setSelectedReport(null)
+    }}
+    style={{
+      width: "100%",
+      padding: 14,
+      borderRadius: 16,
+      border: "none",
+      background: "#dc2626",
+      color: "white",
+      fontWeight: "bold",
+      fontSize: 17,
+      marginTop: 10
+    }}
+  >
+    ✅ تم العثور على الدراجة
+  </button>
+)}
 
         <button
           onClick={() => setSelectedReport(null)}
@@ -1568,6 +1597,30 @@ onTouchEnd={(e) => {
     >
       📍 افتح الخريطة
     </button>
+
+{selectedReport.type?.includes("مسروقة") &&
+ selectedReport.ownerId === deviceId && (
+  <button
+    onClick={() => {
+      cancelReport(selectedReport)
+      setSelectedReport(null)
+    }}
+    style={{
+      width: "100%",
+      padding: 14,
+      borderRadius: 16,
+      border: "none",
+      background: "#dc2626",
+      color: "white",
+      fontWeight: "bold",
+      fontSize: 17,
+      marginTop: 10
+    }}
+  >
+    ✅ تم العثور على الدراجة
+  </button>
+)}
+
   </div>
 )}
 
@@ -1581,10 +1634,14 @@ onTouchEnd={(e) => {
           {selectedReport.joined ? "تم الانضمام ✅" : "أنا قريب"}
         </button>
 )}
+
+
+
         <button
           onClick={() => setSelectedReport(null)}
           style={{ width: "100%", padding: 14, borderRadius: 18, border: "none", marginTop: 10, background: "#e5e7eb", fontWeight: "bold" }}
         >
+
           إلغاء
         </button>
       </div>
