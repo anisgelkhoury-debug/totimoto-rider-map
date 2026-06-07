@@ -251,7 +251,7 @@ const [mapZoom, setMapZoom] = useState(12)
   const [mapTarget, setMapTarget] = useState<any>(null)
   const [showStolenModal, setShowStolenModal] = useState(false)
 const [showMobileDashboard, setShowMobileDashboard] = useState(true)
-
+const [showTopInfo, setShowTopInfo] = useState(true)
 const [showNearbyReports, setShowNearbyReports] = useState(true)
 const [expandNearbyReports, setExpandNearbyReports] = useState(false)
 
@@ -269,6 +269,8 @@ const [stolenBikeImagePreview, setStolenBikeImagePreview] = useState<string>("")
 
 async function submitStolenBikeReport() {
   try {
+
+ ;(document.activeElement as HTMLElement)?.blur()   
 
     const reportData = {
       id: Date.now(),
@@ -309,6 +311,10 @@ alert(JSON.stringify(reportData, null, 2))
     )
 
     setShowStolenModal(false)
+
+    setTimeout(() => {
+  window.dispatchEvent(new Event("resize"))
+}, 300)
 
     alert("✅ تم نشر البلاغ")
 
@@ -724,7 +730,7 @@ const visibleReports = reports.filter((r: any) => {
   100% { transform: scale(1); }
 }
 `}</style>
-    <div style={{ height: "100vh", width: "100%", background: "#020617", direction: "rtl", fontFamily: "Arial", position: "relative", overflow: "hidden" }}>
+    <div style={{ height: "100dvh", width: "100%", background: "#020617", direction: "rtl", fontFamily: "Arial", position: "relative", overflow: "hidden" }}>
       <MapContainer center={[33.8938, 35.5018]} zoom={12} style={{ height: "100%", width: "100%" }}>
         <TileLayer attribution="&copy; OpenStreetMap" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
 
@@ -756,9 +762,9 @@ const visibleReports = reports.filter((r: any) => {
         <button
   onClick={() => setShowReportModal(true)}
   style={{
-    position: "absolute",
-    bottom: "30px",
-    left: "28px",
+position: "fixed",
+bottom: 10,
+left: 12,
     zIndex: 2000,
 
     display: showMobileDashboard && window.innerWidth <= 600 ? "none" : "block",
@@ -967,10 +973,29 @@ eventHandlers={{
 ))}
 
 </MapContainer>
-      <div style={{ position: "absolute", top: 18, right: 18, left: 18, zIndex: 1000, display: "flex", justifyContent: "space-between" }}>
-        <div style={{ background: "#020617", color: "white", padding: "12px 18px", borderRadius: 20, fontWeight: "bold" }}>
+
+<button
+  onClick={() => setShowTopInfo(!showTopInfo)}
+  style={{
+    position: "absolute",
+    top: 18,
+    left: 18,
+    zIndex: 1001,
+    background: "white",
+    border: "none",
+    borderRadius: 12,
+    padding: "8px 12px",
+    fontWeight: "bold"
+  }}
+>
+  {showTopInfo ? "👁️" : "📊"}
+</button>
+
+{showTopInfo && (
+<div style={{ position: "absolute", top: 18, right: 18, left: 18, zIndex: 1000, display: "flex", justifyContent: "space-between" }}>
+        <div style={{ background: "#020617", color: "white", padding: "8px 12px", borderRadius: 16, fontWeight: "bold" }}>
           {visibleReports.length} بلاغ مباشر 🔴
-        <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 4 }}>
+        <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 4 }}>
   آخر تحديث الآن
 </div>
         </div>
@@ -994,7 +1019,7 @@ onClick={() => {
           📍 موقعي
         </button>
       </div>
-
+)}
       {showNearbyReports && (
 <div style={{
   position: "absolute",
@@ -1391,7 +1416,7 @@ display: window.innerWidth <= 600 ? "block" : "none",
     <div style={{ background: "white", width: "100%", maxWidth: 420, maxHeight: "80vh", overflowY: "auto", borderRadius: 28, padding: 24, textAlign: "center", direction: "rtl" }}>
       <h2 style={{ marginTop: 0 }}>شو بدك تبلّغ؟</h2>
 
-<div style={{ display: "grid", gap: 10, marginTop: 18 }}>
+<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 18 }}>
   {reportTypes.map((type) => (
     <button
       key={type.label}
@@ -1417,17 +1442,17 @@ onTouchEnd={(e) => {
   createUserReport(type)
 }}
       style={{
-        padding: "14px",
+        padding: "14px 8px",
         borderRadius: 18,
         border: "none",
         background: type.color,
         color: "white",
         fontWeight: "bold",
-        fontSize: 16,
+        fontSize: 18,
         cursor: "pointer"
       }}
     >
-      <div style={{ fontSize: 24 }}>{type.emoji}</div>
+      <div style={{ fontSize: 22 }}>{type.emoji}</div>
       {type.label}
     </button>
   ))}
@@ -1452,13 +1477,13 @@ onTouchEnd={(e) => {
         صورة الدراجة إلزامية لتجنب أي التباس أو مشاكل مع الآخرين
       </p>
 
-<input value={stolenBikeType} onChange={(e) => setStolenBikeType(e.target.value)} placeholder="🏍️ نوع الدراجة" style={{ width: "100%", padding: 14, marginTop: 10, borderRadius: 14 }} />
-<input value={stolenBikeColor} onChange={(e) => setStolenBikeColor(e.target.value)} placeholder="🎨 اللون" style={{ width: "100%", padding: 14, marginTop: 10, borderRadius: 14 }} />
-<input value={stolenBikePlate} onChange={(e) => setStolenBikePlate(e.target.value)} placeholder="🔢 رقم اللوحة إذا موجود" style={{ width: "100%", padding: 14, marginTop: 10, borderRadius: 14 }} />
-<input value={stolenBikePhone} onChange={(e) => setStolenBikePhone(e.target.value)} placeholder="📞 رقم التواصل" style={{ width: "100%", padding: 14, marginTop: 10, borderRadius: 14 }} />
-<input value={stolenBikePlace} onChange={(e) => setStolenBikePlace(e.target.value)} placeholder="📍 مكان السرقة" style={{ width: "100%", padding: 14, marginTop: 10, borderRadius: 14 }} />
-<input value={stolenBikeDate} onChange={(e) => setStolenBikeDate(e.target.value)} type="date" style={{ width: "100%", padding: 14, marginTop: 10, borderRadius: 14 }} />
-<input value={stolenBikeTime} onChange={(e) => setStolenBikeTime(e.target.value)} type="time" style={{ width: "100%", padding: 14, marginTop: 10, borderRadius: 14 }} />
+<input value={stolenBikeType} onChange={(e) => setStolenBikeType(e.target.value)} placeholder="🏍️ نوع الدراجة" style={{ width: "100%", padding: 14, marginTop: 10, borderRadius: 14 , fontSize: 16 }} />
+<input value={stolenBikeColor} onChange={(e) => setStolenBikeColor(e.target.value)} placeholder="🎨 اللون" style={{ width: "100%", padding: 14, marginTop: 10, borderRadius: 14 , fontSize: 16 }} />
+<input value={stolenBikePlate} onChange={(e) => setStolenBikePlate(e.target.value)} placeholder="🔢 رقم اللوحة إذا موجود" style={{ width: "100%", padding: 14, marginTop: 10, borderRadius: 14 , fontSize: 16 }} />
+<input value={stolenBikePhone} onChange={(e) => setStolenBikePhone(e.target.value)} placeholder="📞 رقم التواصل" style={{ width: "100%", padding: 14, marginTop: 10, borderRadius: 14 , fontSize: 16}} />
+<input value={stolenBikePlace} onChange={(e) => setStolenBikePlace(e.target.value)} placeholder="📍 مكان السرقة" style={{ width: "100%", padding: 14, marginTop: 10, borderRadius: 14 , fontSize: 16 }} />
+<input value={stolenBikeDate} onChange={(e) => setStolenBikeDate(e.target.value)} type="date" style={{ width: "100%", padding: 14, marginTop: 10, borderRadius: 14 , fontSize: 16}} />
+<input value={stolenBikeTime} onChange={(e) => setStolenBikeTime(e.target.value)} type="time" style={{ width: "100%", padding: 14, marginTop: 10, borderRadius: 14 , fontSize: 16}} />
 
     <input
   type="file"
