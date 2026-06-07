@@ -824,21 +824,34 @@ icon={makeIcon(
   r.type?.includes("مسروقة") ? "🚨" : r.helperComing ? "🟢" : r.emoji,
   r.type?.includes("مسروقة") ? "#dc2626" : r.helperComing ? "#16a34a" : r.color
 )}
-  eventHandlers={{
-    click: () => {
- 
-  setSelectedReport(r)
-},
-  }}
+eventHandlers={{
+  click: () => {
+    if (
+      r.type === "زحمة" ||
+      r.type === "حادث" ||
+      r.type === "طريق مسكر" ||
+      r.type === "طريق زلق"
+    ) {
+      return
+    }
+
+    setSelectedReport(r)
+  },
+}}
 >
     <Popup>
       <div style={{ textAlign: "right", direction: "rtl" }}>
-        <b>{r.type}</b>
-        <br />
-        {r.area}
-        <br />
-        {formatDistance(calculateDistance(myLocation, [r.lat, r.lng]))}
-        <br />
+<b>{r.emoji} {r.type}</b>
+<br />
+📍 المنطقة: {r.area || "موقعك الحالي"}
+<br />
+🕒 وقت البلاغ: {new Date(r.createdAt || Date.now()).toLocaleTimeString("ar-LB", {
+  hour: "2-digit",
+  minute: "2-digit"
+})}
+<br />
+⌛ ينتهي خلال: {Math.max(0, Math.ceil((((r.createdAt || Date.now()) + ((r.expiry || 0) * 1000) - Date.now()) / 60000)))} دقيقة
+<br />
 
         <button
   onClick={() =>
@@ -858,7 +871,7 @@ icon={makeIcon(
     fontWeight: "bold"
   }}
 >
-  📍 افتح الطريق
+  📍 إفتح موقع الحدث
 </button>
 {canReceiveHelp(r) && r.ownerId !== deviceId && (
 <button
@@ -1047,14 +1060,17 @@ color: "#111827",
   key={r.id || `${r.type}-${r.lat}-${r.lng}-${r.createdAt}`}
 
 onClick={() => {
-
-
-
+  if (
+    r.type === "زحمة" ||
+    r.type === "حادث" ||
+    r.type === "طريق مسكر" ||
+    r.type === "طريق زلق"
+  ) {
+    return
+  }
 
   setSelectedReport(r)
-
   setMapTarget([r.lat + Math.random() * 0.000001, r.lng])
-
 }}
 
   style={{
