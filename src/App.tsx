@@ -618,9 +618,9 @@ useEffect(() => {
         position.coords.longitude,
       ])
     },
-    (error) => {
-      // console.log("GPS error:", error)
-    },
+(error) => {
+  console.log("GPS error:", error)
+},
     {
       enableHighAccuracy: true,
       maximumAge: 5000,
@@ -1001,11 +1001,16 @@ eventHandlers={{
         </div>
 
         <button
-onClick={() => {
+
+onClick={(e) => {
+  e.stopPropagation()
+
   if (myLocation) {
-    setMapTarget(myLocation)
+    setMapTarget([myLocation[0] + Math.random() * 0.000001, myLocation[1]])
+    setMapZoom(16)
   }
 }}
+
           style={{
             background: "white",
             color: "#020617",
@@ -1421,17 +1426,7 @@ display: window.innerWidth <= 600 ? "block" : "none",
     <button
       key={type.label}
 
-onTouchEnd={(e) => {
-  e.preventDefault()
 
-  if (type.label.includes("مسروقة")) {
-    setShowReportModal(false)
-    setShowStolenModal(true)
-    return
-  }
-
-  createUserReport(type)
-}}
 
       onClick={() => {
   if (type.label.includes("مسروقة")) {
