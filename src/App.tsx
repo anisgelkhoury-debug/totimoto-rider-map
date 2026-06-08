@@ -730,7 +730,7 @@ const visibleReports = reports.filter((r: any) => {
   100% { transform: scale(1); }
 }
 `}</style>
-    <div style={{ height: "100dvh", width: "100%", background: "#020617", direction: "rtl", fontFamily: "Arial", position: "relative", overflow: "hidden" }}>
+    <div style={{ height: "100dvh", width: "100%", background: "#020617", direction: "rtl", fontFamily: "Arial", position: "relative", overflow: "auto" }}>
       <MapContainer center={[33.8938, 35.5018]} zoom={12} style={{ height: "100%", width: "100%" }}>
         <TileLayer attribution="&copy; OpenStreetMap" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
 
@@ -1027,8 +1027,8 @@ onClick={(e) => {
 )}
       {showNearbyReports && (
 <div style={{
-  position: "absolute",
-  bottom: 115,
+  position: "fixed",
+  bottom: 135,
   right: 14,
   left: 14,
   zIndex: 1000,
@@ -1036,8 +1036,12 @@ onClick={(e) => {
 color: "#111827",
   borderRadius: 26,
   padding: 14,
-  maxHeight: expandNearbyReports ? 560 : 420,
-  overflowY: "visible"
+maxHeight: expandNearbyReports ? "48vh" : "28vh",
+overflowY: "auto",
+overscrollBehavior: "contain",
+WebkitOverflowScrolling: "touch",
+touchAction: "pan-y",
+paddingBottom: 12
 }}>
 
 
@@ -1081,9 +1085,10 @@ color: "#111827",
   >
     {expandNearbyReports ? "🔽" : "🔼"}
   </button>
+
 </div>
 </div>
-        
+    
 {visibleReports.map((r, index) => (
 
 <div
@@ -1307,6 +1312,7 @@ onClick={() => {
 
           </div>
      ))}
+     
      </div>
 
 )}
