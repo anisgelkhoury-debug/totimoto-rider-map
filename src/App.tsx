@@ -1032,11 +1032,11 @@ onClick={(e) => {
   right: 14,
   left: 14,
   zIndex: 1000,
-  background: "rgba(255,255,255,0.96)",
-color: "#111827",
-  borderRadius: 26,
-  padding: 14,
-maxHeight: expandNearbyReports ? "48vh" : "28vh",
+background: "transparent",
+color: "white",
+borderRadius: 0,
+padding: 0,
+maxHeight: expandNearbyReports ? "48vh" : "30vh",
 overflowY: "auto",
 overscrollBehavior: "contain",
 WebkitOverflowScrolling: "touch",
@@ -1054,7 +1054,7 @@ paddingBottom: 12
     marginBottom: 10
   }}
 >
-<div style={{ color: "#111827", fontWeight: "bold" }}>
+<div style={{ color: "white", fontWeight: "bold", textShadow: "0 2px 6px rgba(0,0,0,.8)" }}>
     بلاغات قريبة
   </div>
 
@@ -1063,7 +1063,7 @@ paddingBottom: 12
     onClick={() => setShowNearbyReports(false)}
     style={{
       background: "transparent",
-      color: "#111827",
+      color: "white",
       border: "none",
       fontSize: 14,
       cursor: "pointer",
