@@ -1028,7 +1028,7 @@ onClick={(e) => {
       {showNearbyReports && (
 <div style={{
   position: "fixed",
-  bottom: 135,
+  bottom: 155,
   right: 14,
   left: 14,
   zIndex: 1000,
@@ -1037,7 +1037,7 @@ color: "white",
 borderRadius: 0,
 padding: 0,
 maxHeight: expandNearbyReports ? "48vh" : "30vh",
-overflowY: "auto",
+overflowY: "hidden",
 overscrollBehavior: "contain",
 WebkitOverflowScrolling: "touch",
 touchAction: "pan-y",
@@ -1051,10 +1051,16 @@ paddingBottom: 12
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 10
+    marginBottom: 10,
+
   }}
 >
-<div style={{ color: "white", fontWeight: "bold", textShadow: "0 2px 6px rgba(0,0,0,.8)" }}>
+
+<div style={{
+  color: "#020617",
+  fontWeight: "bold",
+  textShadow: "0 1px 3px rgba(255,255,255,.9)"
+}}>
     بلاغات قريبة
   </div>
 
@@ -1063,7 +1069,8 @@ paddingBottom: 12
     onClick={() => setShowNearbyReports(false)}
     style={{
       background: "transparent",
-      color: "white",
+      color: "#020617",
+      textShadow: "0 1px 3px rgba(255,255,255,.9)",
       border: "none",
       fontSize: 14,
       cursor: "pointer",
@@ -1077,7 +1084,7 @@ paddingBottom: 12
     onClick={() => setExpandNearbyReports(!expandNearbyReports)}
     style={{
       background: "transparent",
-      color: "white",
+      color: "#020617",
       border: "none",
       fontSize: 18,
       cursor: "pointer"
@@ -1088,6 +1095,12 @@ paddingBottom: 12
 
 </div>
 </div>
+
+<div style={{
+maxHeight: expandNearbyReports ? "38vh" : "22vh",
+  overflowY: "auto",
+  WebkitOverflowScrolling: "touch"
+}}>
     
 {visibleReports.map((r, index) => (
 
@@ -1312,9 +1325,31 @@ onClick={() => {
 
           </div>
      ))}
-     
+     </div>
      </div>
 
+)}
+
+
+{showNearbyReports && (
+  <button
+    onClick={() => setShowNearbyReports(false)}
+    style={{
+      position: "fixed",
+      bottom: 80,
+      left: 18,
+      zIndex: 2500,
+      background: "#020617",
+      color: "white",
+      border: "none",
+      borderRadius: 999,
+      padding: "10px 14px",
+      fontWeight: "bold",
+      boxShadow: "0 4px 14px rgba(0,0,0,.35)"
+    }}
+  >
+    👁️ إخفاء البلاغات
+  </button>
 )}
 
 {!showNearbyReports && (
