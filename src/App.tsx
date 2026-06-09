@@ -555,7 +555,36 @@ selectedReport?.type === "ما معي بنزين" ||
 selectedReport?.type === "عطل بالدراجة" ||
 selectedReport?.type === "وصلني معك"
 
-function addReport(type: string, color: string, emoji: string) {
+
+async function getAddressFromCoords(lat: number, lng: number) {
+  try {
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=ar`
+    )
+
+    const data = await response.json()
+    const address = data.address || {}
+
+    const road = address.road || address.street || ""
+    const town =
+      address.village ||
+      address.town ||
+      address.city ||
+      address.suburb ||
+      address.neighbourhood ||
+      ""
+    const district = address.county || address.state || ""
+
+    return [road, town, district].filter(Boolean).join(" - ") || "موقع البلاغ"
+  } catch (error) {
+    console.error("Reverse geocoding failed:", error)
+    return "موقع البلاغ"
+  }
+}
+
+
+
+async function addReport(type: string, color: string, emoji: string) {
  
 
 if (type.includes("مسروقة")) {
@@ -566,10 +595,12 @@ if (type.includes("مسروقة")) {
 
   if (!myLocation) return
 
+  const locationName = await getAddressFromCoords(myLocation[0], myLocation[1])
+
   const newReport = {
     ownerId: deviceId,
     type,
-    area: "موقع مباشر",
+    area: locationName,
     distance: "الآن",
     lat: myLocation[0],
     lng: myLocation[1],
@@ -673,7 +704,10 @@ useEffect(() => {
     setSelectedType(null)
   }
 
-function createUserReport(type: any) {
+async function createUserReport(type: any) {
+const lat = myLocation ? myLocation[0] : 33.8938
+const lng = myLocation ? myLocation[1] : 35.5018
+const locationName = await getAddressFromCoords(lat, lng)
   const newReport = {
     ownerId: deviceId,
       phone: "03211183",
@@ -689,10 +723,10 @@ helpers: 0,
 helpersList: [],
 resolved: false,
 
-    area: "موقعك الحالي",
+    area: locationName,
     distance: "مباشر",
-    lat: myLocation ? myLocation[0] : 33.8938,
-    lng: myLocation ? myLocation[1] : 35.5018,
+   lat,
+   lng,
     createdAt: Date.now(),
   }
 
@@ -1128,7 +1162,8 @@ onClick={() => {
     marginBottom: 8,
     display: "flex",
     alignItems: "center",
-    gap: 10
+    gap: 10,
+    flexWrap: "wrap",
   }}
 >
 
@@ -1139,9 +1174,7 @@ onClick={() => {
 <div style={{ flex: 1, color: "white", lineHeight: 1.25 }}>
   <b>{r.type}</b>
 
-  <div style={{ color: "#94a3b8", fontSize: 13 }}>
-    {r.area} • {r.distance}
-  </div>
+
 
   {r.helperComing && (
   <div style={{
