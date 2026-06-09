@@ -773,25 +773,7 @@ const visibleReports = reports.filter((r: any) => {
 
         <MyLocation position={myLocation} />
 
-        {myLocation && (
-  <div
-    style={{
-      position: "absolute",
-      top: "95px",
-      left: "20px",
-      zIndex: 9999,
-      background: "#00c853",
-      color: "white",
-      padding: "8px 12px",
-      borderRadius: "12px",
-      fontWeight: "bold",
-      fontSize: "13px",
-      boxShadow: "0 4px 10px rgba(0,0,0,0.3)"
-    }}
-  >
-    GPS مباشر ✅
-  </div>
-)}
+
 
         <button
   onClick={() => setShowReportModal(true)}
@@ -1027,11 +1009,23 @@ eventHandlers={{
 
 {showTopInfo && (
 <div style={{ position: "absolute", top: 18, right: 18, left: 18, zIndex: 1000, display: "flex", justifyContent: "space-between" }}>
-        <div style={{ background: "#020617", color: "white", padding: "8px 12px", borderRadius: 16, fontWeight: "bold" }}>
-          {visibleReports.length} بلاغ مباشر 🔴
-        <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 4 }}>
-  آخر تحديث الآن
-</div>
+
+<div style={{
+  color: "#020617",
+  fontWeight: "bold",
+  fontSize: 24,
+  textAlign: "center",
+  textShadow: "0 1px 4px rgba(255,255,255,0.95)",
+  lineHeight: 1.1
+}}>
+  🔴 {visibleReports.length}
+  <div style={{
+    fontSize: 16,
+    marginTop: 4
+  }}>
+    بلاغات
+  </div>
+
         </div>
 
         <button
@@ -1046,16 +1040,17 @@ onClick={(e) => {
 }}
 
           style={{
-            background: "white",
-            color: "#020617",
-            padding: "12px 18px",
-            borderRadius: 20,
+           background: "transparent",
+           color: "#020617",
+           padding: "4px 6px",
+           borderRadius: 0,
+           textShadow: "0 1px 4px rgba(255,255,255,0.95)",
             border: "none",
             fontWeight: "bold",
             cursor: "pointer"
           }}
         >
-          📍 موقعي
+          📍 موقعي GPS ✅
         </button>
       </div>
 )}
@@ -1173,6 +1168,15 @@ onClick={() => {
 
 <div style={{ flex: 1, color: "white", lineHeight: 1.25 }}>
   <b>{r.type}</b>
+
+  <div style={{
+  color: "#cbd5e1",
+  fontSize: 13,
+  lineHeight: 1.35,
+  marginTop: 4
+}}>
+  📍 {r.area}
+</div>
 
 
 
