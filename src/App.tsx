@@ -337,6 +337,7 @@ helperStatus: "مساعد بالطريق",
 helpers: 1,
 joined: true,
 helperId: deviceId,
+helperPhone: "03211183",
 helperAcceptedAt: Date.now()
     })
 
@@ -1705,17 +1706,18 @@ display: window.innerWidth <= 600 ? "block" : "none",
           {selectedReport.area}
         </div>
 
-{selectedReport.phone && selectedReport.type === "وصلني معك" && (
+{selectedReport.helperPhone &&
+selectedReport.type === "وصلني معك"  && (
  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginTop: 8, width: 220 }}>
     <button
-      onClick={() => window.location.href = `tel:${selectedReport.phone}`}
+      onClick={() =>window.location.href = `tel:${selectedReport.helperPhone}` }
      style={{ width: "100%", padding: 8, borderRadius: 10, border: "none", background: "#16a34a", color: "white", fontWeight: "bold", fontSize: 12, marginRight: 0 }}
     >
       📞 اتصال
     </button>
 
     <button
-      onClick={() => window.open(`https://wa.me/961${selectedReport.phone.replace(/^0/, "")}`, "_blank")}
+      onClick={() => window.open(`https://wa.me/961${selectedReport.helperPhone.replace(/^0/, "")}`, "_blank")}
       style={{ width: "100%", padding: 8, borderRadius: 10, border: "none", background: "#22c55e", color: "white", fontWeight: "bold", fontSize: 12 , marginRight: 0 }}
     >
       💬 واتساب
