@@ -1065,8 +1065,8 @@ background: "transparent",
 color: "white",
 borderRadius: 0,
 padding: 0,
-maxHeight: expandNearbyReports ? "48vh" : "30vh",
-overflowY: "hidden",
+maxHeight: expandNearbyReports ? "40vh" : "22vh",
+overflowY: "auto",
 overscrollBehavior: "contain",
 WebkitOverflowScrolling: "touch",
 touchAction: "pan-y",
@@ -1152,17 +1152,17 @@ onClick={() => {
 
   style={{
     background: "#111827",
-    borderRadius: 16,
-    padding: 12,
-    marginBottom: 8,
+    borderRadius: 12,
+    padding: 6,
+    marginBottom: 6,
     display: "flex",
     alignItems: "center",
-    gap: 10,
+    gap: 8,
     flexWrap: "wrap",
   }}
 >
 
-    <div style={{ background: r.color, width: 40, height: 40, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+    <div style={{ background: r.color, width: 32, height: 32, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center" }}>
       {r.emoji}
     </div>
 
@@ -1171,9 +1171,9 @@ onClick={() => {
 
   <div style={{
   color: "#cbd5e1",
-  fontSize: 13,
-  lineHeight: 1.35,
-  marginTop: 4
+  fontSize: 11,
+  lineHeight: 1.1,
+  marginTop: 2
 }}>
   📍 {r.area}
 </div>
@@ -1255,18 +1255,21 @@ onClick={() => {
       e.stopPropagation()
       cancelReport(r)
     }}
-    style={{
-      width: "100%",
-      background: "#dc2626",
-      color: "white",
-      border: "none",
-      borderRadius: 12,
-      padding: "14px",
-      fontWeight: "bold",
-      marginTop: 8
-    }}
+style={{
+  width: "auto",
+  minWidth: 90,
+  background: "#dc2626",
+  color: "white",
+  border: "none",
+  borderRadius: 10,
+  padding: "7px 10px",
+  fontWeight: "bold",
+  fontSize: 12,
+  marginTop: 0,
+  marginRight: "auto"
+}}
   >
-    ❌ إلغاء الطلب
+    ❌ إلغاء
   </button>
 )}
 
