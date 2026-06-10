@@ -1289,8 +1289,8 @@ style={{
 {r.helperId === deviceId && (
   <div style={{
     display: "grid",
-    gap: 10,
-    width: 240,
+    gap: 6,
+    width: 150,
     flexShrink: 0
   }}>
     <button
@@ -1303,9 +1303,9 @@ style={{
         background: "#16a34a",
         color: "white",
         border: "none",
-        borderRadius: 16,
-        padding: "14px",
-        fontSize: 18,
+        borderRadius: 10,
+        padding: "7px 8px",
+        fontSize: 12,
         fontWeight: "bold"
       }}
     >
@@ -1324,9 +1324,9 @@ style={{
             background: "#16a34a",
             color: "white",
             border: "none",
-            borderRadius: 16,
-            padding: "14px",
-            fontSize: 18,
+            borderRadius: 10,
+            padding: "8px",
+            fontSize: 12,
             fontWeight: "bold"
           }}
         >
@@ -1343,9 +1343,9 @@ style={{
             background: "#16a34a",
             color: "white",
             border: "none",
-            borderRadius: 16,
-            padding: "14px",
-            fontSize: 18,
+            borderRadius: 10,
+            padding: "8px",
+            fontSize: 12,
             fontWeight: "bold"
           }}
         >
@@ -1364,9 +1364,9 @@ style={{
         background: "#16a34a",
         color: "white",
         border: "none",
-        borderRadius: 16,
-        padding: "14px",
-        fontSize: 18,
+        borderRadius: 10,
+        padding: "8px",
+        fontSize: 12,
         fontWeight: "bold"
       }}
     >
@@ -1647,7 +1647,7 @@ display: window.innerWidth <= 600 ? "block" : "none",
 
             <button
               onClick={() => window.open(`https://wa.me/${selectedReport.stolenBikePhone}`, "_blank")}
-              style={{ width: "100%", padding: 16, borderRadius: 18, border: "none", background: "#22c55e", color: "white", fontWeight: "bold", fontSize: 18, marginTop: 10 }}
+              style={{ width: "100%", padding: 8, borderRadius: 10, border: "none", background: "#22c55e", color: "white", fontWeight: "bold", fontSize: 13, marginRight: 0 }}
             >
               💬 واتساب
             </button>
@@ -1658,7 +1658,7 @@ display: window.innerWidth <= 600 ? "block" : "none",
 
         <button
           onClick={() => window.open(`https://www.google.com/maps?q=${selectedReport.lat},${selectedReport.lng}`, "_blank")}
-          style={{ width: "100%", padding: 16, borderRadius: 18, border: "none", background: "#2563eb", color: "white", fontWeight: "bold", fontSize: 18, marginTop: 10 }}
+          style={{ width: "100%", padding: 8, borderRadius: 10, border: "none", background: "#2563eb", color: "white", fontWeight: "bold", fontSize: 13 }}
         >
           📍 فتح الموقع
         </button>
@@ -1688,13 +1688,13 @@ display: window.innerWidth <= 600 ? "block" : "none",
 
         <button
           onClick={() => setSelectedReport(null)}
-          style={{ width: "100%", padding: 14, borderRadius: 18, border: "none", marginTop: 10, background: "#e5e7eb", fontWeight: "bold" }}
+          style={{ width: "100%", padding: 8, borderRadius: 10, border: "none", marginTop: 6, background: "#e5e7eb", fontWeight: "bold", fontSize: 12 }}
         >
           إغلاق
         </button>
       </div>
     ) : (
-      <div style={{ background: "white", width: "100%", maxWidth: 420, borderRadius: 28, padding: 24, textAlign: "center" }}>
+      <div style={{ background: "white", width: "100%", maxWidth: 280, borderRadius: 28, padding: 12 , textAlign: "center" }}>
         <div style={{ fontSize: 52, marginBottom: 10 }}>{selectedReport.emoji}</div>
 
         <h2 style={{ margin: 0, fontSize: 32, fontWeight: "bold" }}>
@@ -1706,24 +1706,24 @@ display: window.innerWidth <= 600 ? "block" : "none",
         </div>
 
 {selectedReport.phone && selectedReport.type === "وصلني معك" && (
- <div style={{ display: "grid", gap: 8, marginTop: 16, width: 150 }}>
+ <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginTop: 8, width: 220 }}>
     <button
       onClick={() => window.location.href = `tel:${selectedReport.phone}`}
-      style={{ width: "100%", padding: 14, borderRadius: 16, border: "none", background: "#16a34a", color: "white", fontWeight: "bold", fontSize: 17 , marginRight: 0 }}
+     style={{ width: "100%", padding: 8, borderRadius: 10, border: "none", background: "#16a34a", color: "white", fontWeight: "bold", fontSize: 12, marginRight: 0 }}
     >
       📞 اتصال
     </button>
 
     <button
       onClick={() => window.open(`https://wa.me/961${selectedReport.phone.replace(/^0/, "")}`, "_blank")}
-      style={{ width: "100%", padding: 14, borderRadius: 16, border: "none", background: "#22c55e", color: "white", fontWeight: "bold", fontSize: 17 , marginRight: 0 }}
+      style={{ width: "100%", padding: 8, borderRadius: 10, border: "none", background: "#22c55e", color: "white", fontWeight: "bold", fontSize: 12 , marginRight: 0 }}
     >
       💬 واتساب
     </button>
 
     <button
       onClick={() => window.open(`https://www.google.com/maps?q=${selectedReport.lat},${selectedReport.lng}`, "_blank")}
-      style={{ width: "100%", padding: 14, borderRadius: 16, border: "none", background: "#2563eb", color: "white", fontWeight: "bold", fontSize: 17 }}
+      style={{ width: "100%", padding: 8, borderRadius: 10, border: "none", background: "#2563eb", color: "white", fontWeight: "bold", fontSize: 12 }}
     >
       📍 افتح الخريطة
     </button>
