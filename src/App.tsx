@@ -1146,6 +1146,10 @@ onClick={() => {
     return
   }
 
+  if (r.ownerId === deviceId && !r.helperComing) {
+  return
+}
+
   setSelectedReport(r)
   setMapTarget([r.lat + Math.random() * 0.000001, r.lng])
 }}
@@ -1162,12 +1166,19 @@ onClick={() => {
   }}
 >
 
-    <div style={{ background: r.color, width: 32, height: 32, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+    <div style={{ background: r.color, width: 30, height: 30, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center" }}>
       {r.emoji}
     </div>
 
 <div style={{ flex: 1, color: "white", lineHeight: 1.25 }}>
-  <b>{r.type}</b>
+  <div
+  style={{
+    fontSize: 14,
+    fontWeight: "bold"
+  }}
+>
+  {r.type}
+</div>
 
   <div style={{
   color: "#cbd5e1",
@@ -1234,15 +1245,17 @@ onClick={() => {
       resolveReport(r)
     }}
     style={{
-      width: "100%",
-      background: "#22c55e",
-      color: "white",
-      border: "none",
-      borderRadius: 12,
-      padding: "14px",
-      fontWeight: "bold",
-      marginTop: 8,
-      marginRight: 8
+background: "#22c55e",
+color: "white",
+border: "none",      
+width: "auto",
+minWidth: 110,
+borderRadius: 10,
+padding: "6px 8px",
+fontSize: 11,
+fontWeight: "bold",
+marginTop: 0,
+marginRight: 0
     }}
   >
     ✅ تم الحل
