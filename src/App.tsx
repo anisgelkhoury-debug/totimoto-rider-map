@@ -843,9 +843,9 @@ left: 12,
     <Marker
       key={`helper-${r.id}`}
       position={[r.helperLat, r.helperLng]}
-      icon={makeIcon("🟢", "#00ff00")}
+      icon={makeIcon("🔵", "#2563eb")}
     >
-      <Popup>HELPER MARKER HERE</Popup>
+      <Popup>المساعد في الطريق إليك</Popup>
     </Marker>
   ) : null
 )}
