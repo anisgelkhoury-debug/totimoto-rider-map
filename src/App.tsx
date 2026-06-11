@@ -669,6 +669,32 @@ useEffect(() => {
   return () => navigator.geolocation.clearWatch(watchId)
 }, [])
 
+useEffect(() => {
+  if (!myLocation) return
+
+  const activeHelp = reports.find((r: any) =>
+    r.helperId === deviceId &&
+    r.helperComing &&
+    !r.resolved
+  )
+
+  if (!activeHelp) return
+
+  const updateHelperLocation = async () => {
+    try {
+      await updateDoc(doc(db, "reports", String(activeHelp.id)), {
+        helperLat: myLocation[0],
+        helperLng: myLocation[1],
+        helperLocationUpdatedAt: Date.now()
+      })
+    } catch (error) {
+      console.error("Failed to update helper live location", error)
+    }
+  }
+
+  updateHelperLocation()
+}, [myLocation, reports, deviceId])
+
   useEffect(() => {
   const moveInterval = setInterval(() => {
     setReports((currentReports: any) =>
