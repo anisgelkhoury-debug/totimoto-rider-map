@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from "react"
+import { Fragment, useEffect, useState, useRef } from "react"
 import { MapContainer, TileLayer, Marker, Popup, useMap, Circle, useMapEvents } from "react-leaflet"
 import "leaflet/dist/leaflet.css"
 import L, { DivIcon } from "leaflet"
@@ -121,10 +121,12 @@ animation:
 
 function MyLocation({ position }: any) {
   const map = useMap()
+  const hasCentered = useRef(false)
 
   useEffect(() => {
-    if (position) {
+    if (position && !hasCentered.current) {
       map.flyTo(position, 14)
+      hasCentered.current = true
     }
   }, [position, map])
 
