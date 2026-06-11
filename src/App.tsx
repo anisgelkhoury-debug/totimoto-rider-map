@@ -340,6 +340,10 @@ helpers: 1,
 joined: true,
 helperId: deviceId,
 helperPhone: "03211183",
+helperLat: myLocation ? myLocation[0] : null,
+helperLng: myLocation ? myLocation[1] : null,
+helperLocationUpdatedAt: Date.now(),
+
 helperAcceptedAt: Date.now()
     })
 
