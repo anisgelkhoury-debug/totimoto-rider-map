@@ -858,6 +858,10 @@ eventHandlers={{
       return
     }
 
+    if (r.ownerId === deviceId && !r.helperComing) {
+  return
+}
+
     setSelectedReport(r)
   },
 }}
@@ -1202,7 +1206,11 @@ onClick={() => {
 {r.helperArrived ? (
   <>✅ المساعدة وصلت للموقع</>
 ) : (
-  <>{r.helpers || 1} مساعد بالطريق</>
+  <>
+    {r.helperId === deviceId
+      ? "✅ أنت استلمت هذا الطلب"
+      : `${r.helpers || 1} مساعد بالطريق`}
+  </>
 )}
   </div>
 )}
@@ -1310,7 +1318,7 @@ style={{
         fontWeight: "bold"
       }}
     >
-      📍 افتح الخريطة
+      📍 موقع الطلب
     </button>
 
     {r.phone && (
@@ -1707,7 +1715,13 @@ display: window.innerWidth <= 600 ? "block" : "none",
         </div>
 
 {selectedReport.helperPhone &&
-selectedReport.type === "وصلني معك"  && (
+[
+  "وصلني معك",
+  "ما معي بنزين",
+  "عطل بالدراجة",
+  "محتاج دفشة"
+].includes(selectedReport.type) && (
+
  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginTop: 8, width: 220 }}>
     <button
       onClick={() =>window.location.href = `tel:${selectedReport.helperPhone}` }
@@ -1727,7 +1741,7 @@ selectedReport.type === "وصلني معك"  && (
       onClick={() => window.open(`https://www.google.com/maps?q=${selectedReport.lat},${selectedReport.lng}`, "_blank")}
       style={{ width: "100%", padding: 8, borderRadius: 10, border: "none", background: "#2563eb", color: "white", fontWeight: "bold", fontSize: 12 }}
     >
-      📍 افتح الخريطة
+      📍 موقع الطلب
     </button>
 
 {selectedReport.type?.includes("مسروقة") &&
