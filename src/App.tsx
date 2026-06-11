@@ -1744,10 +1744,17 @@ display: window.innerWidth <= 600 ? "block" : "none",
     </button>
 
     <button
-      onClick={() => window.open(`https://www.google.com/maps?q=${selectedReport.lat},${selectedReport.lng}`, "_blank")}
+onClick={() => {
+  window.open(
+    selectedReport.ownerId === deviceId
+      ? `https://www.google.com/maps?q=${selectedReport.helperLat},${selectedReport.helperLng}`
+      : `https://www.google.com/maps?q=${selectedReport.lat},${selectedReport.lng}`,
+    "_blank"
+  )
+}}
       style={{ width: "100%", padding: 8, borderRadius: 10, border: "none", background: "#2563eb", color: "white", fontWeight: "bold", fontSize: 12 }}
     >
-      📍 موقع الطلب
+      {selectedReport.ownerId === deviceId ? "📍 موقع المساعد" : "📍 موقع الطلب"}
     </button>
 
 {selectedReport.type?.includes("مسروقة") &&
