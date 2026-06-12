@@ -1361,6 +1361,14 @@ onClick={() => {
 
   style={{
     background: "#111827",
+    borderWidth: 2,
+    borderStyle: "solid",
+    borderColor:
+  r.priority === "high"
+    ? "#ef4444"
+    : r.priority === "medium"
+    ? "#f59e0b"
+    : "#3b8df8",
     borderRadius: 12,
     padding: 6,
     marginBottom: 6,
