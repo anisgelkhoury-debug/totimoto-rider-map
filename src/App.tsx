@@ -1142,6 +1142,29 @@ paddingBottom: 12
     paddingBottom: 4
   }}
 >
+
+<button
+  onClick={() => setActiveReportFamily("all")}
+  style={{
+    background: activeReportFamily === "all" ? "#020617" : "#f1f5f9",
+    color: activeReportFamily === "all" ? "white" : "#020617",
+    border: activeReportFamily === "all" ? "2px solid #94a3b8" : "1px solid white",
+    borderRadius: 999,
+    padding: "8px 12px",
+    fontWeight: "bold",
+    whiteSpace: "nowrap",
+    boxShadow: activeReportFamily === "all"
+      ? "0 0 14px rgba(148,163,184,.6)"
+      : "none",
+    transform: activeReportFamily === "all"
+      ? "scale(1.05)"
+      : "scale(1)",
+    transition: "all .2s ease"
+  }}
+>
+  🌍 الكل
+</button>
+
 <button
 onClick={() => setActiveReportFamily("intelligence")}
 style={{
