@@ -39,16 +39,16 @@ helperPhone?: string
 }
 
 const reportTypes = [
-  { label: "بلاغ عن دراجة مسروقة", emoji: "🚨", color: "#7f1d1d", expiry: 43200, priority: "high" },
-  { label: "زحمة", emoji: "🚗", color: "#dc2626", expiry: 15, priority: "high" },
-  { label: "حادث", emoji: "⚠️", color: "#f97316", expiry: 45, priority: "high" },
-  { label: "طريق مسكر", emoji: "⛔", color: "#1d4ed8", expiry: 45, priority: "high" },
-  { label: "طريق زلق", emoji: "🌊", color: "#06b6d4", expiry: 45, priority: "high" },
-  { label: "عطل بالدراجة", emoji: "🔧", color: "#7c3aed", expiry: 45, priority: "medium" },
-  { label: "محتاج دفشي", emoji: "🛵", color: "#16a34a", expiry: 30, priority: "medium" },
-  { label: "ما معي بنزين", emoji: "⛽", color: "#eab308", expiry: 30, priority: "medium" },
-  { label: "وصلني معك", emoji: "🤝", color: "#db2777", expiry: 10, priority: "medium" },
-]
+  { label: "بلاغ عن دراجة مسروقة", emoji: "🚨", color: "#7f1d1d", expiry: 43200, priority: "high", reportFamily: "stolen", reportCategory: "stolen" },
+  { label: "زحمة", emoji: "🚗", color: "#dc2626", expiry: 15, priority: "high", reportFamily: "intelligence", reportCategory: "traffic" },
+  { label: "حادث", emoji: "⚠️", color: "#f97316", expiry: 45, priority: "high", reportFamily: "intelligence", reportCategory: "accident" },
+  { label: "طريق مسكر", emoji: "⛔", color: "#1d4ed8", expiry: 45, priority: "high", reportFamily: "intelligence", reportCategory: "road_closed" },
+  { label: "طريق زلق", emoji: "🌊", color: "#06b6d4", expiry: 45, priority: "high", reportFamily: "intelligence", reportCategory: "slippery_road" },
+  { label: "عطل بالدراجة", emoji: "🔧", color: "#7c3aed", expiry: 45, priority: "medium", reportFamily: "assistance", reportCategory: "bike_broken" },
+  { label: "محتاج دفشي", emoji: "🛵", color: "#16a34a", expiry: 30, priority: "medium", reportFamily: "assistance", reportCategory: "push" },
+  { label: "ما معي بنزين", emoji: "⛽", color: "#eab308", expiry: 30, priority: "medium", reportFamily: "assistance", reportCategory: "fuel" },
+  { label: "وصلني معك", emoji: "🤝", color: "#db2777", expiry: 10, priority: "medium", reportFamily: "sharedRide", reportCategory: "ride" },
+] 
 
 const startingReports = [
   { 
@@ -220,6 +220,7 @@ function MapZoomTracker({ setMapZoom }: any) {
 
 function App() {
   const [reports, setReports] = useState<ReportItem[]>(startingReports)
+const [activeReportFamily, setActiveReportFamily] = useState("all")
 
   const [deviceId] = useState(() => {
   let id = localStorage.getItem("deviceId")
@@ -278,6 +279,8 @@ async function submitStolenBikeReport() {
       id: Date.now(),
 
       type: "بلاغ عن دراجة مسروقة",
+      reportFamily: "stolen",
+      reportCategory: "stolen",
       emoji: "🚨",
       priority: "high",
       ownerId: deviceId,
@@ -591,10 +594,10 @@ async function getAddressFromCoords(lat: number, lng: number) {
 
 
 
-async function addReport(type: string, color: string, emoji: string) {
+async function addReport(type: any) {
  
 
-if (type.includes("مسروقة")) {
+if (type.label.includes("مسروقة")) {
   setShowReportModal(false)
   setShowStolenModal(true)
   return
@@ -606,22 +609,25 @@ if (type.includes("مسروقة")) {
 
   const newReport = {
     ownerId: deviceId,
-    type,
+    type: type.label,
     area: locationName,
     distance: "الآن",
     lat: myLocation[0],
     lng: myLocation[1],
-    color,
-    emoji,
+    color: type.color,
+    emoji: type.emoji,
+    reportFamily: type.reportFamily,
+    reportCategory: type.reportCategory,
+
     createdAt: Date.now(),
     expiry:
-  type === "زحمة" ? 30 :
-  type === "حادث" ? 60 :
-  type === "طريق مسكر" ? 120 :
-  type === "ما معي بنزين" ? 20 :
-  type === "محتاج دفشة" ? 45 :
-  type === "عطل بالدراجة" ? 60 :
-  type === "وصّلني معك" ? 20 :
+type.label === "زحمة" ? 30 :
+type.label === "حادث" ? 60 :
+type.label === "طريق مسكر" ? 120 :
+type.label === "ما معي بنزين" ? 20 :
+type.label === "محتاج دفشة" ? 45 :
+type.label === "عطل بالدراجة" ? 60 :
+type.label === "وصّلني معك" ? 20 :
   45,
     helpers: 0,
     helpersList: [],
@@ -669,7 +675,7 @@ useEffect(() => {
   return () => navigator.geolocation.clearWatch(watchId)
 }, [])
 
-useEffect(() => {
+/*  useEffect(() => {
   if (!myLocation) return
 
   const activeHelp = reports.find((r: any) =>
@@ -694,6 +700,7 @@ useEffect(() => {
 
   updateHelperLocation()
 }, [myLocation, reports, deviceId])
+*/
 
   useEffect(() => {
   const moveInterval = setInterval(() => {
@@ -767,9 +774,25 @@ addDoc(collection(db, "reports"), newReport)
 setShowReportModal(false)
 }
 
+const intelligenceCount =
+  reports.filter((r: any) => !r.resolved && r?.reportFamily === "intelligence").length
+
+const assistanceCount =
+  reports.filter((r: any) => !r.resolved && r?.reportFamily === "assistance").length
+
+const sharedRideCount =
+  reports.filter((r: any) => !r.resolved && r?.reportFamily === "sharedRide").length
+
+const stolenCount =
+  reports.filter((r: any) => !r.resolved && r?.reportFamily === "stolen").length
+
 
 const visibleReports = reports.filter((r: any) => {
+
+
   if (r.resolved) return false
+
+  if (activeReportFamily !== "all" && r.reportFamily !== activeReportFamily) return false
 
   const isHelpRequest = canReceiveHelp(r)
 
@@ -832,18 +855,18 @@ left: 12,
   🚨 تبليغ مباشر
 </button>
 
-        {myLocation && (
-          <Marker position={myLocation} icon={makeIcon("🔵", "#2563eb")}>
-            <Popup>موقعك الحالي</Popup>
-          </Marker>
-        )}
+{myLocation && (
+  <Marker position={myLocation} icon={makeIcon("🔵", "#2563eb")}>
+    <Popup>موقعك الحالي</Popup>
+  </Marker>
+)}
 
 {visibleReports.map((r: any) =>
   r.helperComing && r.helperLat && r.helperLng && !r.resolved ? (
     <Marker
       key={`helper-${r.id}`}
       position={[r.helperLat, r.helperLng]}
-      icon={makeIcon("🔵", "#2563eb")}
+      icon={makeIcon("🏍️", "#2563eb")}
     >
       <Popup>المساعد في الطريق إليك</Popup>
     </Marker>
@@ -1110,6 +1133,104 @@ touchAction: "pan-y",
 paddingBottom: 12
 }}>
 
+<div
+  style={{
+    display: "flex",
+    gap: 6,
+    overflowX: "auto",
+    marginBottom: 10,
+    paddingBottom: 4
+  }}
+>
+<button
+onClick={() => setActiveReportFamily("intelligence")}
+style={{
+  background: activeReportFamily === "intelligence" ? "#020617" : "#f1f5f9",
+  color: activeReportFamily === "intelligence" ? "white" : "#2563eb",
+  border: activeReportFamily === "intelligence" ? "2px solid #38bdf8" : "1px solid white",
+  borderRadius: 999,
+  padding: "8px 12px",
+  fontWeight: "bold",
+  whiteSpace: "nowrap",
+  boxShadow: activeReportFamily === "intelligence"
+    ? "0 0 14px rgba(56,189,248,.6)"
+    : "none",
+  transform: activeReportFamily === "intelligence"
+    ? "scale(1.05)"
+    : "scale(1)",
+  transition: "all .2s ease"
+}}
+>
+  🛣️ حالة الطرق ({intelligenceCount})
+</button>
+
+<button
+  onClick={() => setActiveReportFamily("assistance")}
+  style={{
+    background: activeReportFamily === "assistance" ? "#052e16" : "#f1f5f9",
+    color: activeReportFamily === "assistance" ? "white" : "#16a34a",
+    border: activeReportFamily === "assistance" ? "2px solid #22c55e" : "1px solid white",
+    borderRadius: 999,
+    padding: "8px 12px",
+    fontWeight: "bold",
+    whiteSpace: "nowrap",
+    boxShadow: activeReportFamily === "assistance"
+      ? "0 0 14px rgba(34,197,94,.6)"
+      : "none",
+    transform: activeReportFamily === "assistance"
+      ? "scale(1.05)"
+      : "scale(1)",
+    transition: "all .2s ease"
+  }}
+>
+  🤝 طلبات المساعدة ({assistanceCount})
+</button>
+
+<button
+  onClick={() => setActiveReportFamily("sharedRide")}
+  style={{
+    background: activeReportFamily === "sharedRide" ? "#3b0764" : "#f1f5f9",
+    color: activeReportFamily === "sharedRide" ? "white" : "#9333ea",
+    border: activeReportFamily === "sharedRide" ? "2px solid #c084fc" : "1px solid white",
+    borderRadius: 999,
+    padding: "8px 12px",
+    fontWeight: "bold",
+    whiteSpace: "nowrap",
+    boxShadow: activeReportFamily === "sharedRide"
+      ? "0 0 14px rgba(192,132,252,.6)"
+      : "none",
+    transform: activeReportFamily === "sharedRide"
+      ? "scale(1.05)"
+      : "scale(1)",
+    transition: "all .2s ease"
+  }}
+>
+  🏍️ وصلني معك ({sharedRideCount})
+</button>
+
+<button
+  onClick={() => setActiveReportFamily("stolen")}
+  style={{
+    background: activeReportFamily === "stolen" ? "#450a0a" : "#f1f5f9",
+    color: activeReportFamily === "stolen" ? "white" : "#dc2626",
+    border: activeReportFamily === "stolen" ? "2px solid #ef4444" : "1px solid white",
+    borderRadius: 999,
+    padding: "8px 12px",
+    fontWeight: "bold",
+    whiteSpace: "nowrap",
+    boxShadow: activeReportFamily === "stolen"
+      ? "0 0 14px rgba(239,68,68,.6)"
+      : "none",
+    transform: activeReportFamily === "stolen"
+      ? "scale(1.05)"
+      : "scale(1)",
+    transition: "all .2s ease"
+  }}
+>
+ 🚨 الدراجات المسروقة ({stolenCount})
+</button>
+</div>
+
 
 
 <div
@@ -1123,11 +1244,24 @@ paddingBottom: 12
 >
 
 <div style={{
-  color: "#020617",
+  
+color:
+  activeReportFamily === "intelligence" ? "#2563eb" :
+  activeReportFamily === "assistance" ? "#16a34a" :
+  activeReportFamily === "sharedRide" ? "#ea580c" :
+  activeReportFamily === "stolen" ? "#dc2626" :
+  "#020617",
+
   fontWeight: "bold",
   textShadow: "0 1px 3px rgba(255,255,255,.9)"
 }}>
-    بلاغات قريبة
+
+{activeReportFamily === "intelligence" ? "🛣️ حالة الطرق القريبة" :
+ activeReportFamily === "assistance" ? "🤝 طلبات المساعدة القريبة" :
+ activeReportFamily === "sharedRide" ? "🏍️ وصلني معك قريباً" :
+ activeReportFamily === "stolen" ? "🚨 الدراجات المسروقة القريبة" :
+ "بلاغات قريبة"}
+
   </div>
 
   <div>
@@ -1167,6 +1301,8 @@ maxHeight: expandNearbyReports ? "38vh" : "22vh",
   overflowY: "auto",
   WebkitOverflowScrolling: "touch"
 }}>
+
+  
     
 {visibleReports.map((r, index) => (
 
@@ -1496,7 +1632,7 @@ display: window.innerWidth <= 600 ? "block" : "none",
   }
 
   
-  addReport(btn.label, btn.color, btn.emoji)
+  addReport(btn)
 
 }} style={{ minWidth: window.innerWidth <= 600 ? 0 : 108, border: "none", borderRadius: 1, padding: "1px 1px", background: btn.color, color: "white", fontWeight: "bold", fontSize: 12 }}>
             <div style={{ fontSize: 23 }}>{btn.emoji}</div>
