@@ -1373,7 +1373,7 @@ onClick={() => {
     fontWeight: "bold"
   }}
 >
-  {r.type}
+{r.emoji} {r.type}
 </div>
 
   <div style={{
@@ -1385,7 +1385,15 @@ onClick={() => {
   📍 {r.area}
 </div>
 
-
+<div
+  style={{
+    color: "#94a3b8",
+    fontSize: 10,
+    marginTop: 2
+  }}
+>
+  ⏱️ منذ {Math.floor((Date.now() - (r.createdAt || Date.now())) / 60000)} دقيقة
+</div>
 
   {r.helperComing && (
   <div style={{
