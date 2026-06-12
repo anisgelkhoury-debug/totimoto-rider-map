@@ -40,9 +40,9 @@ helperPhone?: string
 
 const reportTypes = [
   { label: "بلاغ عن دراجة مسروقة", emoji: "🚨", color: "#7f1d1d", expiry: 43200, priority: "high", reportFamily: "stolen", reportCategory: "stolen" },
-  { label: "زحمة", emoji: "🚗", color: "#dc2626", expiry: 15, priority: "high", reportFamily: "intelligence", reportCategory: "traffic" },
+  { label: "زحمة", emoji: "🚗", color: "#dc2626", expiry: 15, priority: "medium", reportFamily: "intelligence", reportCategory: "traffic" },
   { label: "حادث", emoji: "⚠️", color: "#f97316", expiry: 45, priority: "high", reportFamily: "intelligence", reportCategory: "accident" },
-  { label: "طريق مسكر", emoji: "⛔", color: "#1d4ed8", expiry: 45, priority: "high", reportFamily: "intelligence", reportCategory: "road_closed" },
+  { label: "طريق مسكر", emoji: "⛔", color: "#1d4ed8", expiry: 45, priority: "medium", reportFamily: "intelligence", reportCategory: "road_closed" },
   { label: "طريق زلق", emoji: "🌊", color: "#06b6d4", expiry: 45, priority: "high", reportFamily: "intelligence", reportCategory: "slippery_road" },
   { label: "عطل بالدراجة", emoji: "🔧", color: "#7c3aed", expiry: 45, priority: "medium", reportFamily: "assistance", reportCategory: "bike_broken" },
   { label: "محتاج دفشي", emoji: "🛵", color: "#16a34a", expiry: 30, priority: "medium", reportFamily: "assistance", reportCategory: "push" },
@@ -59,7 +59,7 @@ const startingReports = [
     lng: 35.5018, 
     color: "#dc2626", 
     emoji: "🚗" , 
-    priority: "high",
+    priority: "medium",
     createdAt: Date.now(),
   },
   { 
@@ -431,7 +431,7 @@ const fakeReports = [
     lng: 35.482,
     color: "#dc2626",
     emoji: "🚗",
-    priority: "high",
+    priority: "medium",
     expiry: 45,
     helperComing: false,
     helperArrived: false,
@@ -575,7 +575,16 @@ async function getAddressFromCoords(lat: number, lng: number) {
     const data = await response.json()
     const address = data.address || {}
 
-    const road = address.road || address.street || ""
+  const road =
+  address.road ||
+  address.street ||
+  address.pedestrian ||
+  address.footway ||
+  address.cycleway ||
+  address.highway ||
+  address.path ||
+  ""
+
     const town =
       address.village ||
       address.town ||
@@ -1376,6 +1385,26 @@ onClick={() => {
 {r.emoji} {r.type}
 </div>
 
+<div
+  style={{
+    color:
+      r.priority === "high"
+        ? "#ef4444"
+        : r.priority === "medium"
+        ? "#f59e0b"
+        : "#38bdf8",
+    fontSize: 10,
+    fontWeight: "bold",
+    marginTop: 2
+  }}
+>
+  {r.priority === "high"
+    ? "🔴 خطر عالي"
+    : r.priority === "medium"
+    ? "🟠 انتباه"
+    : "🔵 معلومة"}
+</div>
+
   <div style={{
   color: "#cbd5e1",
   fontSize: 11,
@@ -1387,9 +1416,15 @@ onClick={() => {
 
 <div
   style={{
-    color: "#94a3b8",
+    color:
+      Math.floor((Date.now() - (r.createdAt || Date.now())) / 60000) < 10
+        ? "#22c55e"
+        : Math.floor((Date.now() - (r.createdAt || Date.now())) / 60000) < 30
+        ? "#f59e0b"
+        : "#ef4444",
     fontSize: 10,
-    marginTop: 2
+    marginTop: 2,
+    fontWeight: "bold"
   }}
 >
   ⏱️ منذ {Math.floor((Date.now() - (r.createdAt || Date.now())) / 60000)} دقيقة
