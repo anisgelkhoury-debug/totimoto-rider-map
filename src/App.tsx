@@ -257,7 +257,7 @@ const [showMobileDashboard, setShowMobileDashboard] = useState(true)
 const [showTopInfo, setShowTopInfo] = useState(true)
 const [showNearbyReports, setShowNearbyReports] = useState(true)
 const [expandNearbyReports, setExpandNearbyReports] = useState(false)
-
+const [reportsSheetMode, setReportsSheetMode] = useState<"collapsed" | "half" | "full">("collapsed")
 
 const [stolenBikeType, setStolenBikeType] = useState("")
 const [stolenBikeColor, setStolenBikeColor] = useState("")
@@ -1134,8 +1134,14 @@ background: "transparent",
 color: "white",
 borderRadius: 0,
 padding: 0,
-maxHeight: expandNearbyReports ? "40vh" : "22vh",
-overflowY: "auto",
+height:
+  reportsSheetMode === "collapsed"
+    ? "22vh"
+    : reportsSheetMode === "half"
+    ? "55vh"
+    : "82vh",
+transition: "height .25s ease",
+overflow: "visible",
 overscrollBehavior: "contain",
 WebkitOverflowScrolling: "touch",
 touchAction: "pan-y",
@@ -1148,7 +1154,7 @@ paddingBottom: 12
     gap: 6,
     overflowX: "auto",
     marginBottom: 10,
-    paddingBottom: 4
+    paddingBottom: 8,
   }}
 >
 
@@ -1313,7 +1319,15 @@ color:
   </button>
 
   <button
-    onClick={() => setExpandNearbyReports(!expandNearbyReports)}
+    onClick={() => {
+  if (reportsSheetMode === "collapsed") {
+    setReportsSheetMode("half")
+  } else if (reportsSheetMode === "half") {
+    setReportsSheetMode("full")
+  } else {
+    setReportsSheetMode("collapsed")
+  }
+}}
     style={{
       background: "transparent",
       color: "#020617",
@@ -1322,19 +1336,30 @@ color:
       cursor: "pointer"
     }}
   >
-    {expandNearbyReports ? "🔽" : "🔼"}
+    {reportsSheetMode === "collapsed"
+  ? "⬆️ نصف الشاشة"
+  : reportsSheetMode === "half"
+  ? "⬆️ شاشة كاملة"
+  : "⬇️ تصغير"}
   </button>
 
 </div>
 </div>
 
 <div style={{
-maxHeight: expandNearbyReports ? "38vh" : "22vh",
+height:
+  reportsSheetMode === "collapsed"
+    ? "22vh"
+    : reportsSheetMode === "half"
+    ? "55vh"
+    : "82vh",
+
+transition: "height .25s ease",
   overflowY: "auto",
   WebkitOverflowScrolling: "touch"
 }}>
 
-  
+
     
 {visibleReports.map((r, index) => (
 
@@ -1627,7 +1652,7 @@ style={{
 )}
 
 
-          </div>
+     </div>     
      ))}
      </div>
      </div>
