@@ -276,7 +276,11 @@ async function submitStolenBikeReport() {
 
  ;(document.activeElement as HTMLElement)?.blur()   
 
-    const reportData = {
+const reportLat = myLocation?.[0] || 33.8938
+const reportLng = myLocation?.[1] || 35.5018
+
+const locationName = await getAddressFromCoords(reportLat, reportLng)
+     const reportData = {
       id: Date.now(),
 
       type: "بلاغ عن دراجة مسروقة",
@@ -286,7 +290,12 @@ async function submitStolenBikeReport() {
       priority: "high",
       ownerId: deviceId,
 
-      area: "موقعك الحالي",
+      area: locationName,
+locationName: locationName,
+street: locationName,
+city: "",
+  lat: reportLat,
+  lng: reportLng,
 distance: "الآن",
 color: "#7f1d1d",
 expiry: 43200,
@@ -303,8 +312,7 @@ resolved: false,
       stolenBikeDate,
       stolenBikeTime,
 
-      lat: myLocation?.[0] || 0,
-      lng: myLocation?.[1] || 0,
+
 
       createdAt: Date.now()
     }
