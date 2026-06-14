@@ -258,7 +258,8 @@ const [showTopInfo, setShowTopInfo] = useState(true)
 const [showNearbyReports, setShowNearbyReports] = useState(true)
 const [expandNearbyReports, setExpandNearbyReports] = useState(false)
 const [reportsSheetMode, setReportsSheetMode] = useState<"collapsed" | "half" | "full">("collapsed")
-
+const [showReportsPage, setShowReportsPage] = useState(false)
+const [reportsSearch, setReportsSearch] = useState("")
 const [stolenBikeType, setStolenBikeType] = useState("")
 const [stolenBikeColor, setStolenBikeColor] = useState("")
 const [stolenBikePlate, setStolenBikePlate] = useState("")
@@ -1123,7 +1124,203 @@ onClick={(e) => {
         </button>
       </div>
 )}
-      {showNearbyReports && (
+
+{showReportsPage && (
+  <div
+    style={{
+      position: "fixed",
+      inset: 0,
+      background: "#ffffff",
+      zIndex: 99999,
+      overflowY: "auto",
+      padding: 16
+    }}
+  >
+
+    {/* Header */}
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        marginBottom: 20
+      }}
+    >
+      <h2
+        style={{
+          margin: 0,
+          fontSize: 24,
+          fontWeight: "bold"
+        }}
+      >
+        البلاغات
+      </h2>
+
+      <button
+        onClick={() => setShowReportsPage(false)}
+        style={{
+          border: "none",
+          background: "transparent",
+          fontSize: 28,
+          cursor: "pointer"
+        }}
+      >
+        ✕
+      </button>
+    </div>
+
+{/* Professional Mini Filter Tabs */}
+<div
+  style={{
+    display: "grid",
+   gridTemplateColumns: "repeat(5, 1fr)",
+    gap: 8,
+    marginBottom: 16
+  }}
+>
+  {[
+    ["🌍", "الكل", reports.length],
+    ["🚨", "مسروقة", stolenCount],
+    ["⚠️", "حادث", reports.filter((r:any) => r.type === "حادث").length],
+    ["🚗", "زحمة", reports.filter((r:any) => r.type === "زحمة").length],
+    ["⛔", "مسكر", reports.filter((r:any) => r.type === "طريق مسكر").length],
+    ["🌊", "زلق", reports.filter((r:any) => r.type === "طريق زلق").length],
+    ["🔧", "عطل", reports.filter((r:any) => r.type === "عطل بالدراجة").length],
+    ["⛽", "بنزين", reports.filter((r:any) => r.type === "ما معي بنزين").length],
+    ["🤝", "وصلني", reports.filter((r:any) => r.type === "وصلني معك").length],
+  ].map((tab:any) => (
+    <button
+      key={tab[1]}
+      style={{
+        background: tab[1] === "الكل" ? "#020617" : "#ffffff",
+        color: tab[1] === "الكل" ? "white" : "#111827",
+        border: "1px solid #e5e7eb",
+        borderRadius: 10,
+        padding: "2px",
+        fontWeight: "bold",
+        fontSize: 10,
+        height: 38,
+        boxShadow: "0 2px 8px rgba(0,0,0,.06)"
+      }}
+    >
+<div
+  style={{
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 4
+  }}
+>
+  <span style={{ fontSize: 12 }}>{tab[0]}</span>
+  <span>{tab[1]}</span>
+  <span
+    style={{
+      color: tab[1] === "الكل" ? "white" : "#2563eb"
+    }}
+  >
+    {tab[2]}
+  </span>
+</div>
+    </button>
+  ))}
+</div>
+
+{/* Area / Street / City Search */}
+<input
+  value={reportsSearch}
+  onChange={(e) => setReportsSearch(e.target.value)}
+  placeholder="🔎 ابحث بالمنطقة، الشارع، المدينة..."
+  style={{
+    width: "100%",
+    padding: "12px 14px",
+    borderRadius: 14,
+    border: "1px solid #e5e7eb",
+    marginBottom: 14,
+    fontSize: 14,
+    direction: "rtl",
+    outline: "none",
+    boxShadow: "0 2px 8px rgba(0,0,0,.05)"
+  }}
+/>
+
+
+    {/* Reports List */}
+    {/* TEMP NEW REPORT CARDS - WILL BE REPLACED BY OLD WORKING ENGINE */}
+    <div>
+
+
+
+      {visibleReports
+  .filter((r:any) =>
+  `${r.area || ""} ${r.street || ""} ${r.locationName || ""} ${r.city || ""} ${r.type || ""}`
+      .toLowerCase()
+      .includes(reportsSearch.toLowerCase())
+  )
+  .map((r) => (
+    <div
+
+onClick={() => {
+  if (
+    r.type === "زحمة" ||
+    r.type === "حادث" ||
+    r.type === "طريق مسكر" ||
+    r.type === "طريق زلق"
+  ) {
+    return
+  }
+
+  if (r.ownerId === deviceId && !r.helperComing) {
+    return
+  }
+
+  setSelectedReport(r)
+  setMapTarget([r.lat + Math.random() * 0.000001, r.lng])
+  setShowReportsPage(false)
+}}
+
+style={{
+  background: "#111827",
+  borderWidth: 2,
+  borderStyle: "solid",
+  borderColor:
+    r.priority === "high"
+      ? "#ef4444"
+      : r.priority === "medium"
+      ? "#f59e0b"
+      : "#3b8df8",
+  borderRadius: 12,
+  padding: 10,
+  marginBottom: 8,
+  minHeight: 58,
+  display: "grid",
+  gridTemplateColumns: "1.4fr 1.2fr .7fr",
+  alignItems: "center",
+  gap: 6
+}}
+ >           
+          
+        
+<div style={{ fontWeight: "bold", fontSize: 13, lineHeight: 1.25 }}>
+  {r.type}
+</div>
+
+<div style={{ fontSize: 11, color: "#6b7280", lineHeight: 1.25, textAlign: "center" }}>
+  <div>{r.area || "موقع غير معروف"}</div>
+ <div></div>
+</div>
+
+<div style={{ fontSize: 11, color: "#16a34a", fontWeight: "bold", textAlign: "left" }}>
+جديد
+</div>
+
+        </div>
+      ))}
+    </div>
+
+  </div>
+)}
+
+      {showNearbyReports && !showReportsPage && (
 <div style={{
   position: "fixed",
   bottom: 155,
@@ -1304,7 +1501,7 @@ color:
 
   <div>
   <button
-    onClick={() => setShowNearbyReports(false)}
+  onClick={() => setShowReportsPage(true)}
     style={{
       background: "transparent",
       color: "#020617",
@@ -1361,7 +1558,7 @@ transition: "height .25s ease",
 
 
     
-{visibleReports.map((r, index) => (
+{false && visibleReports.map((r, index) => (
 
 <div
   key={r.id || `${r.type}-${r.lat}-${r.lng}-${r.createdAt}`}
@@ -1660,7 +1857,7 @@ style={{
 )}
 
 
-{showNearbyReports && (
+{false && showNearbyReports && (
   <button
     onClick={() => setShowNearbyReports(false)}
     style={{
@@ -1681,10 +1878,13 @@ style={{
   </button>
 )}
 
-{!showNearbyReports && (
-  <button
-    onClick={() => setShowNearbyReports(true)}
-    style={{
+{true && (
+<button
+  onClick={() => {
+    setShowReportsPage(true)
+    setShowNearbyReports(false)
+  }}
+  style={{
       position: "absolute",
       bottom: 115,
       right: 14,
@@ -1698,6 +1898,8 @@ style={{
       cursor: "pointer"
     }}
   >
+
+
     👁️ إظهار البلاغات
   </button>
 )}
