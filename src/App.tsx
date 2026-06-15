@@ -35,6 +35,7 @@ helperMoving?: boolean
 
 phone?: string
 helperPhone?: string
+description?: string
 
 }
 
@@ -250,6 +251,7 @@ const liveReports: any = snapshot.docs.map((doc) => ({
   const [selectedType, setSelectedType] = useState<any>(null)
   const [selectedReport, setSelectedReport] = useState<any>(null)
   const [showReportModal, setShowReportModal] = useState(false)
+ const [showDescriptionModal, setShowDescriptionModal] = useState(false) 
 const [mapZoom, setMapZoom] = useState(12)
   const [mapTarget, setMapTarget] = useState<any>(null)
   const [showStolenModal, setShowStolenModal] = useState(false)
@@ -260,6 +262,8 @@ const [expandNearbyReports, setExpandNearbyReports] = useState(false)
 const [reportsSheetMode, setReportsSheetMode] = useState<"collapsed" | "half" | "full">("collapsed")
 const [showReportsPage, setShowReportsPage] = useState(false)
 const [reportsSearch, setReportsSearch] = useState("")
+const [reportDescription, setReportDescription] = useState("")
+const [pendingReportType, setPendingReportType] = useState<any>(null)
 const [stolenBikeType, setStolenBikeType] = useState("")
 const [stolenBikeColor, setStolenBikeColor] = useState("")
 const [stolenBikePlate, setStolenBikePlate] = useState("")
@@ -568,7 +572,6 @@ function canReceiveHelp(report: any) {
 }
 
 const needsHelper =
-selectedReport?.type === "حادث" ||
 selectedReport?.type === "محتاج دفشة" ||
 selectedReport?.type === "ما معي بنزين" ||
 selectedReport?.type === "عطل بالدراجة" ||
@@ -769,6 +772,7 @@ const locationName = await getAddressFromCoords(lat, lng)
   const newReport = {
     ownerId: deviceId,
       phone: "03211183",
+      description: type.description || "",
     ...type,
 type: type.label,
 color: type.color,
@@ -790,6 +794,7 @@ resolved: false,
 
 addDoc(collection(db, "reports"), newReport)
 setShowReportModal(false)
+setReportDescription("")
 }
 
 const intelligenceCount =
@@ -1256,75 +1261,74 @@ onClick={(e) => {
     {/* TEMP NEW REPORT CARDS - WILL BE REPLACED BY OLD WORKING ENGINE */}
     <div>
 
-
-
-      {visibleReports
+   {visibleReports
   .filter((r:any) =>
-  `${r.area || ""} ${r.street || ""} ${r.locationName || ""} ${r.city || ""} ${r.type || ""}`
+    `${r.area || ""} ${r.street || ""} ${r.locationName || ""} ${r.city || ""} ${r.type || ""}`
       .toLowerCase()
       .includes(reportsSearch.toLowerCase())
   )
-  .map((r) => (
-    <div
+  .map((r:any) => {
+    const borderColor =
+      r.priority === "high"
+        ? "#ef4444"
+        : r.priority === "medium"
+        ? "#f59e0b"
+        : "#3b82f6"
 
-onClick={() => {
-  if (
-    r.type === "زحمة" ||
-    r.type === "حادث" ||
-    r.type === "طريق مسكر" ||
-    r.type === "طريق زلق"
-  ) {
-    return
-  }
+    return (
+      <div
+        key={r.id || `${r.type}-${r.lat}-${r.lng}-${r.createdAt}`}
+        onClick={() => {
+          setSelectedReport(r)
+          setMapTarget([r.lat + Math.random() * 0.000001, r.lng])
+          setShowReportsPage(false)
+          setShowNearbyReports(false)
+        }}
+        style={{
+          background: "#111827",
+          borderWidth: 2,
+          borderStyle: "solid",
+          borderColor,
+          borderRadius: 12,
+          padding: 10,
+          marginBottom: 8,
+          minHeight: 58,
+          display: "grid",
+          gridTemplateColumns: "1fr 2fr .8fr",
+          alignItems: "center",
+          gap: 6,
+          cursor: "pointer"
+        }}
+      >
+        <div style={{ fontWeight: "bold", fontSize: 13, lineHeight: 1.25 }}>
+          {r.type}
+        </div>
 
-  if (r.ownerId === deviceId && !r.helperComing) {
-    return
-  }
+        <div style={{ fontSize: 11, color: "#6b7280", lineHeight: 1.25, textAlign: "center" }}>
+          <div>{r.area || r.street || r.locationName || "موقع غير معروف"}</div>
 
-  setSelectedReport(r)
-  setMapTarget([r.lat + Math.random() * 0.000001, r.lng])
-  setShowReportsPage(false)
-}}
-
-style={{
-  background: "#111827",
-  borderWidth: 2,
-  borderStyle: "solid",
-  borderColor:
-    r.priority === "high"
-      ? "#ef4444"
-      : r.priority === "medium"
-      ? "#f59e0b"
-      : "#3b8df8",
-  borderRadius: 12,
-  padding: 10,
-  marginBottom: 8,
-  minHeight: 58,
-  display: "grid",
-  gridTemplateColumns: "1.4fr 1.2fr .7fr",
-  alignItems: "center",
-  gap: 6
-}}
- >           
-          
-        
-<div style={{ fontWeight: "bold", fontSize: 13, lineHeight: 1.25 }}>
-  {r.type}
-</div>
-
-<div style={{ fontSize: 11, color: "#6b7280", lineHeight: 1.25, textAlign: "center" }}>
-  <div>{r.area || "موقع غير معروف"}</div>
- <div></div>
-</div>
-
-<div style={{ fontSize: 11, color: "#16a34a", fontWeight: "bold", textAlign: "left" }}>
-جديد
-</div>
+{r.description && (
+  <div
+    style={{
+      marginTop: 6,
+      color: "#94a3b8",
+      fontSize: 11,
+      lineHeight: 1.3
+    }}
+  >
+    📝 {r.description}
+  </div>
+)}
 
         </div>
-      ))}
-    </div>
 
+        <div style={{ fontSize: 11, color: "#16a34a", fontWeight: "bold", textAlign: "left" }}>
+          جديد
+        </div>
+      </div>
+    )
+  })}   
+</div>
   </div>
 )}
 
@@ -1581,7 +1585,11 @@ onClick={() => {
     return
   }
 
-  if (r.ownerId === deviceId && !r.helperComing) {
+if (
+  r.ownerId === deviceId &&
+  !r.helperComing &&
+  !r.type?.includes("مسروقة")
+) {
   return
 }
 
@@ -1650,6 +1658,13 @@ onClick={() => {
   marginTop: 2
 }}>
   📍 {r.area}
+
+{r.description && (
+  <div style={{ marginTop: 4, color: "#e5e7eb", fontSize: 11, lineHeight: 1.25 }}>
+    📝 {r.description}
+  </div>
+)}
+
 </div>
 
 <div
@@ -2001,6 +2016,8 @@ display: window.innerWidth <= 600 ? "block" : "none",
     <div style={{ background: "white", width: "100%", maxWidth: 420, maxHeight: "80vh", overflowY: "auto", borderRadius: 28, padding: 24, textAlign: "center", direction: "rtl" }}>
       <h2 style={{ marginTop: 0 }}>شو بدك تبلّغ؟</h2>
 
+  
+
 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 18 }}>
   {reportTypes.map((type) => (
     <button
@@ -2014,7 +2031,8 @@ display: window.innerWidth <= 600 ? "block" : "none",
     setShowStolenModal(true)
     return
   }
-  createUserReport(type)
+setPendingReportType(type)
+setShowDescriptionModal(true)
 }}
       style={{
         padding: "14px 8px",
@@ -2039,6 +2057,94 @@ display: window.innerWidth <= 600 ? "block" : "none",
 >
   إغلاق
 </button>
+    </div>
+  </div>
+)}
+
+{showDescriptionModal && (
+  <div style={{
+    position: "fixed",
+    inset: 0,
+    zIndex: 2900,
+    background: "rgba(0,0,0,0.55)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 20
+  }}>
+    <div style={{
+      background: "white",
+      width: "100%",
+      maxWidth: 380,
+      borderRadius: 24,
+      padding: 20,
+      direction: "rtl"
+    }}>
+
+      <h3 style={{ marginTop: 0 }}>
+        إضافة ملاحظة (اختياري)
+      </h3>
+
+      <textarea
+        value={reportDescription}
+        onChange={(e) => setReportDescription(e.target.value)}
+        placeholder="مثال: زحمة قوية بسبب حادث"
+        maxLength={120}
+        style={{
+          width: "100%",
+          minHeight: 100,
+          padding: 12,
+          borderRadius: 12,
+          border: "1px solid #ddd",
+          resize: "none",
+          boxSizing: "border-box"
+        }}
+      />
+
+      <button
+        onClick={() => {
+         if (!pendingReportType) return
+const finalDescription = reportDescription
+
+
+createUserReport({
+  ...pendingReportType,
+  description: finalDescription
+})
+setReportDescription("")
+          setShowDescriptionModal(false)
+          setShowReportModal(false)
+        }}
+        style={{
+          width: "100%",
+          padding: 14,
+          marginTop: 12,
+          borderRadius: 14,
+          border: "none",
+          background: "#16a34a",
+          color: "white",
+          fontWeight: "bold"
+        }}
+      >
+        نشر البلاغ
+      </button>
+
+      <button
+        onClick={() => {
+          setReportDescription("")
+          setShowDescriptionModal(false)
+        }}
+        style={{
+          width: "100%",
+          padding: 14,
+          marginTop: 8,
+          borderRadius: 14,
+          border: "none"
+        }}
+      >
+        إلغاء
+      </button>
+
     </div>
   </div>
 )}
@@ -2191,6 +2297,21 @@ display: window.innerWidth <= 600 ? "block" : "none",
           {selectedReport.area}
         </div>
 
+ {selectedReport.description && (
+  <div style={{
+    marginTop: 12,
+    fontSize: 15,
+    color: "#374151",
+    lineHeight: 1.6,
+    background: "#f3f4f6",
+    padding: 12,
+    borderRadius: 14,
+    textAlign: "right"
+  }}>
+    📝 {selectedReport.description}
+  </div>
+)}       
+
 {selectedReport.helperPhone &&
 [
   "وصلني معك",
@@ -2254,7 +2375,8 @@ onClick={() => {
   </div>
 )}
 
-{!selectedReport.type?.includes("مسروقة") &&
+{needsHelper &&
+ selectedReport.ownerId !== deviceId &&
  !selectedReport.helperComing && (
         <button
           disabled={selectedReport.joined}
@@ -2265,14 +2387,39 @@ onClick={() => {
         </button>
 )}
 
-
+<button
+  onClick={() =>
+    window.open(
+      `https://www.google.com/maps?q=${selectedReport.lat},${selectedReport.lng}`,
+      "_blank"
+    )
+  }
+  style={{
+    width: "100%",
+    padding: 14,
+    borderRadius: 18,
+    border: "none",
+    marginTop: 10,
+    background: "#2563eb",
+    color: "white",
+    fontWeight: "bold"
+  }}
+>
+  📍 فتح الموقع
+</button>
 
         <button
-          onClick={() => setSelectedReport(null)}
+          onClick={() => {
+  if (selectedReport.ownerId === deviceId) {
+    cancelReport(selectedReport)
+  } else {
+    setSelectedReport(null)
+  }
+}}
           style={{ width: "100%", padding: 14, borderRadius: 18, border: "none", marginTop: 10, background: "#e5e7eb", fontWeight: "bold" }}
         >
 
-          إلغاء
+        {selectedReport.ownerId === deviceId ? "❌ إلغاء البلاغ" : "إغلاق"}
         </button>
       </div>
     )}
