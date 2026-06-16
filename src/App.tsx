@@ -39,6 +39,16 @@ description?: string
 
 }
 
+const assistanceTypes = [
+  "وصلني معك",
+  "ما معي بنزين",
+  "محتاج دفشة",
+  "عطل بالدراجة"
+]
+
+const isAssistanceReport = (report:any) =>
+  assistanceTypes.some(t => report.type?.includes(t))
+
 const reportTypes = [
   { label: "بلاغ عن دراجة مسروقة", emoji: "🚨", color: "#7f1d1d", expiry: 43200, priority: "high", reportFamily: "stolen", reportCategory: "stolen" },
   { label: "زحمة", emoji: "🚗", color: "#dc2626", expiry: 15, priority: "medium", reportFamily: "intelligence", reportCategory: "traffic" },
@@ -598,22 +608,11 @@ setReports(prev =>
   return () => clearInterval(timer)
 }, [])
 
-const assistanceTypes = [
-  "عطل بالدراجة",
-  "ما معي بنزين",
-  "محتاج دفشي",
-  "وصلني معك"
-]
-
 function canReceiveHelp(report: any) {
-  return assistanceTypes.includes(report.type)
+  return isAssistanceReport(report)
 }
 
-const needsHelper =
-selectedReport?.type === "محتاج دفشة" ||
-selectedReport?.type === "ما معي بنزين" ||
-selectedReport?.type === "عطل بالدراجة" ||
-selectedReport?.type === "وصلني معك"
+const needsHelper = selectedReport ? isAssistanceReport(selectedReport) : false
 
 
 async function getAddressFromCoords(lat: number, lng: number) {
@@ -1238,7 +1237,7 @@ onClick={(e) => {
     ["🌊", "زلق", reports.filter((r:any) => r.type === "طريق زلق").length],
     ["🔧", "عطل", reports.filter((r:any) => r.type === "عطل بالدراجة").length],
     ["⛽", "بنزين", reports.filter((r:any) => r.type === "ما معي بنزين").length],
-    ["🤝", "وصلني", reports.filter((r:any) => r.type === "وصلني معك").length],
+    ["🤝", "مساعدة", reports.filter((r:any) => isAssistanceReport(r)).length],
   ].map((tab:any) => (
     <button
       key={tab[1]}
@@ -1345,7 +1344,7 @@ onClick={(e) => {
         <div style={{ fontSize: 11, color: "#6b7280", lineHeight: 1.25, textAlign: "center" }}>
           <div>{r.area || r.street || r.locationName || "موقع غير معروف"}</div>
 
-{r.ownerId === deviceId && r.helperComing && (
+{r.ownerId === deviceId && r.helperComing && isAssistanceReport(r) && (
   <div
     style={{
       color: "#16a34a",
@@ -1745,7 +1744,7 @@ if (
   ⏱️ منذ {Math.floor((Date.now() - (r.createdAt || Date.now())) / 60000)} دقيقة
 </div>
 
-  {r.helperComing && (
+  {r.helperComing && isAssistanceReport(r) && (
   <div style={{
     color: "#22c55e",
     fontSize: 13,
@@ -2396,12 +2395,7 @@ setReportDescription("")
 
 
 {selectedReport.helperPhone &&
-[
-  "وصلني معك",
-  "ما معي بنزين",
-  "عطل بالدراجة",
-  "محتاج دفشة"
-].includes(selectedReport.type) && (
+isAssistanceReport(selectedReport) && (
 
  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginTop: 8, width: 220 }}>
     <button
