@@ -42,6 +42,7 @@ description?: string
 const assistanceTypes = [
   "وصلني معك",
   "ما معي بنزين",
+   "محتاج دفش",
   "محتاج دفشة",
   "عطل بالدراجة"
 ]
@@ -56,7 +57,7 @@ const reportTypes = [
   { label: "طريق مسكر", emoji: "⛔", color: "#1d4ed8", expiry: 45, priority: "medium", reportFamily: "intelligence", reportCategory: "road_closed" },
   { label: "طريق زلق", emoji: "🌊", color: "#06b6d4", expiry: 45, priority: "high", reportFamily: "intelligence", reportCategory: "slippery_road" },
   { label: "عطل بالدراجة", emoji: "🔧", color: "#7c3aed", expiry: 45, priority: "medium", reportFamily: "assistance", reportCategory: "bike_broken" },
-  { label: "محتاج دفشي", emoji: "🛵", color: "#16a34a", expiry: 30, priority: "medium", reportFamily: "assistance", reportCategory: "push" },
+  {label: "محتاج دفشة", emoji: "🛵", color: "#16a34a", expiry: 30, priority: "medium", reportFamily: "assistance", reportCategory: "push" },
   { label: "ما معي بنزين", emoji: "⛽", color: "#eab308", expiry: 30, priority: "medium", reportFamily: "assistance", reportCategory: "fuel" },
   { label: "وصلني معك", emoji: "🤝", color: "#db2777", expiry: 10, priority: "medium", reportFamily: "sharedRide", reportCategory: "ride" },
 ] 
@@ -517,7 +518,7 @@ const fakeReports = [
   },
 
   {
-    type: "محتاج دفش",
+    type: "محتاج دفشة",
     area: "الأشرفية",
     distance: "2 كم",
     lat: 33.882,
