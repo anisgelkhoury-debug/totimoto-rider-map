@@ -243,6 +243,8 @@ const liveReports: any = snapshot.docs.map((doc) => ({
 
 
     setReports(liveReports)
+
+
   })
 
   return () => unsubscribe()
@@ -250,6 +252,21 @@ const liveReports: any = snapshot.docs.map((doc) => ({
 
   const [selectedType, setSelectedType] = useState<any>(null)
   const [selectedReport, setSelectedReport] = useState<any>(null)
+  useEffect(() => {
+  if (!selectedReport) return
+
+  const updatedReport = reports.find(
+    (r: any) => String(r.id) === String(selectedReport.id)
+  )
+
+ if (updatedReport && !updatedReport.resolved) {
+  setSelectedReport(updatedReport)
+} else {
+  setSelectedReport(null)
+}
+
+}, [reports, selectedReport])
+
   const [showReportModal, setShowReportModal] = useState(false)
  const [showDescriptionModal, setShowDescriptionModal] = useState(false) 
 const [mapZoom, setMapZoom] = useState(12)
@@ -363,7 +380,15 @@ helperLocationUpdatedAt: Date.now(),
 helperAcceptedAt: Date.now()
     })
 
-  setSelectedReport(null)  
+  setSelectedReport({
+  ...report,
+  helperComing: true,
+  joined: true,
+  helperId: deviceId,
+  helperPhone: "03211183",
+  helperLat: myLocation ? myLocation[0] : null,
+  helperLng: myLocation ? myLocation[1] : null
+})
    
   } catch (error) {
     console.error(error)
@@ -406,6 +431,19 @@ async function cancelHelp(report: any) {
       helperId: "",
       helperAcceptedAt: null
     })
+
+setSelectedReport({
+  ...report,
+  helperComing: false,
+  helperStatus: "",
+  helpers: 0,
+  joined: false,
+  helperId: "",
+  helperPhone: "",
+  helperLat: null,
+  helperLng: null,
+  helperAcceptedAt: null
+})
 
   
   } catch (error) {
@@ -1307,6 +1345,19 @@ onClick={(e) => {
         <div style={{ fontSize: 11, color: "#6b7280", lineHeight: 1.25, textAlign: "center" }}>
           <div>{r.area || r.street || r.locationName || "موقع غير معروف"}</div>
 
+{r.ownerId === deviceId && r.helperComing && (
+  <div
+    style={{
+      color: "#16a34a",
+      fontWeight: "bold",
+      marginTop: 6,
+      fontSize: 11
+    }}
+  >
+    ✅ شخص في الطريق لمساعدتك
+  </div>
+)}
+
 {r.description && (
   <div
     style={{
@@ -1319,6 +1370,17 @@ onClick={(e) => {
     📝 {r.description}
   </div>
 )}
+
+<div
+  style={{
+    marginTop: 4,
+    color: "#22c55e",
+    fontSize: 11,
+    fontWeight: "bold"
+  }}
+>
+  🕒 {timeAgo(r.createdAt)}
+</div>
 
         </div>
 
@@ -2255,6 +2317,8 @@ setReportDescription("")
           📍 فتح الموقع
         </button>
 
+
+
         {selectedReport.type?.includes("مسروقة") &&
  selectedReport.ownerId === deviceId && (
   <button
@@ -2310,7 +2374,26 @@ setReportDescription("")
   }}>
     📝 {selectedReport.description}
   </div>
-)}       
+)}   
+
+{selectedReport.helperId === deviceId && selectedReport.helperComing && (
+  <div
+    style={{
+      background: "#dcfce7",
+      color: "#166534",
+      padding: 12,
+      borderRadius: 14,
+      fontWeight: "bold",
+      fontSize: 15,
+      marginTop: 10,
+      marginBottom: 10,
+      textAlign: "center"
+    }}
+  >
+    ✅ أنت استلمت هذا الطلب
+  </div>
+)}
+
 
 {selectedReport.helperPhone &&
 [
@@ -2349,6 +2432,44 @@ onClick={() => {
       {selectedReport.ownerId === deviceId ? "📍 موقع المساعد" : "📍 موقع الطلب"}
     </button>
 
+{selectedReport.ownerId === deviceId && selectedReport.helperComing && (
+  <div
+    style={{
+      color: "#22c55e",
+      fontWeight: "bold",
+      fontSize: 14,
+      marginTop: 10,
+      marginBottom: 10,
+      textAlign: "center"
+    }}
+  >
+    🛵 المساعد في الطريق إليك
+  </div>
+)}
+
+ {selectedReport.ownerId === deviceId && selectedReport.helperComing && (
+  <button
+    onClick={(e) => {
+      e.stopPropagation()
+      resolveReport(selectedReport)
+      setSelectedReport(null)
+    }}
+    style={{
+      width: "100%",
+      padding: 14,
+      borderRadius: 18,
+      border: "none",
+      marginTop: 10,
+      background: "#22c55e",
+      color: "white",
+      fontWeight: "bold",
+      fontSize: 17
+    }}
+  >
+    ✅ تم الحل
+  </button>
+)}   
+
 {selectedReport.type?.includes("مسروقة") &&
  selectedReport.ownerId === deviceId && (
   <button
@@ -2371,6 +2492,29 @@ onClick={() => {
     ✅ تم العثور على الدراجة
   </button>
 )}
+
+<button
+  onClick={() => {
+  if (selectedReport.helperId === deviceId && selectedReport.helperComing) {
+    cancelHelp(selectedReport)
+  } else {
+    setSelectedReport(null)
+  }
+}}
+  style={{
+    width: "100%",
+    padding: 14,
+    borderRadius: 16,
+    border: "none",
+    marginTop: 10,
+    background: "#e5e7eb",
+    color: "#2563eb",
+    fontWeight: "bold",
+    fontSize: 17
+  }}
+>
+ {selectedReport.helperId === deviceId && selectedReport.helperComing ? "❌ إلغاء المساعدة" : "إغلاق"}
+</button>
 
   </div>
 )}
@@ -2408,6 +2552,13 @@ onClick={() => {
   📍 فتح الموقع
 </button>
 
+{selectedReport.ownerId === deviceId && !selectedReport.helperComing && (
+  <div style={{ color: "#f59e0b", fontWeight: "bold", fontSize: 14, marginTop: 10 }}>
+    ⏳ بانتظار شخص يستلم طلبك
+  </div>
+)}
+
+
         <button
           onClick={() => {
   if (selectedReport.ownerId === deviceId) {
@@ -2419,7 +2570,7 @@ onClick={() => {
           style={{ width: "100%", padding: 14, borderRadius: 18, border: "none", marginTop: 10, background: "#e5e7eb", fontWeight: "bold" }}
         >
 
-        {selectedReport.ownerId === deviceId ? "❌ إلغاء البلاغ" : "إغلاق"}
+       {selectedReport.ownerId === deviceId ? "❌ إلغاء الطلب" : "إغلاق"}
         </button>
       </div>
     )}
