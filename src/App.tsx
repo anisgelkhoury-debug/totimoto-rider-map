@@ -1338,9 +1338,41 @@ onClick={(e) => {
           cursor: "pointer"
         }}
       >
-        <div style={{ fontWeight: "bold", fontSize: 13, lineHeight: 1.25 }}>
-          {r.type}
-        </div>
+<div
+  style={{
+    display: "inline-block",
+    padding: "4px 10px",
+    borderRadius: 999,
+    background:
+      r.type.includes("مسروقة")
+        ? "#fee2e2"
+        : r.type.includes("حادث")
+        ? "#fef3c7"
+        : r.type.includes("بنزين")
+        ? "#fff7ed"
+        : r.type.includes("عطل")
+        ? "#f3e8ff"
+        : r.type.includes("وصلني")
+        ? "#fce7f3"
+        : "#e0f2fe",
+    color:
+      r.type.includes("مسروقة")
+        ? "#dc2626"
+        : r.type.includes("حادث")
+        ? "#d97706"
+        : r.type.includes("بنزين")
+        ? "#ea580c"
+        : r.type.includes("عطل")
+        ? "#7c3aed"
+        : r.type.includes("وصلني")
+        ? "#db2777"
+        : "#0369a1",
+    fontWeight: "bold",
+    fontSize: 12
+  }}
+>
+  {r.type}
+</div>
 
         <div style={{ fontSize: 11, color: "#6b7280", lineHeight: 1.25, textAlign: "center" }}>
           <div>{r.area || r.street || r.locationName || "موقع غير معروف"}</div>
@@ -1662,6 +1694,7 @@ if (
   style={{
     background: "#111827",
     borderWidth: 2,
+    borderLeftWidth: 8,
     borderStyle: "solid",
     borderColor:
   r.priority === "high"
@@ -1690,7 +1723,41 @@ if (
     fontWeight: "bold"
   }}
 >
-{r.emoji} {r.type}
+<div
+  style={{
+    display: "inline-block",
+    padding: "4px 10px",
+    borderRadius: 999,
+    background:
+      r.type.includes("مسروقة")
+        ? "#fee2e2"
+        : r.type.includes("حادث")
+        ? "#fef3c7"
+        : r.type.includes("بنزين")
+        ? "#fff7ed"
+        : r.type.includes("عطل")
+        ? "#f3e8ff"
+        : r.type.includes("وصلني")
+        ? "#fce7f3"
+        : "#e0f2fe",
+    color:
+      r.type.includes("مسروقة")
+        ? "#dc2626"
+        : r.type.includes("حادث")
+        ? "#d97706"
+        : r.type.includes("بنزين")
+        ? "#ea580c"
+        : r.type.includes("عطل")
+        ? "#7c3aed"
+        : r.type.includes("وصلني")
+        ? "#db2777"
+        : "#0369a1",
+    fontWeight: "bold",
+    fontSize: 12
+  }}
+>
+  {r.emoji} {r.type}
+</div>
 </div>
 
 <div
@@ -2553,6 +2620,14 @@ onClick={() => {
   </div>
 )}
 
+{selectedReport.ownerId === deviceId && !selectedReport.helperComing && (
+  <button
+    onClick={() => setSelectedReport(null)}
+    style={{ width: "100%", padding: 14, borderRadius: 18, border: "none", marginTop: 10, background: "#e5e7eb", fontWeight: "bold" }}
+  >
+    إغلاق
+  </button>
+)}
 
         <button
           onClick={() => {
