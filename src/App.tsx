@@ -870,6 +870,10 @@ const visibleReports = reports.filter((r: any) => {
   if (mapZoom >= 12) return r.priority !== "low"
 
   return r.priority === "high"
+}).sort((a: any, b: any) => {
+  if (a.ownerId === deviceId && b.ownerId !== deviceId) return -1
+  if (a.ownerId !== deviceId && b.ownerId === deviceId) return 1
+  return 0
 })
 
   return (
@@ -1238,20 +1242,33 @@ onClick={(e) => {
     ["🌊", "زلق", reports.filter((r:any) => r.type === "طريق زلق").length],
     ["🔧", "عطل", reports.filter((r:any) => r.type === "عطل بالدراجة").length],
     ["⛽", "بنزين", reports.filter((r:any) => r.type === "ما معي بنزين").length],
-    ["🤝", "مساعدة", reports.filter((r:any) => isAssistanceReport(r)).length],
+    ["🤝", "وصلني معك", reports.filter((r:any) => r.type === "وصلني معك").length],
+    ["🛵", "محتاج دفشة", reports.filter((r:any) => r.type === "محتاج دفشة").length],
+
   ].map((tab:any) => (
-    <button
-      key={tab[1]}
-      style={{
-        background: tab[1] === "الكل" ? "#020617" : "#ffffff",
-        color: tab[1] === "الكل" ? "white" : "#111827",
-        border: "1px solid #e5e7eb",
+<button
+  key={tab[1]}
+  onClick={() => {
+    setReportsSearch(tab[1] === "الكل" ? "" : tab[1])
+  }}
+  style={{
+
+        background: reportsSearch === tab[1] || (reportsSearch === "" && tab[1] === "الكل") ?  "#020617" : "#ffffff",
+color: reportsSearch === tab[1] || (reportsSearch === "" && tab[1] === "الكل") ? "white" : tab[3],
+border: reportsSearch === tab[1] || (reportsSearch === "" && tab[1] === "الكل") ? `2px solid ${tab[3]}` : "1px solid #e5e7eb",
+boxShadow: reportsSearch === tab[1] || (reportsSearch === "" && tab[1] === "الكل") ? `0 0 14px ${tab[3]}66` : "0 2px 8px rgba(0,0,0,.06)",
+transform: reportsSearch === tab[1]
+  ? "scale(1.05)"
+  : "scale(1)",
+
+transition: "all .2s ease",
+
         borderRadius: 10,
         padding: "2px",
         fontWeight: "bold",
         fontSize: 10,
         height: 38,
-        boxShadow: "0 2px 8px rgba(0,0,0,.06)"
+        
       }}
     >
 <div
@@ -1297,47 +1314,73 @@ onClick={(e) => {
 
     {/* Reports List */}
     {/* TEMP NEW REPORT CARDS - WILL BE REPLACED BY OLD WORKING ENGINE */}
-    <div>
+    
+    <div
+style={{
+  maxHeight: "calc(100vh - 240px)",
+  overflowY: "scroll",
+  overflowX: "hidden",
+  touchAction: "pan-y",
+  paddingBottom: 80
+}}
+>
 
-   {visibleReports
-  .filter((r:any) =>
-    `${r.area || ""} ${r.street || ""} ${r.locationName || ""} ${r.city || ""} ${r.type || ""}`
+{visibleReports
+  .filter((r: any) => {
+    if (activeReportFamily !== "all" && r.reportFamily !== activeReportFamily) return false
+
+    const q = reportsSearch.trim().toLowerCase()
+    if (!q) return true
+
+    return `${r.area || ""} ${r.street || ""} ${r.locationName || ""} ${r.city || ""} ${r.type || ""}`
       .toLowerCase()
-      .includes(reportsSearch.toLowerCase())
-  )
-  .map((r:any) => {
-    const borderColor =
-      r.priority === "high"
-        ? "#ef4444"
-        : r.priority === "medium"
-        ? "#f59e0b"
-        : "#3b82f6"
+      .includes(q)
+  })
+  .map((r, index) => (
 
-    return (
-      <div
-        key={r.id || `${r.type}-${r.lat}-${r.lng}-${r.createdAt}`}
-        onClick={() => {
-          setSelectedReport(r)
-          setMapTarget([r.lat + Math.random() * 0.000001, r.lng])
-          setShowReportsPage(false)
-          setShowNearbyReports(false)
-        }}
-        style={{
-          background: "#111827",
-          borderWidth: 2,
-          borderStyle: "solid",
-          borderColor,
-          borderRadius: 12,
-          padding: 10,
-          marginBottom: 8,
-          minHeight: 58,
-          display: "grid",
-          gridTemplateColumns: "1fr 2fr .8fr",
-          alignItems: "center",
-          gap: 6,
-          cursor: "pointer"
-        }}
-      >
+
+<div
+  key={r.id || `${r.type}-${r.lat}-${r.lng}-${r.createdAt}`}
+
+onClick={() => {
+  setSelectedReport(r)
+  setMapTarget([r.lat + Math.random() * 0.000001, r.lng])
+  setShowReportsPage(false)
+  setShowNearbyReports(false)
+}} 
+
+  style={{
+    background: "#111827",
+    borderWidth: 2,
+    borderLeftWidth: 8,
+    borderStyle: "solid",
+    borderColor:
+  r.priority === "high"
+    ? "#ef4444"
+    : r.priority === "medium"
+    ? "#f59e0b"
+    : "#3b8df8",
+    borderRadius: 12,
+    padding: 6,
+    marginBottom: 6,
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    flexWrap: "wrap",
+  }}
+>
+
+    <div style={{ background: r.color, width: 30, height: 30, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      {r.emoji}
+    </div>
+
+<div style={{ flex: 1, color: "white", lineHeight: 1.25 }}>
+  <div
+  style={{
+    fontSize: 14,
+    fontWeight: "bold"
+  }}
+>
 <div
   style={{
     display: "inline-block",
@@ -1371,60 +1414,397 @@ onClick={(e) => {
     fontSize: 12
   }}
 >
-  {r.type}
+
+<>
+
+
+  {r.emoji} {r.type}
+</>
+</div>
 </div>
 
-        <div style={{ fontSize: 11, color: "#6b7280", lineHeight: 1.25, textAlign: "center" }}>
-          <div>{r.area || r.street || r.locationName || "موقع غير معروف"}</div>
+<div
+  style={{
+    color:
+      r.priority === "high"
+        ? "#ef4444"
+        : r.priority === "medium"
+        ? "#f59e0b"
+        : "#38bdf8",
+    fontSize: 10,
+    fontWeight: "bold",
+    marginTop: 2
+  }}
+>
+  {r.priority === "high"
+    ? "🔴 خطر عالي"
+    : r.priority === "medium"
+    ? "🟠 انتباه"
+    : "🔵 معلومة"}
+</div>
 
-{r.ownerId === deviceId && r.helperComing && isAssistanceReport(r) && (
-  <div
-    style={{
-      color: "#16a34a",
-      fontWeight: "bold",
-      marginTop: 6,
-      fontSize: 11
-    }}
-  >
-    ✅ شخص في الطريق لمساعدتك
-  </div>
-)}
+  <div style={{
+  color: "#cbd5e1",
+  fontSize: 11,
+  lineHeight: 1.1,
+  marginTop: 2
+}}>
+  📍 {r.area}
 
 {r.description && (
-  <div
-    style={{
-      marginTop: 6,
-      color: "#94a3b8",
-      fontSize: 11,
-      lineHeight: 1.3
-    }}
-  >
+  <div style={{ marginTop: 4, color: "#e5e7eb", fontSize: 11, lineHeight: 1.25 }}>
     📝 {r.description}
   </div>
 )}
 
+</div>
+
 <div
   style={{
-    marginTop: 4,
-    color: "#22c55e",
-    fontSize: 11,
+    color:
+      Math.floor((Date.now() - (r.createdAt || Date.now())) / 60000) < 10
+        ? "#22c55e"
+        : Math.floor((Date.now() - (r.createdAt || Date.now())) / 60000) < 30
+        ? "#f59e0b"
+        : "#ef4444",
+    fontSize: 10,
+    marginTop: 2,
     fontWeight: "bold"
   }}
 >
-  🕒 {timeAgo(r.createdAt)}
+  ⏱️ منذ {Math.floor((Date.now() - (r.createdAt || Date.now())) / 60000)} دقيقة
 </div>
 
-        </div>
-
-        <div style={{ fontSize: 11, color: "#16a34a", fontWeight: "bold", textAlign: "left" }}>
-          جديد
-        </div>
-      </div>
-    )
-  })}   
-</div>
+  {r.helperComing && isAssistanceReport(r) && (
+  <div style={{
+    color: "#22c55e",
+    fontSize: 13,
+    fontWeight: "bold",
+    marginTop: 4
+  }}>
+{r.helperArrived ? (
+  <>✅ المساعدة وصلت للموقع</>
+) : (
+  <>
+    {r.helperId === deviceId
+      ? "✅ أنت استلمت هذا الطلب"
+      : `${r.helpers || 1} مساعد بالطريق`}
+  </>
+)}
   </div>
 )}
+
+</div>
+
+{r.resolved ? (
+  <button
+    style={{
+      background: "#22c55e",
+      color: "white",
+      border: "none",
+      borderRadius: 12,
+      padding: "9px 12px",
+      fontWeight: "bold"
+    }}
+  >
+    ✅ تم الحل
+  </button>
+) : (
+  canReceiveHelp(r) && r.ownerId !== deviceId && !r.helperComing && (
+    <button
+      onClick={() => helperRespond(r)}
+      style={{
+        background: "white",
+        border: "none",
+        borderRadius: 12,
+        padding: "9px 12px",
+        fontWeight: "bold"
+      }}
+    >
+      أنا قريب
+    </button>
+  )
+)}
+
+{r.ownerId === deviceId && r.helperComing && (
+  <button
+    onClick={(e) => {
+      e.stopPropagation()
+      resolveReport(r)
+    }}
+    style={{
+background: "#22c55e",
+color: "white",
+border: "none",      
+width: "auto",
+minWidth: 110,
+borderRadius: 10,
+padding: "6px 8px",
+fontSize: 11,
+fontWeight: "bold",
+marginTop: 0,
+marginRight: 0
+    }}
+  >
+    ✅ تم الحل
+  </button>
+)}
+
+{r.ownerId === deviceId && !r.type?.includes("مسروقة") && (
+  <button
+    onClick={(e) => {
+      e.stopPropagation()
+      cancelReport(r)
+    }}
+style={{
+  width: "auto",
+  minWidth: 90,
+  background: "#dc2626",
+  color: "white",
+  border: "none",
+  borderRadius: 10,
+  padding: "7px 10px",
+  fontWeight: "bold",
+  fontSize: 12,
+  marginTop: 0,
+  marginRight: "auto"
+}}
+  >
+    ❌ إلغاء
+  </button>
+)}
+
+{r.helperId === deviceId && (
+  <div style={{
+    display: "grid",
+    gap: 6,
+    width: 150,
+    flexShrink: 0
+  }}>
+    <button
+      onClick={(e) => {
+        e.stopPropagation()
+        window.open(`https://www.google.com/maps?q=${r.lat},${r.lng}`, "_blank")
+      }}
+      style={{
+        width: "100%",
+        background: "#16a34a",
+        color: "white",
+        border: "none",
+        borderRadius: 10,
+        padding: "7px 8px",
+        fontSize: 12,
+        fontWeight: "bold"
+      }}
+    >
+      📍 موقع الطلب
+    </button>
+
+    {r.phone && (
+      <>
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            window.location.href = `tel:${r.phone}`
+          }}
+          style={{
+            width: "100%",
+            background: "#16a34a",
+            color: "white",
+            border: "none",
+            borderRadius: 10,
+            padding: "8px",
+            fontSize: 12,
+            fontWeight: "bold"
+          }}
+        >
+          📞 اتصال
+        </button>
+
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+           window.open(`https://wa.me/961${String(r.phone || "").replace(/^0/, "")}`, "_blank")
+          }}
+          style={{
+            width: "100%",
+            background: "#16a34a",
+            color: "white",
+            border: "none",
+            borderRadius: 10,
+            padding: "8px",
+            fontSize: 12,
+            fontWeight: "bold"
+          }}
+        >
+          💬 واتساب
+        </button>
+      </>
+    )}
+
+    <button
+      onClick={(e) => {
+        e.stopPropagation()
+        cancelHelp(r)
+      }}
+      style={{
+        width: "100%",
+        background: "#16a34a",
+        color: "white",
+        border: "none",
+        borderRadius: 10,
+        padding: "8px",
+        fontSize: 12,
+        fontWeight: "bold"
+      }}
+    >
+      ❌ إلغاء المساعدة
+    </button>
+  </div>
+)}
+
+
+     </div>     
+     ))}
+     </div>
+     </div>
+
+)}
+
+
+{false && showNearbyReports && (
+  <button
+    onClick={() => setShowNearbyReports(false)}
+    style={{
+      position: "fixed",
+      bottom: 80,
+      left: 18,
+      zIndex: 2500,
+      background: "#020617",
+      color: "white",
+      border: "none",
+      borderRadius: 999,
+      padding: "10px 14px",
+      fontWeight: "bold",
+      boxShadow: "0 4px 14px rgba(0,0,0,.35)"
+    }}
+  >
+    👁️ إخفاء البلاغات
+  </button>
+)}
+
+{true && (
+<button
+  onClick={() => {
+    setShowReportsPage(true)
+    setShowNearbyReports(false)
+  }}
+  style={{
+      position: "absolute",
+      bottom: 115,
+      right: 14,
+      zIndex: 1200,
+      background: "#020617",
+      color: "white",
+      border: "none",
+      borderRadius: 999,
+      padding: "12px 18px",
+      fontWeight: "bold",
+      cursor: "pointer"
+    }}
+  >
+
+
+    👁️ إظهار البلاغات
+  </button>
+)}
+
+      {showMobileDashboard && (
+<div style={{ position: window.innerWidth <= 600 ? "fixed" : "absolute", bottom: 0, right: 0, left: 0, zIndex: 1500, background: "rgba(2,6,23,.96)", padding: window.innerWidth <= 600 ? 8 : 12, display: window.innerWidth <= 600 ? "grid" : "flex", gridTemplateColumns: window.innerWidth <= 600 ? "repeat(3, 1fr)" : undefined, gap: 10, overflowX: window.innerWidth <= 600 ? "hidden" : "auto" }}>
+        <button
+  onClick={() => setShowMobileDashboard(false)}
+  style={{
+position: "fixed",
+bottom: 185,
+right: 12,
+display: window.innerWidth <= 600 ? "block" : "none",
+    background: "#111827",
+    color: "white",
+    border: "none",
+    borderRadius: 999,
+    padding: "10px 14px",
+    fontWeight: "bold",
+    zIndex: 2001
+  }}
+>
+  👁️ إخفاء
+</button>
+        {reportTypes.map((btn) => (
+          <button key={btn.label} onClick={() => {
+
+  if (btn.label.includes("مسروقة")) {
+    setShowStolenModal(true)
+    return
+  }
+
+  
+  addReport(btn)
+
+}} style={{ minWidth: window.innerWidth <= 600 ? 0 : 108, border: "none", borderRadius: 1, padding: "1px 1px", background: btn.color, color: "white", fontWeight: "bold", fontSize: 12 }}>
+            <div style={{ fontSize: 23 }}>{btn.emoji}</div>
+            {btn.label}
+          </button>
+        ))}
+      </div>
+)}
+      {selectedType && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 2000, background: "rgba(0,0,0,.35)", display: "flex", alignItems: "end", justifyContent: "center", padding: 20 }}>
+          <div style={{
+  background: "linear-gradient(180deg,#071226,#0b1d3a)",
+  width: "100%",
+  maxWidth: 430,
+  borderRadius: 32,
+  padding: 26,
+  boxShadow: "0 0 40px rgba(0,0,0,.45)",
+  border: "1px solid rgba(255,255,255,.08)",
+  color: "white",
+  animation: "popupShow .25s ease"
+}}>
+            <h2>إرسال البلاغ؟</h2>
+
+            <button onClick={sendReport} style={{ width: "100%", padding: 16, borderRadius: 18, border: "none", background: "#16a34a", color: "white", fontWeight: "bold", fontSize: 18 }}>
+              إرسال
+            </button>
+
+            <button onClick={() => setSelectedType(null)} style={{ width: "100%", padding: 14, borderRadius: 18, border: "none", marginTop: 10, background: "#e5e7eb", fontWeight: "bold" }}>
+              إلغاء
+            </button>
+          </div>
+        </div>
+      )}
+
+  {!showMobileDashboard && window.innerWidth <= 600 && (
+  <button
+    onClick={() => setShowMobileDashboard(true)}
+    style={{
+      position: "fixed",
+      bottom: 10,
+      right: 12,
+      zIndex: 2000,
+      background: "#dc2626",
+      color: "white",
+      border: "none",
+      borderRadius: 999,
+      padding: "14px 24px",
+      fontWeight: "bold"
+    }}
+  >
+    👁️ إظهار الأدوات
+  </button>
+)} 
+
+  </div>
+
 
       {showNearbyReports && !showReportsPage && (
 <div style={{
@@ -1756,7 +2136,12 @@ if (
     fontSize: 12
   }}
 >
+
+<>
+
+
   {r.emoji} {r.type}
+</>
 </div>
 </div>
 
@@ -2646,10 +3031,13 @@ onClick={() => {
     )}
   </div>
 )}
-</div>
 </>
 )
 }
 
-
 export default App
+
+
+
+
+
