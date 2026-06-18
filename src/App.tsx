@@ -615,6 +615,12 @@ function canReceiveHelp(report: any) {
 
 const needsHelper = selectedReport ? isAssistanceReport(selectedReport) : false
 
+const showBottomActionBar =
+  !showMobileDashboard &&
+  !showReportsPage &&
+  !showReportModal &&
+  !showStolenModal &&
+  !selectedReport;
 
 async function getAddressFromCoords(lat: number, lng: number) {
   try {
@@ -895,30 +901,29 @@ const visibleReports = reports.filter((r: any) => {
         <MyLocation position={myLocation} />
 
 
-
+{showBottomActionBar && (
         <button
   onClick={() => setShowReportModal(true)}
-  style={{
-position: "fixed",
-bottom: 10,
-left: 12,
-    zIndex: 2000,
-
-    display: showMobileDashboard && window.innerWidth <= 600 ? "none" : "block",
-
-    background: "#dc2626",
-    color: "white",
-    border: "none",
-    borderRadius: "16px",
-    padding: "12px 16px",
-    fontSize: "15px",
-    fontWeight: "bold",
-    cursor: "pointer",
-    boxShadow: "0 6px 20px rgba(0,0,0,0.4)"
-  }}
+style={{
+  position: "fixed",
+  bottom: 10,
+  left: 18,
+  zIndex: 3000,
+  width: 125,
+  height: 46,
+  background: "#dc2626",
+  color: "white",
+  border: "none",
+  borderRadius: 999,
+  fontWeight: "bold",
+  fontSize: 13,
+  cursor: "pointer",
+  boxShadow: "0 8px 22px rgba(0,0,0,.35)"
+}}
 >
   🚨 تبليغ مباشر
 </button>
+)}
 
 {myLocation && (
   <Marker position={myLocation} icon={makeIcon("🔵", "#2563eb")}>
@@ -1120,7 +1125,7 @@ eventHandlers={{
   style={{
     position: "absolute",
     top: 18,
-    left: 18,
+    left: 45,
     zIndex: 1001,
     background: "white",
     border: "none",
@@ -1133,7 +1138,7 @@ eventHandlers={{
 </button>
 
 {showTopInfo && (
-<div style={{ position: "absolute", top: 18, right: 18, left: 18, zIndex: 1000, display: "flex", justifyContent: "space-between" }}>
+<div style={{ position: "absolute", top: 8, right: 18, left: 85, zIndex: 1000, display: "flex", justifyContent: "space-between" }}>
 
 <div style={{
   color: "#020617",
@@ -1693,25 +1698,29 @@ style={{
   </button>
 )}
 
-{true && (
+{showBottomActionBar && (
 <button
   onClick={() => {
     setShowReportsPage(true)
     setShowNearbyReports(false)
   }}
-  style={{
-      position: "absolute",
-      bottom: 115,
-      right: 14,
-      zIndex: 1200,
-      background: "#020617",
-      color: "white",
-      border: "none",
-      borderRadius: 999,
-      padding: "12px 18px",
-      fontWeight: "bold",
-      cursor: "pointer"
-    }}
+style={{
+  position: "fixed",
+  bottom: 10,
+  left: "50%",
+  transform: "translateX(-50%)",
+  zIndex: 3000,
+  width: 125,
+  height: 46,
+  background: "#020617",
+  color: "white",
+  border: "none",
+  borderRadius: 999,
+  fontWeight: "bold",
+  fontSize: 13,
+  cursor: "pointer",
+  boxShadow: "0 8px 22px rgba(0,0,0,.35)"
+}}
   >
 
 
@@ -1783,30 +1792,34 @@ display: window.innerWidth <= 600 ? "block" : "none",
         </div>
       )}
 
-  {!showMobileDashboard && window.innerWidth <= 600 && (
+{false && !showMobileDashboard && window.innerWidth <= 600 && (
   <button
     onClick={() => setShowMobileDashboard(true)}
-    style={{
-      position: "fixed",
-      bottom: 10,
-      right: 12,
-      zIndex: 2000,
-      background: "#dc2626",
-      color: "white",
-      border: "none",
-      borderRadius: 999,
-      padding: "14px 24px",
-      fontWeight: "bold"
-    }}
+style={{
+  position: "fixed",
+  bottom: 10,
+  right: 18,
+  zIndex: 3000,
+  width: 125,
+  height: 46,
+  background: "#dc2626",
+  color: "white",
+  border: "none",
+  borderRadius: 999,
+  fontWeight: "bold",
+  fontSize: 13,
+  cursor: "pointer",
+  boxShadow: "0 8px 22px rgba(0,0,0,.35)"
+}}
   >
     👁️ إظهار الأدوات
   </button>
-)} 
+ )}
 
   </div>
 
 
-      {showNearbyReports && !showReportsPage && (
+      {false && showNearbyReports && !showReportsPage && (
 <div style={{
   position: "fixed",
   bottom: 155,
@@ -2415,31 +2428,32 @@ style={{
   </button>
 )}
 
-{true && (
+
+{false && (
 <button
   onClick={() => {
     setShowReportsPage(true)
     setShowNearbyReports(false)
   }}
   style={{
-      position: "absolute",
-      bottom: 115,
-      right: 14,
-      zIndex: 1200,
-      background: "#020617",
-      color: "white",
-      border: "none",
-      borderRadius: 999,
-      padding: "12px 18px",
-      fontWeight: "bold",
-      cursor: "pointer"
-    }}
-  >
-
-
-    👁️ إظهار البلاغات
-  </button>
+    position: "absolute",
+    bottom: 10,
+    right: 14,
+    zIndex: 1200,
+    background: "#020617",
+    color: "white",
+    border: "none",
+    borderRadius: 999,
+    padding: "12px 18px",
+    fontWeight: "bold",
+    cursor: "pointer"
+  }}
+>
+  👁️ إظهار البلاغات
+</button>
 )}
+
+
 
       {showMobileDashboard && (
 <div style={{ position: window.innerWidth <= 600 ? "fixed" : "absolute", bottom: 0, right: 0, left: 0, zIndex: 1500, background: "rgba(2,6,23,.96)", padding: window.innerWidth <= 600 ? 8 : 12, display: window.innerWidth <= 600 ? "grid" : "flex", gridTemplateColumns: window.innerWidth <= 600 ? "repeat(3, 1fr)" : undefined, gap: 10, overflowX: window.innerWidth <= 600 ? "hidden" : "auto" }}>
@@ -2505,7 +2519,7 @@ display: window.innerWidth <= 600 ? "block" : "none",
         </div>
       )}
 
-  {!showMobileDashboard && window.innerWidth <= 600 && (
+{!showMobileDashboard && window.innerWidth <= 600 && (
   <button
     onClick={() => setShowMobileDashboard(true)}
     style={{
