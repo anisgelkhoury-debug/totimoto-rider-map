@@ -37,6 +37,7 @@ helperMoving?: boolean
 phone?: string
 helperPhone?: string
 description?: string
+reportImageUrl?: string
 
 }
 
@@ -304,6 +305,10 @@ const [stolenBikeTime, setStolenBikeTime] = useState("")
 const [stolenBikeImages, setStolenBikeImages] = useState<any[]>([])
 const [stolenBikeImagePreviews, setStolenBikeImagePreviews] = useState<string[]>([])
 const [isSubmittingStolenBike, setIsSubmittingStolenBike] = useState(false)
+
+const [reportImage, setReportImage] = useState<any>(null)
+const [reportImagePreview, setReportImagePreview] = useState("")
+const [isSubmittingReport, setIsSubmittingReport] = useState(false)
 
 
 async function submitStolenBikeReport() {
@@ -874,10 +879,25 @@ async function createUserReport(type: any) {
 const lat = myLocation ? myLocation[0] : 33.8938
 const lng = myLocation ? myLocation[1] : 35.5018
 const locationInfo = await getAddressFromCoords(lat, lng)
+
+let reportImageUrl = ""
+
+if (reportImage) {
+  const imageRef = ref(
+    storage,
+    `report-images/${Date.now()}-${reportImage.name}`
+  )
+
+  await uploadBytes(imageRef, reportImage)
+
+  reportImageUrl = await getDownloadURL(imageRef)
+}
+
   const newReport = {
     ownerId: deviceId,
       phone: "03211183",
       description: type.description || "",
+      reportImageUrl,
     ...type,
 type: type.label,
 color: type.color,
@@ -902,6 +922,12 @@ distance: "مباشر",
   }
 
 addDoc(collection(db, "reports"), newReport)
+
+setReportImage(null)
+setReportImagePreview("")
+setIsSubmittingReport(false)
+
+
 setShowReportModal(false)
 setReportDescription("")
 }
@@ -1525,6 +1551,20 @@ onClick={() => {
   <div style={{ marginTop: 4, color: "#e5e7eb", fontSize: 11, lineHeight: 1.25 }}>
     📝 {r.description}
   </div>
+)}
+
+{r.reportImageUrl && (
+  <img
+    src={r.reportImageUrl}
+    alt="Report"
+    style={{
+      width: "100%",
+      maxHeight: 120,
+      objectFit: "cover",
+      borderRadius: 10,
+      marginTop: 6
+    }}
+  />
 )}
 
 </div>
@@ -2692,37 +2732,77 @@ setShowDescriptionModal(true)
           borderRadius: 12,
           border: "1px solid #ddd",
           resize: "none",
-          boxSizing: "border-box"
+          boxSizing: "border-box",
+          fontSize: 16,
         }}
       />
 
-      <button
-        onClick={() => {
-         if (!pendingReportType) return
-const finalDescription = reportDescription
+<input
+  type="file"
+  accept="image/*"
 
+onChange={(e) => {
+  const file = e.target.files?.[0]
+  if (!file) return
 
-createUserReport({
-  ...pendingReportType,
-  description: finalDescription
-})
-setReportDescription("")
-          setShowDescriptionModal(false)
-          setShowReportModal(false)
-        }}
-        style={{
-          width: "100%",
-          padding: 14,
-          marginTop: 12,
-          borderRadius: 14,
-          border: "none",
-          background: "#16a34a",
-          color: "white",
-          fontWeight: "bold"
-        }}
-      >
-        نشر البلاغ
-      </button>
+  setReportImage(file)
+  setReportImagePreview(URL.createObjectURL(file))
+}}
+
+  style={{
+    width: "100%",
+    marginTop: 10,
+    fontSize: 16
+  }}
+/>
+
+{reportImagePreview && (
+  <img
+    src={reportImagePreview}
+    alt="Preview"
+    style={{
+      width: "100%",
+      maxHeight: 200,
+      objectFit: "cover",
+      borderRadius: 12,
+      marginTop: 10
+    }}
+  />
+)}
+
+<button
+  onClick={async () => {
+    if (isSubmittingReport) return
+    if (!pendingReportType) return
+
+    setIsSubmittingReport(true)
+
+    const finalDescription = reportDescription
+
+    await createUserReport({
+      ...pendingReportType,
+      description: finalDescription
+    })
+
+    setReportDescription("")
+    setShowDescriptionModal(false)
+    setShowReportModal(false)
+  }}
+  disabled={isSubmittingReport}
+  style={{
+    width: "100%",
+    padding: 14,
+    marginTop: 12,
+    borderRadius: 14,
+    border: "none",
+    background: isSubmittingReport ? "#777" : "#16a34a",
+    color: "white",
+    fontWeight: "bold",
+    opacity: isSubmittingReport ? 0.7 : 1
+  }}
+>
+  {isSubmittingReport ? "جارٍ نشر البلاغ..." : "نشر البلاغ"}
+</button>
 
       <button
         onClick={() => {
