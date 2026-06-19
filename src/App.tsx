@@ -346,7 +346,7 @@ const liveReports: any = snapshot.docs.map((doc) => ({
 const [mapZoom, setMapZoom] = useState(12)
   const [mapTarget, setMapTarget] = useState<any>(null)
   const [showStolenModal, setShowStolenModal] = useState(false)
-const [showMobileDashboard, setShowMobileDashboard] = useState(true)
+const [showMobileDashboard, setShowMobileDashboard] = useState(false)
 const [showTopInfo, setShowTopInfo] = useState(true)
 const [showNearbyReports, setShowNearbyReports] = useState(true)
 const [expandNearbyReports, setExpandNearbyReports] = useState(false)
@@ -2732,6 +2732,7 @@ display: window.innerWidth <= 600 ? "block" : "none",
     setShowStolenModal(true)
     return
   }
+setShowReportModal(false)
 setPendingReportType(type)
 setShowDescriptionModal(true)
 }}
