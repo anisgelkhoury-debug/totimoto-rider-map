@@ -311,7 +311,7 @@ async function submitStolenBikeReport() {
 const reportLat = myLocation?.[0] || 33.8938
 const reportLng = myLocation?.[1] || 35.5018
 
-const locationName = await getAddressFromCoords(reportLat, reportLng)
+const locationInfo = await getAddressFromCoords(reportLat, reportLng)
      const reportData = {
       id: Date.now(),
 
@@ -322,10 +322,12 @@ const locationName = await getAddressFromCoords(reportLat, reportLng)
       priority: "high",
       ownerId: deviceId,
 
-      area: locationName,
-locationName: locationName,
-street: locationName,
-city: "",
+area: locationInfo.area,
+street: locationInfo.street,
+city: locationInfo.city,
+district: locationInfo.district,
+locationName: locationInfo.locationName,
+
   lat: reportLat,
   lng: reportLng,
 distance: "الآن",
@@ -631,32 +633,61 @@ async function getAddressFromCoords(lat: number, lng: number) {
     const data = await response.json()
     const address = data.address || {}
 
-  const road =
-  address.road ||
-  address.street ||
-  address.pedestrian ||
-  address.footway ||
-  address.cycleway ||
-  address.highway ||
-  address.path ||
-  ""
-
-    const town =
-      address.village ||
-      address.town ||
-      address.city ||
-      address.suburb ||
-      address.neighbourhood ||
+    const street =
+      address.road ||
+      address.street ||
+      address.pedestrian ||
+      address.footway ||
+      address.cycleway ||
+      address.highway ||
+      address.path ||
       ""
-    const district = address.county || address.state || ""
 
-    return [road, town, district].filter(Boolean).join(" - ") || "موقع البلاغ"
+    const area =
+      address.neighbourhood ||
+      address.suburb ||
+      address.quarter ||
+      address.city_district ||
+      address.hamlet ||
+      ""
+
+    const city =
+      address.city ||
+      address.town ||
+      address.village ||
+      address.municipality ||
+      ""
+
+    const district =
+      address.county ||
+      address.state ||
+      address.region ||
+      ""
+
+    const locationName =
+      [street, area, city, district].filter(Boolean).join(" - ") ||
+      data.display_name ||
+      "موقع البلاغ"
+
+    return {
+      street,
+      area: area || city || district || locationName,
+      city,
+      district,
+      locationName
+    }
   } catch (error) {
     console.error("Reverse geocoding failed:", error)
-    return "موقع البلاغ"
+
+    return {
+      street: "",
+      area: "موقع البلاغ",
+      city: "",
+      district: "",
+      locationName: "موقع البلاغ"
+    }
   }
 }
-
 
 
 async function addReport(type: any) {
@@ -670,12 +701,16 @@ if (type.label.includes("مسروقة")) {
 
   if (!myLocation) return
 
-  const locationName = await getAddressFromCoords(myLocation[0], myLocation[1])
+const locationInfo = await getAddressFromCoords(myLocation[0], myLocation[1])
 
   const newReport = {
     ownerId: deviceId,
     type: type.label,
-    area: locationName,
+    area: locationInfo.area,
+street: locationInfo.street,
+city: locationInfo.city,
+district: locationInfo.district,
+locationName: locationInfo.locationName,
     distance: "الآن",
     lat: myLocation[0],
     lng: myLocation[1],
@@ -812,7 +847,7 @@ useEffect(() => {
 async function createUserReport(type: any) {
 const lat = myLocation ? myLocation[0] : 33.8938
 const lng = myLocation ? myLocation[1] : 35.5018
-const locationName = await getAddressFromCoords(lat, lng)
+const locationInfo = await getAddressFromCoords(lat, lng)
   const newReport = {
     ownerId: deviceId,
       phone: "03211183",
@@ -829,8 +864,12 @@ helpers: 0,
 helpersList: [],
 resolved: false,
 
-    area: locationName,
-    distance: "مباشر",
+area: locationInfo.area,
+street: locationInfo.street,
+city: locationInfo.city,
+district: locationInfo.district,
+locationName: locationInfo.locationName,
+distance: "مباشر",
    lat,
    lng,
     createdAt: Date.now(),
@@ -2184,7 +2223,9 @@ if (
   lineHeight: 1.1,
   marginTop: 2
 }}>
-  📍 {r.area}
+📍 {(r as any).street
+  ? `${(r as any).street} - ${r.area}`
+  : r.area || "موقع البلاغ"}
 
 {r.description && (
   <div style={{ marginTop: 4, color: "#e5e7eb", fontSize: 11, lineHeight: 1.25 }}>
@@ -2745,15 +2786,14 @@ setReportDescription("")
 <div>🏍️ نوع الدراجة: <b>{selectedReport.stolenBikeType || "غير محدد"}</b></div>
 <div>🎨 اللون: <b>{selectedReport.stolenBikeColor || "غير محدد"}</b></div>
 <div>🔢 رقم اللوحة: <b>{selectedReport.stolenBikePlate || "غير محدد"}</b></div>
-<div>📍 مكان السرقة: <b>{selectedReport.stolenBikePlace || selectedReport.area || "غير محدد"}</b></div>
+<div>📍 مكان السرقة: <b>{selectedReport.street || selectedReport.area || selectedReport.stolenBikePlace || "غير محدد"}</b></div>
 <div>🗓️ التاريخ: <b>{selectedReport.stolenBikeDate || "غير محدد"}</b></div>
 <div>⏰ الوقت: <b>{selectedReport.stolenBikeTime || "غير محدد"}</b></div>
 <div>📞 رقم التواصل: <b>{selectedReport.stolenBikePhone || "غير محدد"}</b></div>
         </div>
 
         <div style={{ fontSize: 11, color: "red", marginTop: 8 }}>
-  owner: {selectedReport.ownerId || "none"} <br />
-  device: {deviceId}
+ 
 </div>
 
         {selectedReport.stolenBikePhone && (
