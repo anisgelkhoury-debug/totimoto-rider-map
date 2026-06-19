@@ -4,7 +4,7 @@ import "leaflet/dist/leaflet.css"
 import L, { DivIcon } from "leaflet"
 import { db, storage } from "./firebase"
 import { collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc } from "firebase/firestore"
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage"
+import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage"
 
 type ReportItem = {
   id?: number
@@ -89,6 +89,17 @@ async function compressImage(file: File): Promise<File> {
     reader.onerror = reject
     reader.readAsDataURL(file)
   })
+}
+
+async function deleteReportImage(report: any) {
+  try {
+    if (!report?.reportImageUrl) return
+
+    const imageRef = ref(storage, report.reportImageUrl)
+    await deleteObject(imageRef)
+  } catch (error) {
+    console.warn("Could not delete report image:", error)
+  }
 }
 
 const assistanceTypes = [
@@ -492,9 +503,13 @@ helperAcceptedAt: Date.now()
 
 async function cancelReport(report: any) {
   try {
+
+    await deleteReportImage(report)
+
     await deleteDoc(doc(db, "reports", String(report.id)))
+
     setSelectedReport(null)
-    alert("✅ تم إلغاء الطلب")
+    alert("تم إلغاء الطلب ❌")
   } catch (error) {
     console.error(error)
     alert("❌ فشل إلغاء الطلب")
