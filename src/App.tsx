@@ -41,6 +41,56 @@ reportImageUrl?: string
 
 }
 
+async function compressImage(file: File): Promise<File> {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    const reader = new FileReader()
+
+    reader.onload = () => {
+      img.src = reader.result as string
+    }
+
+    img.onload = () => {
+      const canvas = document.createElement("canvas")
+      const maxWidth = 900
+      const scale = Math.min(maxWidth / img.width, 1)
+
+      canvas.width = img.width * scale
+      canvas.height = img.height * scale
+
+      const ctx = canvas.getContext("2d")
+      if (!ctx) {
+        reject(new Error("Canvas not supported"))
+        return
+      }
+
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) {
+            reject(new Error("Image compression failed"))
+            return
+          }
+
+          resolve(
+            new File([blob], file.name.replace(/\.[^/.]+$/, ".jpg"), {
+              type: "image/jpeg",
+              lastModified: Date.now()
+            })
+          )
+        },
+        "image/jpeg",
+        0.65
+      )
+    }
+
+    img.onerror = reject
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
+}
+
 const assistanceTypes = [
   "وصلني معك",
   "ما معي بنزين",
@@ -1557,6 +1607,7 @@ onClick={() => {
   <img
     src={r.reportImageUrl}
     alt="Report"
+    loading="lazy"
     style={{
       width: "100%",
       maxHeight: 120,
@@ -2741,12 +2792,20 @@ setShowDescriptionModal(true)
   type="file"
   accept="image/*"
 
-onChange={(e) => {
+onChange={async (e) => {
   const file = e.target.files?.[0]
   if (!file) return
 
-  setReportImage(file)
-  setReportImagePreview(URL.createObjectURL(file))
+  if (file.size > 2 * 1024 * 1024) {
+  alert("⚠️ الصورة كبيرة جداً. الحد الأقصى 2MB")
+  return
+}
+
+const compressedFile = await compressImage(file)
+
+setReportImage(compressedFile)
+setReportImagePreview(URL.createObjectURL(compressedFile))
+
 }}
 
   style={{
