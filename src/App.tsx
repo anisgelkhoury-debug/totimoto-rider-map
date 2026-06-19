@@ -2,8 +2,9 @@ import { Fragment, useEffect, useState, useRef } from "react"
 import { MapContainer, TileLayer, Marker, Popup, useMap, Circle, useMapEvents } from "react-leaflet"
 import "leaflet/dist/leaflet.css"
 import L, { DivIcon } from "leaflet"
-import { db } from "./firebase"
+import { db, storage } from "./firebase"
 import { collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc } from "firebase/firestore"
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage"
 
 type ReportItem = {
   id?: number
@@ -300,18 +301,40 @@ const [stolenBikePlace, setStolenBikePlace] = useState("")
 const [stolenBikeDate, setStolenBikeDate] = useState("")
 const [stolenBikeTime, setStolenBikeTime] = useState("")
 
-const [stolenBikeImage, setStolenBikeImage] = useState<any>(null)
-const [stolenBikeImagePreview, setStolenBikeImagePreview] = useState<string>("")
+const [stolenBikeImages, setStolenBikeImages] = useState<any[]>([])
+const [stolenBikeImagePreviews, setStolenBikeImagePreviews] = useState<string[]>([])
+const [isSubmittingStolenBike, setIsSubmittingStolenBike] = useState(false)
+
 
 async function submitStolenBikeReport() {
   try {
+if (isSubmittingStolenBike) return
+setIsSubmittingStolenBike(true)
+
 
  ;(document.activeElement as HTMLElement)?.blur()   
 
-const reportLat = myLocation?.[0] || 33.8938
-const reportLng = myLocation?.[1] || 35.5018
+const reportLat = 33.8938
+const reportLng = 35.5018
 
 const locationInfo = await getAddressFromCoords(reportLat, reportLng)
+
+let stolenBikeImageUrls: string[] = []
+
+if (stolenBikeImages.length > 0) {
+for (const image of stolenBikeImages) {
+  const imageRef = ref(
+    storage,
+    `stolen-bikes/${Date.now()}-${image.name}`
+  )
+
+  await uploadBytes(imageRef, image)
+
+  const downloadUrl = await getDownloadURL(imageRef)
+  stolenBikeImageUrls.push(downloadUrl)
+}
+}
+
      const reportData = {
       id: Date.now(),
 
@@ -346,7 +369,7 @@ resolved: false,
       stolenBikeDate,
       stolenBikeTime,
 
-
+stolenBikeImageUrls,
 
       createdAt: Date.now()
     }
@@ -365,14 +388,17 @@ alert(JSON.stringify(reportData, null, 2))
 }, 300)
 
     alert("✅ تم نشر البلاغ")
+}
+catch (error) {
+  
 
-  } catch (error) {
+  console.error(error)
 
-    console.error(error)
+  setIsSubmittingStolenBike(false)
 
-    alert("❌ فشل نشر البلاغ")
+  alert("❌ فشل نشر البلاغ")
 
-  }
+}
 }
   
 async function helperRespond(report: any) {
@@ -2738,32 +2764,52 @@ setReportDescription("")
     <input
   type="file"
   accept="image/*"
+   multiple
   onChange={(e) => {
-    const file = e.target.files?.[0]
-    if (!file) return
+const files = Array.from(e.target.files || []).slice(0, 5)
+if (files.length === 0) return
 
-    setStolenBikeImage(file)
-    setStolenBikeImagePreview(URL.createObjectURL(file))
+setStolenBikeImages(files)
+setStolenBikeImagePreviews(files.map((file) => URL.createObjectURL(file)))
   }}
   style={{ width: "100%", padding: 14, marginTop: 10, borderRadius: 14, background: "white", color: "black" }}
 />
 
-{stolenBikeImagePreview && (
-  <img
-    src={stolenBikeImagePreview}
-    style={{
-      width: "100%",
-      maxHeight: 180,
-      objectFit: "cover",
-      borderRadius: 16,
-      marginTop: 10
-    }}
-  />
+{stolenBikeImagePreviews.length > 0 && (
+  <div style={{ display: "flex", gap: 8, overflowX: "auto", marginTop: 10 }}>
+    {stolenBikeImagePreviews.map((preview, index) => (
+      <img
+        key={index}
+        src={preview}
+        style={{
+          width: 120,
+          height: 120,
+          objectFit: "cover",
+          borderRadius: 14,
+          flexShrink: 0
+        }}
+      />
+    ))}
+  </div>
 )}
 
-      <button onClick={submitStolenBikeReport} style={{ width: "100%", padding: 15, marginTop: 14, borderRadius: 16, border: "none", background: "#dc2626", color: "white", fontWeight: "bold" }}>
-        🚨 نشر البلاغ
-      </button>
+<button
+  onClick={submitStolenBikeReport}
+  disabled={isSubmittingStolenBike}
+  style={{
+    width: "100%",
+    padding: 15,
+    marginTop: 14,
+    borderRadius: 16,
+    border: "none",
+    background: isSubmittingStolenBike ? "#777" : "#dc2626",
+    color: "white",
+    fontWeight: "bold",
+    opacity: isSubmittingStolenBike ? 0.7 : 1
+  }}
+>
+  {isSubmittingStolenBike ? "جارٍ نشر البلاغ..." : "🚨 نشر البلاغ"}
+</button>
 
       <button onClick={() => setShowStolenModal(false)} style={{ width: "100%", padding: 14, marginTop: 10, borderRadius: 16, border: "none" }}>
         إلغاء
@@ -2781,6 +2827,25 @@ setReportDescription("")
         <h2 style={{ margin: 0, fontSize: 30, fontWeight: "bold" }}>
           بلاغ عن دراجة مسروقة
         </h2>
+
+{selectedReport.stolenBikeImageUrls?.length > 0 && (
+  <div style={{ display: "flex", gap: 8, overflowX: "auto", marginTop: 16, marginBottom: 16 }}>
+    {selectedReport.stolenBikeImageUrls.map((url: string, index: number) => (
+      <img
+        key={index}
+        src={url}
+        alt="Stolen Bike"
+        style={{
+          width: 180,
+          height: 140,
+          objectFit: "cover",
+          borderRadius: 16,
+          flexShrink: 0
+        }}
+      />
+    ))}
+  </div>
+)}
 
         <div style={{ marginTop: 18, textAlign: "right", lineHeight: 2 }}>
 <div>🏍️ نوع الدراجة: <b>{selectedReport.stolenBikeType || "غير محدد"}</b></div>
