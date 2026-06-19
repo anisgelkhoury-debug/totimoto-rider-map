@@ -1928,8 +1928,7 @@ display: window.innerWidth <= 600 ? "block" : "none",
   }
 
   
-setPendingReportType(btn)
-setShowDescriptionModal(true)
+setSelectedType(btn)
 setShowMobileDashboard(false)
 
 }} style={{ minWidth: window.innerWidth <= 600 ? 0 : 108, border: "none", borderRadius: 1, padding: "1px 1px", background: btn.color, color: "white", fontWeight: "bold", fontSize: 12 }}>
