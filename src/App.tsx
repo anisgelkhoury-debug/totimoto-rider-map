@@ -1928,7 +1928,9 @@ display: window.innerWidth <= 600 ? "block" : "none",
   }
 
   
-  addReport(btn)
+setPendingReportType(btn)
+setShowDescriptionModal(true)
+setShowMobileDashboard(false)
 
 }} style={{ minWidth: window.innerWidth <= 600 ? 0 : 108, border: "none", borderRadius: 1, padding: "1px 1px", background: btn.color, color: "white", fontWeight: "bold", fontSize: 12 }}>
             <div style={{ fontSize: 23 }}>{btn.emoji}</div>
