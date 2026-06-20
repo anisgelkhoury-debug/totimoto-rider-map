@@ -2,7 +2,7 @@ import { Fragment, useEffect, useState, useRef } from "react"
 import { MapContainer, TileLayer, Marker, Popup, useMap, Circle, useMapEvents } from "react-leaflet"
 import "leaflet/dist/leaflet.css"
 import L, { DivIcon } from "leaflet"
-import { GoogleMap, LoadScript, MarkerF } from "@react-google-maps/api"
+/* import { GoogleMap, LoadScript, MarkerF } from "@react-google-maps/api" */
 import { db, storage } from "./firebase"
 import {
   collection,
@@ -114,7 +114,7 @@ async function deleteReportImage(report: any) {
   }
 }
 
-const googleMapsApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY
+/* const googleMapsApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY */
 
 const assistanceTypes = [
   "وصلني معك",
@@ -1126,7 +1126,7 @@ const visibleReports = reports.filter((r: any) => {
 }
 `}</style>
     <div style={{ height: "100dvh", width: "100%", background: "#020617", direction: "rtl", fontFamily: "Arial", position: "relative", overflow: "auto" }}>
-
+{/* 
     {googleMapsApiKey && (
   <div
     style={{
@@ -1143,15 +1143,15 @@ const visibleReports = reports.filter((r: any) => {
   >
     <LoadScript googleMapsApiKey={googleMapsApiKey}>
 <GoogleMap
-  mapContainerStyle={{ width: "100%", height: "100%" }}
-  center={{ lat: 33.8938, lng: 35.5018 }}
-  zoom={12}
+mapContainerStyle={{ width: "100%", height: "100%" }}
+ center={{ lat: 33.8938, lng: 35.5018 }}
+zoom={12}
 >
   <MarkerF position={{ lat: 33.8938, lng: 35.5018 }} />
 </GoogleMap>
     </LoadScript>
   </div>
-)}  
+)}   */}
 
 <div
   style={{
