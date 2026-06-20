@@ -1131,10 +1131,10 @@ const visibleReports = reports.filter((r: any) => {
   <div
     style={{
       position: "fixed",
-      top: 130,
+      top: 100,
       left: 10,
-      width: 400,
-      height: 300,
+      width: "calc(100vw - 20px)",
+      height: "60vh",
       zIndex: 999998,
       borderRadius: 14,
       overflow: "hidden",
