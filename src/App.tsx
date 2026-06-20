@@ -1928,7 +1928,8 @@ display: window.innerWidth <= 600 ? "block" : "none",
   }
 
   
-setSelectedType(btn)
+setPendingReportType(btn)
+setShowDescriptionModal(true)
 setShowMobileDashboard(false)
 
 }} style={{ minWidth: window.innerWidth <= 600 ? 0 : 108, border: "none", borderRadius: 1, padding: "1px 1px", background: btn.color, color: "white", fontWeight: "bold", fontSize: 12 }}>
@@ -1938,7 +1939,7 @@ setShowMobileDashboard(false)
         ))}
       </div>
 )}
-      {selectedType && (
+     {false && selectedType && (
         <div style={{ position: "fixed", inset: 0, zIndex: 2000, background: "rgba(0,0,0,.35)", display: "flex", alignItems: "end", justifyContent: "center", padding: 20 }}>
           <div style={{
   background: "linear-gradient(180deg,#071226,#0b1d3a)",
