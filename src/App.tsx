@@ -3,7 +3,18 @@ import { MapContainer, TileLayer, Marker, Popup, useMap, Circle, useMapEvents } 
 import "leaflet/dist/leaflet.css"
 import L, { DivIcon } from "leaflet"
 import { db, storage } from "./firebase"
-import { collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc } from "firebase/firestore"
+import {
+  collection,
+  addDoc,
+  onSnapshot,
+  doc,
+  updateDoc,
+  deleteDoc,
+  getDocs,
+  query,
+  where,
+  writeBatch
+} from "firebase/firestore"
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage"
 
 type ReportItem = {
@@ -633,6 +644,70 @@ const fakeReports = [
   },
 ]
 
+async function generateTestReports(count: number) {
+  try {
+    const batch = writeBatch(db)
+
+    for (let i = 0; i < count; i++) {
+      const template =
+        fakeReports[Math.floor(Math.random() * fakeReports.length)]
+
+      const reportRef = doc(collection(db, "reports"))
+
+      batch.set(reportRef, {
+        ...template,
+
+        isTest: true,
+
+        createdAt: Date.now(),
+
+        ownerId: "load-test",
+
+        resolved: false,
+
+        lat: 33.85 + Math.random() * 0.12,
+        lng: 35.45 + Math.random() * 0.15,
+      })
+    }
+
+    await batch.commit()
+
+    alert(`✅ ${count} test reports created`)
+  } catch (error) {
+    console.error(error)
+    alert("❌ Failed creating test reports")
+  }
+}
+
+async function deleteTestReports() {
+  try {
+    const q = query(
+      collection(db, "reports"),
+      where("isTest", "==", true)
+    )
+
+    const snapshot = await getDocs(q)
+
+    if (snapshot.empty) {
+      alert("No test reports found")
+      return
+    }
+
+    const batch = writeBatch(db)
+
+    snapshot.docs.forEach((testDoc) => {
+      batch.delete(testDoc.ref)
+    })
+
+    await batch.commit()
+
+    alert(`🧹 Deleted ${snapshot.docs.length} test reports`)
+  } catch (error) {
+    console.error(error)
+    alert("❌ Failed deleting test reports")
+  }
+}
+
   useEffect(() => {
   const interval = setInterval(() => {
 
@@ -1048,6 +1123,35 @@ const visibleReports = reports.filter((r: any) => {
 }
 `}</style>
     <div style={{ height: "100dvh", width: "100%", background: "#020617", direction: "rtl", fontFamily: "Arial", position: "relative", overflow: "auto" }}>
+
+<div
+  style={{
+    position: "fixed",
+    top: 70,
+    left: 10,
+    zIndex: 999999,
+    display: "flex",
+    flexDirection: "column",
+    gap: 6
+  }}
+>
+  <button onClick={() => generateTestReports(50)}>
+    🧪 50
+  </button>
+
+  <button onClick={() => generateTestReports(100)}>
+    🧪 100
+  </button>
+
+  <button onClick={() => generateTestReports(500)}>
+    🧪 500
+  </button>
+
+  <button onClick={deleteTestReports}>
+    🧹 Clear
+  </button>
+</div>
+
       <MapContainer center={[33.8938, 35.5018]} zoom={12} style={{ height: "100%", width: "100%" }}>
         <TileLayer attribution="&copy; OpenStreetMap" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
 
