@@ -2,7 +2,7 @@ import { Fragment, useEffect, useState, useRef } from "react"
 import { MapContainer, TileLayer, Marker, Popup, useMap, Circle, useMapEvents } from "react-leaflet"
 import "leaflet/dist/leaflet.css"
 import L, { DivIcon } from "leaflet"
-import { GoogleMap, LoadScript } from "@react-google-maps/api"
+import { GoogleMap, LoadScript, MarkerF } from "@react-google-maps/api"
 import { db, storage } from "./firebase"
 import {
   collection,
@@ -1133,8 +1133,8 @@ const visibleReports = reports.filter((r: any) => {
       position: "fixed",
       top: 130,
       left: 10,
-      width: 220,
-      height: 160,
+      width: 400,
+      height: 300,
       zIndex: 999998,
       borderRadius: 14,
       overflow: "hidden",
@@ -1142,11 +1142,13 @@ const visibleReports = reports.filter((r: any) => {
     }}
   >
     <LoadScript googleMapsApiKey={googleMapsApiKey}>
-      <GoogleMap
-        mapContainerStyle={{ width: "100%", height: "100%" }}
-        center={{ lat: 33.8938, lng: 35.5018 }}
-        zoom={12}
-      />
+<GoogleMap
+  mapContainerStyle={{ width: "100%", height: "100%" }}
+  center={{ lat: 33.8938, lng: 35.5018 }}
+  zoom={12}
+>
+  <MarkerF position={{ lat: 33.8938, lng: 35.5018 }} />
+</GoogleMap>
     </LoadScript>
   </div>
 )}  
