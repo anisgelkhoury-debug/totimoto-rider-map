@@ -2,6 +2,7 @@ import { Fragment, useEffect, useState, useRef } from "react"
 import { MapContainer, TileLayer, Marker, Popup, useMap, Circle, useMapEvents } from "react-leaflet"
 import "leaflet/dist/leaflet.css"
 import L, { DivIcon } from "leaflet"
+import { GoogleMap, LoadScript } from "@react-google-maps/api"
 import { db, storage } from "./firebase"
 import {
   collection,
@@ -112,6 +113,8 @@ async function deleteReportImage(report: any) {
     console.warn("Could not delete report image:", error)
   }
 }
+
+const googleMapsApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY
 
 const assistanceTypes = [
   "وصلني معك",
@@ -1123,6 +1126,30 @@ const visibleReports = reports.filter((r: any) => {
 }
 `}</style>
     <div style={{ height: "100dvh", width: "100%", background: "#020617", direction: "rtl", fontFamily: "Arial", position: "relative", overflow: "auto" }}>
+
+    {googleMapsApiKey && (
+  <div
+    style={{
+      position: "fixed",
+      top: 130,
+      left: 10,
+      width: 220,
+      height: 160,
+      zIndex: 999998,
+      borderRadius: 14,
+      overflow: "hidden",
+      border: "3px solid #22c55e"
+    }}
+  >
+    <LoadScript googleMapsApiKey={googleMapsApiKey}>
+      <GoogleMap
+        mapContainerStyle={{ width: "100%", height: "100%" }}
+        center={{ lat: 33.8938, lng: 35.5018 }}
+        zoom={12}
+      />
+    </LoadScript>
+  </div>
+)}  
 
 <div
   style={{
