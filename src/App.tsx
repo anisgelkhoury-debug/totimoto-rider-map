@@ -385,6 +385,42 @@ const [reportImage, setReportImage] = useState<any>(null)
 const [reportImagePreview, setReportImagePreview] = useState("")
 const [isSubmittingReport, setIsSubmittingReport] = useState(false)
 
+const [showContactModal, setShowContactModal] = useState(false)
+const [contactName, setContactName] = useState(localStorage.getItem("contactName") || "")
+const [contactPhone, setContactPhone] = useState(localStorage.getItem("contactPhone") || "")
+const [pendingAction, setPendingAction] = useState<any>(null)
+
+function ensureContactInfo(action: any) {
+  if (contactName.trim() && contactPhone.trim()) {
+    action()
+    return
+  }
+
+  setPendingAction(() => action)
+  setShowContactModal(true)
+}
+
+function saveContactInfo() {
+  if (!contactName.trim()) {
+    alert("يرجى إدخال الاسم")
+    return
+  }
+
+  if (!contactPhone.trim()) {
+    alert("يرجى إدخال رقم الهاتف")
+    return
+  }
+
+  localStorage.setItem("contactName", contactName)
+  localStorage.setItem("contactPhone", contactPhone)
+
+  setShowContactModal(false)
+
+  if (pendingAction) {
+    pendingAction()
+    setPendingAction(null)
+  }
+}
 
 async function submitStolenBikeReport() {
   try {
@@ -491,7 +527,8 @@ helperStatus: "مساعد بالطريق",
 helpers: 1,
 joined: true,
 helperId: deviceId,
-helperPhone: "03211183",
+helperPhone: localStorage.getItem("contactPhone") || "",
+helperName: localStorage.getItem("contactName") || "",
 helperLat: myLocation ? myLocation[0] : null,
 helperLng: myLocation ? myLocation[1] : null,
 helperLocationUpdatedAt: Date.now(),
@@ -504,7 +541,8 @@ helperAcceptedAt: Date.now()
   helperComing: true,
   joined: true,
   helperId: deviceId,
-  helperPhone: "03211183",
+  helperPhone: localStorage.getItem("contactPhone") || "",
+  helperName: localStorage.getItem("contactName") || "",
   helperLat: myLocation ? myLocation[0] : null,
   helperLng: myLocation ? myLocation[1] : null
 })
@@ -1038,7 +1076,8 @@ if (reportImage) {
 
   const newReport = {
     ownerId: deviceId,
-      phone: "03211183",
+      phone: localStorage.getItem("contactPhone") || "",
+      ownerName: localStorage.getItem("contactName") || "",
       description: type.description || "",
       reportImageUrl,
     ...type,
@@ -1438,6 +1477,27 @@ onClick={(e) => {
         </button>
       </div>
 )}
+<button
+onClick={() => setShowContactModal(true)}
+style={{
+  position: "fixed",
+  top: 80,
+  left: 10,
+  zIndex: 999999,
+  width: 32,
+  height: 32,
+  border: "none",
+  background: "transparent",
+  boxShadow: "none",
+  padding: 0,
+  cursor: "pointer",
+  fontSize: 22,
+  color: "#333"
+}}
+>
+  ⚙️
+</button>
+
 
 {showReportsPage && (
   <div
@@ -1786,7 +1846,7 @@ onClick={() => {
 ) : (
   canReceiveHelp(r) && r.ownerId !== deviceId && !r.helperComing && (
     <button
-      onClick={() => helperRespond(r)}
+     onClick={() => ensureContactInfo(() => helperRespond(r))}
       style={{
         background: "white",
         border: "none",
@@ -2520,7 +2580,7 @@ if (
 ) : (
   canReceiveHelp(r) && r.ownerId !== deviceId && !r.helperComing && (
     <button
-      onClick={() => helperRespond(r)}
+     onClick={() => ensureContactInfo(() => helperRespond(r))}
       style={{
         background: "white",
         border: "none",
@@ -2956,14 +3016,27 @@ setReportImagePreview(URL.createObjectURL(compressedFile))
 
     const finalDescription = reportDescription
 
-    await createUserReport({
-      ...pendingReportType,
-      description: finalDescription
-    })
+const submitAction = async () => {
+  await createUserReport({
+    ...pendingReportType,
+    description: finalDescription
+  })
 
-    setReportDescription("")
-    setShowDescriptionModal(false)
-    setShowReportModal(false)
+  setReportDescription("")
+  setShowDescriptionModal(false)
+  setShowReportModal(false)
+}
+
+if (
+  pendingReportType?.reportFamily === "assistance" ||
+  pendingReportType?.reportFamily === "sharedRide"
+) {
+  ensureContactInfo(submitAction)
+  return
+}
+
+await submitAction()
+ 
   }}
   disabled={isSubmittingReport}
   style={{
@@ -3070,6 +3143,109 @@ setStolenBikeImagePreviews(files.map((file) => URL.createObjectURL(file)))
 
       <button onClick={() => setShowStolenModal(false)} style={{ width: "100%", padding: 14, marginTop: 10, borderRadius: 16, border: "none" }}>
         إلغاء
+      </button>
+    </div>
+  </div>
+)}
+
+{showContactModal && (
+  <div
+    style={{
+      position: "fixed",
+      inset: 0,
+      background: "rgba(0,0,0,0.55)",
+      zIndex: 9999999,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: 20,
+      direction: "rtl",
+    }}
+  >
+    <div
+      style={{
+        background: "white",
+        borderRadius: 24,
+        padding: 22,
+        width: "100%",
+        maxWidth: 380,
+        boxShadow: "0 20px 60px rgba(0,0,0,0.35)",
+        textAlign: "center",
+      }}
+    >
+      <h2 style={{ marginTop: 0 }}>معلومات التواصل</h2>
+
+      <p style={{ color: "#475569", lineHeight: 1.7, fontSize: 14 }}>
+        لخدمات المساعدة فقط، نحتاج اسمك ورقم هاتفك حتى يستطيع الطرف الآخر التواصل معك عبر الاتصال أو واتساب.
+        إذا كنت تريد فقط متابعة الخريطة والبلاغات، لا تحتاج لإدخال هذه المعلومات.
+      </p>
+
+      <input
+        value={contactName}
+        onChange={(e) => setContactName(e.target.value)}
+        placeholder="الاسم"
+        style={{
+          width: "100%",
+          padding: 14,
+          borderRadius: 14,
+          border: "1px solid #cbd5e1",
+          marginTop: 12,
+          fontSize: 16,
+          boxSizing: "border-box",
+        }}
+      />
+
+      <input
+        value={contactPhone}
+        onChange={(e) => setContactPhone(e.target.value)}
+        placeholder="رقم الهاتف"
+        inputMode="tel"
+        style={{
+          width: "100%",
+          padding: 14,
+          borderRadius: 14,
+          border: "1px solid #cbd5e1",
+          marginTop: 10,
+          fontSize: 16,
+          boxSizing: "border-box",
+        }}
+      />
+
+      <button
+        onClick={saveContactInfo}
+        style={{
+          width: "100%",
+          padding: 14,
+          borderRadius: 16,
+          border: "none",
+          background: "#16a34a",
+          color: "white",
+          fontWeight: "bold",
+          fontSize: 16,
+          marginTop: 16,
+        }}
+      >
+        حفظ ومتابعة
+      </button>
+
+      <button
+        onClick={() => {
+          setShowContactModal(false)
+          setPendingAction(null)
+        }}
+        style={{
+          width: "100%",
+          padding: 14,
+          borderRadius: 16,
+          border: "none",
+          background: "#e5e7eb",
+          color: "#2563eb",
+          fontWeight: "bold",
+          fontSize: 16,
+          marginTop: 10,
+        }}
+      >
+        لاحقاً
       </button>
     </div>
   </div>
@@ -3347,7 +3523,7 @@ onClick={() => {
  !selectedReport.helperComing && (
         <button
           disabled={selectedReport.joined}
-          onClick={() => helperRespond(selectedReport)}
+          onClick={() => ensureContactInfo(() => helperRespond(selectedReport))}
           style={{ width: "100%", padding: 16, borderRadius: 18, border: "none", background: "#16a34a", color: "white", fontWeight: "bold", fontSize: 18, marginTop: 20 }}
         >
           {selectedReport.joined ? "تم الانضمام ✅" : "أنا قريب"}
@@ -3375,7 +3551,9 @@ onClick={() => {
   📍 فتح الموقع
 </button>
 
-{selectedReport.ownerId === deviceId && !selectedReport.helperComing && (
+{selectedReport.ownerId === deviceId &&
+ !selectedReport.helperComing &&
+ canReceiveHelp(selectedReport) && (
   <div style={{ color: "#f59e0b", fontWeight: "bold", fontSize: 14, marginTop: 10 }}>
     ⏳ بانتظار شخص يستلم طلبك
   </div>
