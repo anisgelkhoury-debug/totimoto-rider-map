@@ -181,13 +181,13 @@ function makeIcon(emoji: string, color: string) {
     html: `
 <div style="
   background:${color};
-  width:18px;
-  height:18px;
+  width:12px;
+  height:12px;
   border-radius:50%;
   display:flex;
   align-items:center;
   justify-content:center;
-  font-size:9px;
+  font-size:0px;
 box-shadow:
 
   color === "#dc2626"
@@ -199,12 +199,12 @@ animation:
     ? "pulseMarker 1.2s infinite"
     : "none";
 ">
-  ${emoji}
+  
 </div>
 `,
 
-    iconSize: [24, 24],
-    iconAnchor: [22, 22],
+iconSize: [16, 16],
+iconAnchor: [8, 8],
   })
 }
 
@@ -1097,19 +1097,9 @@ const visibleReports = reports.filter((r: any) => {
 
   const isHelpRequest = canReceiveHelp(r)
 
-  if (isHelpRequest && myLocation) {
-    const distanceKm = calculateDistance(myLocation, [r.lat, r.lng])
 
-    if (distanceKm !== null && distanceKm > 10) {
-      return false
-    }
-  }
+return true
 
-  if (mapZoom >= 14) return true
-
-  if (mapZoom >= 12) return r.priority !== "low"
-
-  return r.priority === "high"
 }).sort((a: any, b: any) => {
   if (a.ownerId === deviceId && b.ownerId !== deviceId) return -1
   if (a.ownerId !== deviceId && b.ownerId === deviceId) return 1
@@ -1153,33 +1143,7 @@ zoom={12}
   </div>
 )}   */}
 
-<div
-  style={{
-    position: "fixed",
-    top: 70,
-    left: 10,
-    zIndex: 999999,
-    display: "flex",
-    flexDirection: "column",
-    gap: 6
-  }}
->
-  <button onClick={() => generateTestReports(50)}>
-    🧪 50
-  </button>
 
-  <button onClick={() => generateTestReports(100)}>
-    🧪 100
-  </button>
-
-  <button onClick={() => generateTestReports(500)}>
-    🧪 500
-  </button>
-
-  <button onClick={deleteTestReports}>
-    🧹 Clear
-  </button>
-</div>
 
       <MapContainer center={[33.8938, 35.5018]} zoom={12} style={{ height: "100%", width: "100%" }}>
         <TileLayer attribution="&copy; OpenStreetMap" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
@@ -1233,7 +1197,7 @@ style={{
 )}
 
 {[...visibleReports]
-.sort((a, b) => {
+  .sort((a, b) => {
   const priorityOrder: any = { high: 3, medium: 2, low: 1 }
 
   if (priorityOrder[b.priority] !== priorityOrder[a.priority]) {
@@ -1248,9 +1212,10 @@ if (distanceA !== distanceB) {
 }
 
 return b.createdAt - a.createdAt
-})
 
-.map((r, index) => (
+  })
+
+  .map((r, index) => (
 
 <Fragment key={r.id || `${r.lat}-${r.lng}-${r.createdAt}-${index}`}>
 <Marker
@@ -1376,7 +1341,7 @@ eventHandlers={{
       </div>
     </Popup>
   </Marker>
-{r.priority === "high" && (
+{r.priority === "high" && mapZoom >= 14 && (
  <Fragment key={`circle-${r.id || r.createdAt}-${index}`}>
 
 
