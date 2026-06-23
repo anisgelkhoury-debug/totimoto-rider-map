@@ -30,6 +30,7 @@ locationName?: string
   lat: number
   lng: number
   ownerId?: string
+  ownerPhone?: string
   helperId?: string
   helperAcceptedAt?: number
   color: string
@@ -544,7 +545,7 @@ helperStatus: "مساعد بالطريق",
 helpers: 1,
 joined: true,
 helperId: deviceId,
-helperPhone: localStorage.getItem("contactPhone") || "",
+helperPhone: contactPhone,
 helperName: localStorage.getItem("contactName") || "",
 helperLat: myLocation ? myLocation[0] : null,
 helperLng: myLocation ? myLocation[1] : null,
@@ -558,7 +559,7 @@ helperAcceptedAt: Date.now()
   helperComing: true,
   joined: true,
   helperId: deviceId,
-  helperPhone: localStorage.getItem("contactPhone") || "",
+  helperPhone: contactPhone,
   helperName: localStorage.getItem("contactName") || "",
   helperLat: myLocation ? myLocation[0] : null,
   helperLng: myLocation ? myLocation[1] : null
@@ -1091,10 +1092,18 @@ if (reportImage) {
   reportImageUrl = await getDownloadURL(imageRef)
 }
 
+console.log("REPORT OWNER PHONE TEST:", {
+  contactPhone,
+  contactName,
+  savedPhone: localStorage.getItem("contactPhone"),
+  savedName: localStorage.getItem("contactName"),
+})
+
   const newReport = {
     ownerId: deviceId,
-      phone: localStorage.getItem("contactPhone") || "",
-      ownerName: localStorage.getItem("contactName") || "",
+      phone: contactPhone,
+ownerPhone: contactPhone,
+ownerName: contactName,
       description: type.description || "",
       reportImageUrl,
     ...type,
@@ -1997,10 +2006,23 @@ style={{
         </button>
 
         <button
-          onClick={(e) => {
-            e.stopPropagation()
-           window.open(`https://wa.me/961${String(r.phone || "").replace(/^0/, "")}`, "_blank")
-          }}
+
+onClick={(e) => {
+  e.stopPropagation()
+
+  const ownerPhone = String(
+    r.phone || ""
+  )
+    .replace(/\D/g, "")
+    .replace(/^0/, "")
+
+  window.open(
+    `https://wa.me/961${ownerPhone}`,
+    "_blank"
+  )
+}}
+
+          
           style={{
             width: "100%",
             background: "#16a34a",
@@ -2723,7 +2745,7 @@ style={{
         <button
           onClick={(e) => {
             e.stopPropagation()
-           window.open(`https://wa.me/961${String(r.phone || "").replace(/^0/, "")}`, "_blank")
+           window.open(`https://wa.me/961${String(r.ownerPhone || r.phone || "").replace(/^0/, "")}`, "_blank")
           }}
           style={{
             width: "100%",
@@ -3652,23 +3674,35 @@ setStolenBikeImagePreviews(files.map((file) => URL.createObjectURL(file)))
 )}
 
 
-{selectedReport.helperPhone &&
+{(selectedReport.ownerPhone || selectedReport.phone) &&
 isAssistanceReport(selectedReport) && (
 
  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginTop: 8, width: 220 }}>
-    <button
-      onClick={() =>window.location.href = `tel:${selectedReport.helperPhone}` }
-     style={{ width: "100%", padding: 8, borderRadius: 10, border: "none", background: "#16a34a", color: "white", fontWeight: "bold", fontSize: 12, marginRight: 0 }}
-    >
-      📞 اتصال
-    </button>
 
-    <button
-      onClick={() => window.open(`https://wa.me/961${selectedReport.helperPhone.replace(/^0/, "")}`, "_blank")}
-      style={{ width: "100%", padding: 8, borderRadius: 10, border: "none", background: "#22c55e", color: "white", fontWeight: "bold", fontSize: 12 , marginRight: 0 }}
-    >
-      💬 واتساب
-    </button>
+<button
+  onClick={() =>
+   window.location.href = `tel:${
+  selectedReport.ownerId === deviceId
+    ? selectedReport.helperPhone
+    : (selectedReport.ownerPhone || selectedReport.phone)
+}`
+  }
+  style={{ width: "100%", padding: 8, borderRadius: 10, border: "none", background: "#16a34a", color: "white", fontWeight: "bold", fontSize: 12, marginRight: 0 }}
+>
+  📞 اتصال
+</button>
+
+<button
+  onClick={() =>
+    window.open(
+      `https://wa.me/961${String(selectedReport.helperPhone || "").replace(/\D/g, "").replace(/^0/, "")}`,
+      "_blank"
+    )
+  }
+  style={{ width: "100%", padding: 8, borderRadius: 10, border: "none", background: "#22c55e", color: "white", fontWeight: "bold", fontSize: 12, marginRight: 0 }}
+>
+  💬 واتساب
+</button>
 
     <button
 onClick={() => {
