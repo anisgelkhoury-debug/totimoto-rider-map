@@ -311,6 +311,17 @@ function MapZoomTracker({ setMapZoom }: any) {
   return null
 }
 
+const communityBtnStyle = {
+  width: "100%",
+  padding: 14,
+  borderRadius: 16,
+  border: "1px solid #d1d5db",
+  background: "#f8fafc",
+  marginTop: 10,
+  fontSize: 16,
+  fontWeight: "bold",
+};
+
 function App() {
   const [reports, setReports] = useState<ReportItem[]>(startingReports)
 const [activeReportFamily, setActiveReportFamily] = useState("all")
@@ -390,6 +401,8 @@ const [reportImagePreview, setReportImagePreview] = useState("")
 const [isSubmittingReport, setIsSubmittingReport] = useState(false)
 
 const [showContactModal, setShowContactModal] = useState(false)
+const [showCommunityCenter, setShowCommunityCenter] = useState(false)
+const [showLegalPage, setShowLegalPage] = useState<any>(null)
 const [contactName, setContactName] = useState(localStorage.getItem("contactName") || "")
 const [contactPhone, setContactPhone] = useState(localStorage.getItem("contactPhone") || "")
 const [pendingAction, setPendingAction] = useState<any>(null)
@@ -1482,7 +1495,7 @@ onClick={(e) => {
       </div>
 )}
 <button
-onClick={() => setShowContactModal(true)}
+onClick={() => setShowCommunityCenter(true)}
 style={{
   position: "fixed",
   top: 80,
@@ -2114,6 +2127,15 @@ display: window.innerWidth <= 600 ? "block" : "none",
   }
 
   
+if (btn.reportFamily === "assistance" || btn.reportFamily === "sharedRide") {
+  ensureContactInfo(() => {
+    setPendingReportType(btn)
+    setShowDescriptionModal(true)
+    setShowMobileDashboard(false)
+  })
+  return
+}
+
 setPendingReportType(btn)
 setShowDescriptionModal(true)
 setShowMobileDashboard(false)
@@ -2902,6 +2924,16 @@ setShowMobileDashboard(false)
     setShowStolenModal(true)
     return
   }
+if (type.reportFamily === "assistance" || type.reportFamily === "sharedRide") {
+  ensureContactInfo(() => {
+    setShowReportModal(false)
+    setPendingReportType(type)
+    setShowDescriptionModal(true)
+    setShowMobileDashboard(false)
+  })
+  return
+}
+
 setShowReportModal(false)
 setPendingReportType(type)
 setShowDescriptionModal(true)
@@ -3234,6 +3266,21 @@ setStolenBikeImagePreviews(files.map((file) => URL.createObjectURL(file)))
           marginTop: 16,
         }}
       >
+
+<p
+  style={{
+    fontSize: 13,
+    color: "#6b7280",
+    marginTop: 12,
+    lineHeight: 1.6,
+  }}
+>
+  عند طلب أو قبول المساعدة، قد يتم مشاركة رقم هاتفك مع الطرف الآخر
+  لتسهيل التواصل عبر الاتصال أو واتساب.
+</p>
+
+
+
         حفظ ومتابعة
       </button>
 
@@ -3255,6 +3302,203 @@ setStolenBikeImagePreviews(files.map((file) => URL.createObjectURL(file)))
         }}
       >
         لاحقاً
+      </button>
+    </div>
+  </div>
+)}
+
+{showCommunityCenter && (
+  <div
+    style={{
+      position: "fixed",
+      inset: 0,
+      background: "rgba(0,0,0,.55)",
+      zIndex: 999999,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: 20,
+      direction: "rtl",
+    }}
+  >
+    <div
+      style={{
+        background: "white",
+        width: "100%",
+        maxWidth: 420,
+        borderRadius: 24,
+        padding: 22,
+        textAlign: "center",
+      }}
+    >
+      <h2>⚙️ توتيموتو</h2>
+
+      <button
+  onClick={() => {
+    setShowCommunityCenter(false)
+    setShowContactModal(true)
+  }}
+  style={communityBtnStyle}
+>
+  📞 معلومات التواصل
+</button>
+
+      <button
+        onClick={() => setShowLegalPage("privacy")}
+        style={communityBtnStyle}
+      >
+        📜 سياسة الخصوصية
+      </button>
+
+      <button
+        onClick={() => setShowLegalPage("terms")}
+        style={communityBtnStyle}
+      >
+        📄 شروط الاستخدام
+      </button>
+
+      <button
+        onClick={() => setShowLegalPage("emergency")}
+        style={communityBtnStyle}
+      >
+        🚨 تنبيه الطوارئ
+      </button>
+
+      <button
+        onClick={() => setShowLegalPage("founders")}
+        style={communityBtnStyle}
+      >
+        👥 المؤسسون الأوائل
+      </button>
+
+      <button
+        onClick={() => setShowLegalPage("feedback")}
+        style={communityBtnStyle}
+      >
+        💡 ساعدنا نحسن توتيموتو
+      </button>
+
+      <button
+        onClick={() => setShowCommunityCenter(false)}
+        style={{
+          width: "100%",
+          marginTop: 14,
+          padding: 14,
+          borderRadius: 16,
+          border: "none",
+          background: "#e5e7eb",
+          fontWeight: "bold",
+        }}
+      >
+        إغلاق
+      </button>
+    </div>
+  </div>
+)}
+
+{showLegalPage && (
+  <div
+    style={{
+      position: "fixed",
+      inset: 0,
+      background: "rgba(0,0,0,.55)",
+      zIndex: 1000000,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: 20,
+      direction: "rtl",
+    }}
+  >
+    <div
+      style={{
+        background: "white",
+        width: "100%",
+        maxWidth: 430,
+        maxHeight: "82vh",
+        overflowY: "auto",
+        borderRadius: 24,
+        padding: 22,
+        textAlign: "right",
+        lineHeight: 1.8,
+      }}
+    >
+      <h2 style={{ textAlign: "center" }}>
+        {showLegalPage === "privacy" && "📜 سياسة الخصوصية"}
+        {showLegalPage === "terms" && "📄 شروط الاستخدام"}
+        {showLegalPage === "emergency" && "🚨 تنبيه الطوارئ"}
+        {showLegalPage === "founders" && "👥 المؤسسون الأوائل"}
+        {showLegalPage === "feedback" && "💡 ساعدنا نحسن توتيموتو"}
+      </h2>
+
+      {showLegalPage === "privacy" && (
+        <>
+          <p>يجمع توتيموتو فقط المعلومات الضرورية لتشغيل خدمات البلاغات والمساعدة.</p>
+          <p>قد نستخدم موقعك الجغرافي لإنشاء البلاغات وعرض البلاغات القريبة منك.</p>
+          <p>عند طلب أو قبول المساعدة، قد يتم مشاركة رقم هاتفك مع الطرف الآخر لتسهيل التواصل.</p>
+          <p>لا نبيع معلوماتك الشخصية لأي طرف ثالث.</p>
+        </>
+      )}
+
+      {showLegalPage === "terms" && (
+        <>
+          <p>باستخدام توتيموتو، توافق على استخدام التطبيق بطريقة مسؤولة.</p>
+          <p>يمنع نشر بلاغات كاذبة أو مضللة أو مسيئة.</p>
+          <p>يمنع استخدام التطبيق للمضايقة أو الاحتيال أو أي نشاط غير قانوني.</p>
+          <p>قد يتم حذف البلاغات المخالفة أو تقييد المستخدمين المسيئين لاحقاً.</p>
+        </>
+      )}
+
+      {showLegalPage === "emergency" && (
+        <>
+          <p>توتيموتو شبكة مجتمعية للدراجين وليست جهة طوارئ رسمية.</p>
+          <p>في الحالات الخطيرة أو الطارئة، تواصل فوراً مع الشرطة أو الإسعاف أو الدفاع المدني.</p>
+          <p>التطبيق يساعد الدراجين على مشاركة المعلومات وطلب المساعدة من المجتمع، لكنه لا يضمن وصول المساعدة أو دقة كل البلاغات.</p>
+        </>
+      )}
+
+      {showLegalPage === "founders" && (
+        <>
+          <p>أنت من أوائل الدراجين الذين يساهمون في بناء توتيموتو.</p>
+          <p>ملاحظاتك واقتراحاتك تساعدنا على تحسين التطبيق لكل مجتمع الدراجين في لبنان.</p>
+          <p>قد يحصل المؤسسون الأوائل لاحقاً على شارة خاصة أو مزايا مستقبلية داخل التطبيق.</p>
+        </>
+      )}
+
+      {showLegalPage === "feedback" && (
+        <>
+          <p>اكتب لنا أي مشكلة واجهتك أو ميزة تحب أن تراها في توتيموتو.</p>
+          <textarea
+            placeholder="اكتب رسالتك هنا..."
+            style={{
+              width: "100%",
+              minHeight: 120,
+              borderRadius: 14,
+              border: "1px solid #d1d5db",
+              padding: 12,
+              fontSize: 15,
+              boxSizing: "border-box",
+            }}
+          />
+          <button style={communityBtnStyle}>
+            إرسال الملاحظة
+          </button>
+        </>
+      )}
+
+      <button
+        onClick={() => setShowLegalPage(null)}
+        style={{
+          width: "100%",
+          marginTop: 16,
+          padding: 14,
+          borderRadius: 16,
+          border: "none",
+          background: "#e5e7eb",
+          fontWeight: "bold",
+        }}
+      >
+        إغلاق
       </button>
     </div>
   </div>
