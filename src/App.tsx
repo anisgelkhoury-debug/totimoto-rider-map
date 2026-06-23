@@ -3693,12 +3693,16 @@ isAssistanceReport(selectedReport) && (
 </button>
 
 <button
-  onClick={() =>
-    window.open(
-      `https://wa.me/961${String(selectedReport.helperPhone || "").replace(/\D/g, "").replace(/^0/, "")}`,
-      "_blank"
-    )
-  }
+onClick={() =>
+  window.open(
+    `https://wa.me/961${String(
+      selectedReport.ownerId === deviceId
+        ? selectedReport.helperPhone
+        : (selectedReport.ownerPhone || selectedReport.phone || "")
+    ).replace(/\D/g, "").replace(/^0/, "")}`,
+    "_blank"
+  )
+}
   style={{ width: "100%", padding: 8, borderRadius: 10, border: "none", background: "#22c55e", color: "white", fontWeight: "bold", fontSize: 12, marginRight: 0 }}
 >
   💬 واتساب
