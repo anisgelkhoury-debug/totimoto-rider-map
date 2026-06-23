@@ -22,6 +22,10 @@ type ReportItem = {
   id?: number
   type: string
   area: string
+street?: string
+city?: string
+district?: string
+locationName?: string
   distance: string
   lat: number
   lng: number
@@ -1689,9 +1693,6 @@ onClick={() => {
   }}
 >
 
-    <div style={{ background: r.color, width: 30, height: 30, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-      {r.emoji}
-    </div>
 
 <div style={{ flex: 1, color: "white", lineHeight: 1.25 }}>
   <div
@@ -1737,7 +1738,34 @@ onClick={() => {
 <>
 
 
-  {r.emoji} {r.type}
+
+<div>
+  <div
+    style={{
+      fontWeight: "bold",
+      fontSize: 16
+    }}
+  >
+    {r.emoji} {r.type}
+  </div>
+
+  {(r.locationName || r.area || r.street) && (
+    <div
+      style={{
+        marginTop: 6,
+        fontSize: 14,
+        color: "#ffd166",
+        fontWeight: "700",
+        lineHeight: 1.4,
+        direction: "rtl"
+      }}
+    >
+      📍 {r.locationName || `${r.area || ""}${r.street ? " - " + r.street : ""}`}
+    </div>
+  )}
+</div>
+
+
 </>
 </div>
 </div>
@@ -2436,9 +2464,6 @@ if (
   }}
 >
 
-    <div style={{ background: r.color, width: 30, height: 30, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-      {r.emoji}
-    </div>
 
 <div style={{ flex: 1, color: "white", lineHeight: 1.25 }}>
   <div
@@ -2447,44 +2472,28 @@ if (
     fontWeight: "bold"
   }}
 >
-<div
-  style={{
-    display: "inline-block",
-    padding: "4px 10px",
-    borderRadius: 999,
-    background:
-      r.type.includes("مسروقة")
-        ? "#fee2e2"
-        : r.type.includes("حادث")
-        ? "#fef3c7"
-        : r.type.includes("بنزين")
-        ? "#fff7ed"
-        : r.type.includes("عطل")
-        ? "#f3e8ff"
-        : r.type.includes("وصلني")
-        ? "#fce7f3"
-        : "#e0f2fe",
-    color:
-      r.type.includes("مسروقة")
-        ? "#dc2626"
-        : r.type.includes("حادث")
-        ? "#d97706"
-        : r.type.includes("بنزين")
-        ? "#ea580c"
-        : r.type.includes("عطل")
-        ? "#7c3aed"
-        : r.type.includes("وصلني")
-        ? "#db2777"
-        : "#0369a1",
-    fontWeight: "bold",
-    fontSize: 12
-  }}
->
+<div>
 
 <>
 
 
   {r.emoji} {r.type}
+
+{(r.locationName || r.area || r.street) && (
+  <div
+    style={{
+      marginTop: 4,
+      fontSize: 12,
+      fontWeight: "800",
+      color: "#ffffff",
+      lineHeight: 1.4,
+      direction: "rtl",
+    }}
+  >
+    📍 {r.locationName || `${r.area || ""}${r.street ? " - " + r.street : ""}`}
+  </div>
+)}
+
 </>
 </div>
 </div>
