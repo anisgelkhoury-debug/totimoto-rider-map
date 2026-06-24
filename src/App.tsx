@@ -408,6 +408,12 @@ const [contactName, setContactName] = useState(localStorage.getItem("contactName
 const [contactPhone, setContactPhone] = useState(localStorage.getItem("contactPhone") || "")
 const [pendingAction, setPendingAction] = useState<any>(null)
 
+const [feedbackMessage, setFeedbackMessage] = useState("")
+const [sendingFeedback, setSendingFeedback] = useState(false)
+
+const [installPrompt, setInstallPrompt] = useState<any>(null)
+const [showInstallGuide, setShowInstallGuide] = useState(false)
+
 function ensureContactInfo(action: any) {
   if (contactName.trim() && contactPhone.trim()) {
     action()
@@ -437,6 +443,57 @@ function saveContactInfo() {
   if (pendingAction) {
     pendingAction()
     setPendingAction(null)
+  }
+}
+
+async function handleInstallApp() {
+
+  const isStandalone =
+    window.matchMedia("(display-mode: standalone)").matches ||
+    (window.navigator as any).standalone === true
+
+  if (isStandalone) {
+    alert("توتيموتو موجود بالفعل على هاتفك ✅")
+    return
+  }
+
+  if (installPrompt) {
+    installPrompt.prompt()
+    await installPrompt.userChoice
+    setInstallPrompt(null)
+    return
+  }
+
+  setShowInstallGuide(true)
+}
+
+async function submitFeedback() {
+
+
+  if (!feedbackMessage.trim()) {
+    alert("اكتب ملاحظتك أولاً")
+    return
+  }
+
+  try {
+    setSendingFeedback(true)
+
+    await addDoc(collection(db, "feedback"), {
+      message: feedbackMessage.trim(),
+      deviceId,
+      contactName,
+      contactPhone,
+      createdAt: Date.now(),
+      source: "beta-feedback"
+    })
+
+    setFeedbackMessage("")
+    alert("شكراً لك، تم إرسال ملاحظتك بنجاح")
+  } catch (error) {
+    console.error(error)
+    alert("تعذّر إرسال الملاحظة، حاول مرة أخرى")
+  } finally {
+    setSendingFeedback(false)
   }
 }
 
@@ -630,6 +687,19 @@ setSelectedReport({
     alert("❌ فشل إلغاء المساعدة")
   }
 }
+
+useEffect(() => {
+  const handleBeforeInstallPrompt = (e: any) => {
+    e.preventDefault()
+    setInstallPrompt(e)
+  }
+
+  window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt)
+
+  return () => {
+    window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt)
+  }
+}, [])
 
   useEffect(() => {
   const timer = setInterval(() => {
@@ -1210,7 +1280,11 @@ zoom={12}
 
 
 
-      <MapContainer center={[33.8938, 35.5018]} zoom={12} style={{ height: "100%", width: "100%" }}>
+      <MapContainer
+  center={[33.8938, 35.5018]}
+  zoom={12}
+  style={{ height: "100%", width: "100%" }}
+>
         <TileLayer attribution="&copy; OpenStreetMap" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
 
         <FlyToReport target={mapTarget} />
@@ -1457,69 +1531,60 @@ eventHandlers={{
 </button>
 
 {showTopInfo && (
-<div style={{ position: "absolute", top: 8, right: 18, left: 85, zIndex: 1000, display: "flex", justifyContent: "space-between" }}>
+  <div style={{ position: "fixed", top: 15, right: 18, left: 85, zIndex: 1000, display: "flex", justifyContent: "space-between" }}>
+    <div style={{ color: "#020617", fontWeight: "bold", fontSize: 24, textAlign: "center", textShadow: "0 1px 4px rgba(255,255,255,0.95)", lineHeight: 1.1 }}>
+      🔴 {visibleReports.length}
+      <div style={{ fontSize: 16, marginTop: 4 }}>بلاغات</div>
+    </div>
 
-<div style={{
-  color: "#020617",
-  fontWeight: "bold",
-  fontSize: 24,
-  textAlign: "center",
-  textShadow: "0 1px 4px rgba(255,255,255,0.95)",
-  lineHeight: 1.1
-}}>
-  🔴 {visibleReports.length}
-  <div style={{
-    fontSize: 16,
-    marginTop: 4
-  }}>
-    بلاغات
+    <button
+      onClick={(e) => {
+        e.stopPropagation()
+        if (myLocation) {
+          setMapTarget([myLocation[0] + Math.random() * 0.000001, myLocation[1]])
+          setMapZoom(16)
+        }
+      }}
+      style={{
+        background: "transparent",
+        color: "#020617",
+        padding: "4px 6px",
+        borderRadius: 0,
+        textShadow: "0 1px 4px rgba(255,255,255,0.95)",
+        border: "none",
+        fontWeight: "bold",
+        cursor: "pointer",
+      }}
+    >
+      📍 موقعي GPS ✅
+    </button>
   </div>
-
-        </div>
-
-        <button
-
-onClick={(e) => {
-  e.stopPropagation()
-
-  if (myLocation) {
-    setMapTarget([myLocation[0] + Math.random() * 0.000001, myLocation[1]])
-    setMapZoom(16)
-  }
-}}
-
-          style={{
-           background: "transparent",
-           color: "#020617",
-           padding: "4px 6px",
-           borderRadius: 0,
-           textShadow: "0 1px 4px rgba(255,255,255,0.95)",
-            border: "none",
-            fontWeight: "bold",
-            cursor: "pointer"
-          }}
-        >
-          📍 موقعي GPS ✅
-        </button>
-      </div>
 )}
+
 <button
-onClick={() => setShowCommunityCenter(true)}
-style={{
-  position: "fixed",
-  top: 80,
-  left: 10,
-  zIndex: 999999,
-  width: 32,
-  height: 32,
-  border: "none",
-  background: "transparent",
-  boxShadow: "none",
-  padding: 0,
-  cursor: "pointer",
-  fontSize: 22,
-  color: "#333"
-}}
+  onClick={() => setShowCommunityCenter(true)}
+  style={{
+    display:
+      !showReportModal &&
+      !showReportsPage &&
+      !selectedReport &&
+      !showCommunityCenter
+        ? "block"
+        : "none",
+    position: "fixed",
+    top: 80,
+    left: 10,
+    zIndex: 999999,
+    width: 32,
+    height: 32,
+    border: "none",
+    background: "transparent",
+    boxShadow: "none",
+    padding: 0,
+    cursor: "pointer",
+    fontSize: 22,
+    color: "#333",
+  }}
 >
   ⚙️
 </button>
@@ -3393,6 +3458,18 @@ setStolenBikeImagePreviews(files.map((file) => URL.createObjectURL(file)))
         👥 المؤسسون الأوائل
       </button>
 
+<button
+  onClick={handleInstallApp}
+  style={{
+    ...communityBtnStyle,
+    position: "relative",
+    zIndex: 999999,
+    pointerEvents: "auto",
+  }}
+>
+  📲 حمّل تطبيق توتيموتو
+</button>
+
       <button
         onClick={() => setShowLegalPage("feedback")}
         style={communityBtnStyle}
@@ -3490,9 +3567,11 @@ setStolenBikeImagePreviews(files.map((file) => URL.createObjectURL(file)))
       {showLegalPage === "feedback" && (
         <>
           <p>اكتب لنا أي مشكلة واجهتك أو ميزة تحب أن تراها في توتيموتو.</p>
-          <textarea
-            placeholder="اكتب رسالتك هنا..."
-            style={{
+         <textarea
+  value={feedbackMessage}
+  onChange={(e) => setFeedbackMessage(e.target.value)}
+  placeholder="اكتب رسالتك هنا..."
+  style={{
               width: "100%",
               minHeight: 120,
               borderRadius: 14,
@@ -3502,8 +3581,12 @@ setStolenBikeImagePreviews(files.map((file) => URL.createObjectURL(file)))
               boxSizing: "border-box",
             }}
           />
-          <button style={communityBtnStyle}>
-            إرسال الملاحظة
+          <button
+  onClick={submitFeedback}
+  disabled={sendingFeedback}
+  style={communityBtnStyle}
+>
+           {sendingFeedback ? "جارٍ الإرسال..." : "إرسال الملاحظة"}
           </button>
         </>
       )}
@@ -3521,6 +3604,53 @@ setStolenBikeImagePreviews(files.map((file) => URL.createObjectURL(file)))
         }}
       >
         إغلاق
+      </button>
+    </div>
+  </div>
+)}
+
+{showInstallGuide && (
+  <div
+    style={{
+      position: "fixed",
+      inset: 0,
+      background: "rgba(0,0,0,.6)",
+      zIndex: 999999,
+      display: "flex",
+      justifyContent: "center",
+      alignItems: "center",
+      padding: 20,
+      direction: "rtl",
+    }}
+  >
+    <div
+      style={{
+        background: "#fff",
+        borderRadius: 22,
+        padding: 24,
+        maxWidth: 420,
+        width: "100%",
+        textAlign: "right",
+        lineHeight: 1.8,
+      }}
+    >
+      <h2 style={{ textAlign: "center" }}>📲 حمّل تطبيق توتيموتو</h2>
+
+      <p><strong>على iPhone:</strong></p>
+      <p>1. اضغط زر المشاركة أسفل الشاشة</p>
+      <p>2. اختر <strong>Add to Home Screen</strong></p>
+      <p>3. اضغط <strong>Add</strong></p>
+
+      <hr />
+
+      <p><strong>على Android:</strong></p>
+      <p>اضغط ⋮ ثم اختر <strong>Install App</strong> أو <strong>Add to Home Screen</strong>.</p>
+
+      <button
+        onClick={() => setShowInstallGuide(false)}
+        style={communityBtnStyle}
+      >
+        فهمت
       </button>
     </div>
   </div>
