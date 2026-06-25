@@ -414,6 +414,8 @@ const [sendingFeedback, setSendingFeedback] = useState(false)
 const [installPrompt, setInstallPrompt] = useState<any>(null)
 const [showInstallGuide, setShowInstallGuide] = useState(false)
 
+const [fullImageUrl, setFullImageUrl] = useState<string | null>(null)
+
 const isIphoneSafari =
   /iPhone|iPad|iPod/i.test(navigator.userAgent) &&
   /Safari/i.test(navigator.userAgent) &&
@@ -1248,6 +1250,58 @@ return true
 
   return (
     <>
+
+{fullImageUrl && (
+  <div
+    onClick={() => setFullImageUrl(null)}
+    style={{
+      position: "fixed",
+      inset: 0,
+      background: "rgba(0,0,0,0.9)",
+      zIndex: 999999,
+      display: "flex",
+      justifyContent: "center",
+      alignItems: "center",
+      padding: 20
+    }}
+  >
+    <button
+      onClick={(e) => {
+        e.stopPropagation()
+        setFullImageUrl(null)
+      }}
+      style={{
+        position: "absolute",
+        top: 20,
+        right: 20,
+        width: 44,
+        height: 44,
+        border: "none",
+        borderRadius: "50%",
+        background: "white",
+        color: "black",
+        fontSize: 26,
+        fontWeight: "bold",
+        cursor: "pointer"
+      }}
+    >
+      ×
+    </button>
+
+    <img
+      src={fullImageUrl}
+      alt="Full Report"
+      onClick={(e) => e.stopPropagation()}
+      style={{
+        maxWidth: "95%",
+        maxHeight: "90%",
+        objectFit: "contain",
+        borderRadius: 12
+      }}
+    />
+  </div>
+)}
+
 <style>{`
 @keyframes pulseMarker {
   0% { transform: scale(1); }
@@ -1796,21 +1850,10 @@ onClick={() => {
 >
 <div
   style={{
-    display: "inline-block",
-    padding: "4px 10px",
-    borderRadius: 999,
-    background:
-      r.type.includes("مسروقة")
-        ? "#fee2e2"
-        : r.type.includes("حادث")
-        ? "#fef3c7"
-        : r.type.includes("بنزين")
-        ? "#fff7ed"
-        : r.type.includes("عطل")
-        ? "#f3e8ff"
-        : r.type.includes("وصلني")
-        ? "#fce7f3"
-        : "#e0f2fe",
+display: "inline-block",
+padding: 0,
+borderRadius: 0,
+background: "transparent",
     color:
       r.type.includes("مسروقة")
         ? "#dc2626"
@@ -1898,18 +1941,20 @@ onClick={() => {
 )}
 
 {r.reportImageUrl && (
-  <img
-    src={r.reportImageUrl}
-    alt="Report"
-    loading="lazy"
-    style={{
-      width: "100%",
-      maxHeight: 120,
-      objectFit: "cover",
-      borderRadius: 10,
-      marginTop: 6
-    }}
-  />
+<img
+  src={r.reportImageUrl}
+  alt="Report"
+  loading="lazy"
+  onClick={() => setFullImageUrl(r.reportImageUrl!)}
+  style={{
+    width: 180,
+    height: 115,
+    objectFit: "cover",
+    borderRadius: 10,
+    marginTop: 6,
+    cursor: "pointer",
+  }}
+/>
 )}
 
 </div>
