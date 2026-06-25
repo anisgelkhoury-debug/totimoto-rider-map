@@ -414,6 +414,11 @@ const [sendingFeedback, setSendingFeedback] = useState(false)
 const [installPrompt, setInstallPrompt] = useState<any>(null)
 const [showInstallGuide, setShowInstallGuide] = useState(false)
 
+const isIphoneSafari =
+  /iPhone|iPad|iPod/i.test(navigator.userAgent) &&
+  /Safari/i.test(navigator.userAgent) &&
+  !/CriOS|FxiOS|EdgiOS/i.test(navigator.userAgent)
+
 function ensureContactInfo(action: any) {
   if (contactName.trim() && contactPhone.trim()) {
     action()
@@ -1281,8 +1286,8 @@ zoom={12}
 
 
       <MapContainer
-  center={[33.8938, 35.5018]}
-  zoom={12}
+ center={myLocation || [33.8750, 35.5120]}
+zoom={myLocation ? 16 : 13}
   style={{ height: "100%", width: "100%" }}
 >
         <TileLayer attribution="&copy; OpenStreetMap" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
@@ -1299,16 +1304,16 @@ zoom={12}
 style={{
   position: "fixed",
   bottom: 10,
-  left: 18,
+  left: 15,
   zIndex: 3000,
-  width: 125,
-  height: 46,
+  width: isIphoneSafari ? 105 : 105,
+  height: isIphoneSafari ? 38 : 42,
   background: "#dc2626",
   color: "white",
   border: "none",
   borderRadius: 999,
   fontWeight: "bold",
-  fontSize: 13,
+  fontSize: isIphoneSafari ? 11 : 12,
   cursor: "pointer",
   boxShadow: "0 8px 22px rgba(0,0,0,.35)"
 }}
@@ -1583,7 +1588,8 @@ eventHandlers={{
     padding: 0,
     cursor: "pointer",
     fontSize: 22,
-    color: "#333",
+color: "white",
+textShadow: "0 0 6px rgba(0,0,0,0.8)",
   }}
 >
   ⚙️
@@ -2167,14 +2173,14 @@ style={{
   left: "50%",
   transform: "translateX(-50%)",
   zIndex: 3000,
-  width: 125,
-  height: 46,
+width: isIphoneSafari ? 105 : 115,
+height: isIphoneSafari ? 38 : 42,
   background: "#020617",
   color: "white",
   border: "none",
   borderRadius: 999,
   fontWeight: "bold",
-  fontSize: 13,
+ fontSize: isIphoneSafari ? 11 : 12, 
   cursor: "pointer",
   boxShadow: "0 8px 22px rgba(0,0,0,.35)"
 }}
@@ -2268,14 +2274,14 @@ style={{
   bottom: 10,
   right: 18,
   zIndex: 3000,
-  width: 125,
-  height: 46,
+  width: isIphoneSafari ? 105 : 105,
+  height: isIphoneSafari ? 38 : 42,
   background: "#dc2626",
   color: "white",
   border: "none",
   borderRadius: 999,
   fontWeight: "bold",
-  fontSize: 13,
+  fontSize: isIphoneSafari ? 11 : 12,
   cursor: "pointer",
   boxShadow: "0 8px 22px rgba(0,0,0,.35)"
 }}
@@ -2983,7 +2989,7 @@ setShowMobileDashboard(false)
       color: "white",
       border: "none",
       borderRadius: 999,
-      padding: "14px 24px",
+      padding: "10px 10px",
       fontWeight: "bold"
     }}
   >
