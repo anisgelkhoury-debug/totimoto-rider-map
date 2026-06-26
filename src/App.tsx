@@ -1051,6 +1051,9 @@ helperComing: false,
 
   const [myLocation, setMyLocation] = useState<any>(null)
 
+  const [gpsStatus, setGpsStatus] = useState("checking")
+const [gpsUpdatedAt, setGpsUpdatedAt] = useState<number | null>(null)
+
   useEffect(() => {
   const interval = setInterval(() => {
     setReports((currentReports: any) =>
@@ -1069,13 +1072,16 @@ helperComing: false,
 useEffect(() => {
   const watchId = navigator.geolocation.watchPosition(
     (position) => {
-      setMyLocation([
-        position.coords.latitude,
-        position.coords.longitude,
-      ])
+    setMyLocation([
+  position.coords.latitude,
+  position.coords.longitude,
+])
+setGpsStatus("ready")
+setGpsUpdatedAt(Date.now())
     },
 (error) => {
   console.log("GPS error:", error)
+  setGpsStatus("error")
 },
     {
       enableHighAccuracy: true,
@@ -1113,6 +1119,31 @@ useEffect(() => {
   updateHelperLocation()
 }, [myLocation, reports, deviceId])
 */
+
+const refreshGps = () => {
+  setGpsStatus("checking")
+
+  navigator.geolocation.getCurrentPosition(
+    (position) => {
+      setMyLocation([
+        position.coords.latitude,
+        position.coords.longitude,
+      ])
+
+      setGpsStatus("ready")
+      setGpsUpdatedAt(Date.now())
+    },
+    (error) => {
+      console.log("Manual GPS refresh error:", error)
+      setGpsStatus("error")
+    },
+    {
+      enableHighAccuracy: true,
+      maximumAge: 0,
+      timeout: 10000,
+    }
+  )
+}
 
   useEffect(() => {
   const moveInterval = setInterval(() => {
@@ -1407,8 +1438,15 @@ style={{
     return priorityOrder[b.priority] - priorityOrder[a.priority]
   }
 
-  const distanceA = calculateDistance(myLocation, [a.lat, a.lng]) ?? 999999
-const distanceB = calculateDistance(myLocation, [b.lat, b.lng]) ?? 999999
+const distanceA =
+  myLocation && a.lat && a.lng
+    ? calculateDistance(myLocation, [a.lat, a.lng]) ?? 999999
+    : 999999
+
+const distanceB =
+  myLocation && b.lat && b.lng
+    ? calculateDistance(myLocation, [b.lat, b.lng]) ?? 999999
+    : 999999
 
 if (distanceA !== distanceB) {
   return distanceA - distanceB
@@ -1604,6 +1642,7 @@ eventHandlers={{
     <button
       onClick={(e) => {
         e.stopPropagation()
+        refreshGps()
         if (myLocation) {
           setMapTarget([myLocation[0] + Math.random() * 0.000001, myLocation[1]])
           setMapZoom(16)
@@ -1924,6 +1963,15 @@ style={{
 
   if (activeReportFamily !== "all" && r.reportFamily !== activeReportFamily) return false
 
+  if (geoFilter === "near") {
+  if (!myLocation || !r.lat || !r.lng) return false
+
+ const km = calculateDistance(myLocation, [r.lat, r.lng]) ?? 999999
+
+if (km > 25) return false
+
+}
+
 if (geoFilter !== "all") {
   const area = `${r.area || ""} ${r.city || ""} ${r.street || ""} ${r.locationName || ""}`
 
@@ -1967,6 +2015,16 @@ if (geoFilter !== "all") {
 return true  
 
   })
+
+.sort((a: any, b: any) => {
+  if (sortFilter !== "nearest" || !myLocation) return 0
+
+  const distanceA = calculateDistance(myLocation, [a.lat, a.lng]) ?? 999999
+  const distanceB = calculateDistance(myLocation, [b.lat, b.lng]) ?? 999999
+
+  return distanceA - distanceB
+})
+
   .map((r, index) => (
 
 
@@ -2058,10 +2116,10 @@ background: "transparent",
       }}
     >
       📍 {r.locationName || `${r.area || ""}${r.street ? " - " + r.street : ""}`}
+
     </div>
   )}
 </div>
-
 
 </>
 </div>
@@ -2119,6 +2177,12 @@ background: "transparent",
 )}
 
 </div>
+
+{myLocation && r.lat != null && r.lng != null && (
+  <div style={{ color: "#22c55e", fontSize: 12, fontWeight: "bold", marginTop: 2 }}>
+    📍 يبعد {formatDistance(calculateDistance(myLocation, [r.lat, r.lng]))}
+  </div>
+)}
 
 <div
   style={{
