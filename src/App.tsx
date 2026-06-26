@@ -416,6 +416,11 @@ const [showInstallGuide, setShowInstallGuide] = useState(false)
 
 const [fullImageUrl, setFullImageUrl] = useState<string | null>(null)
 
+const [showReportFilters, setShowReportFilters] = useState(false)
+const [geoFilter, setGeoFilter] = useState("all")
+const [typeFilter, setTypeFilter] = useState("all")
+const [sortFilter, setSortFilter] = useState("newest")
+
 const isIphoneSafari =
   /iPhone|iPad|iPod/i.test(navigator.userAgent) &&
   /Safari/i.test(navigator.userAgent) &&
@@ -1762,8 +1767,8 @@ transition: "all .2s ease",
     </button>
   ))}
 </div>
+{/*
 
-{/* Area / Street / City Search */}
 <input
   value={reportsSearch}
   onChange={(e) => setReportsSearch(e.target.value)}
@@ -1780,7 +1785,126 @@ transition: "all .2s ease",
     boxShadow: "0 2px 8px rgba(0,0,0,.05)"
   }}
 />
+*/}
 
+{/* Reports Filter Panel */}
+<div style={{
+  background: "white",
+  border: "1px solid #e5e7eb",
+  borderRadius: 14,
+  marginBottom: 14,
+  padding: 12,
+  boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+  direction: "rtl"
+}}>
+  <button
+    onClick={() => setShowReportFilters(!showReportFilters)}
+    style={{
+      width: "100%",
+      padding: "12px 14px",
+      borderRadius: 12,
+      border: "none",
+      background: "#020617",
+      color: "white",
+      fontWeight: "bold",
+      fontSize: 15,
+      cursor: "pointer"
+    }}
+  >
+    🔎 فلترة البلاغات {showReportFilters ? "▲" : "▼"}
+  </button>
+
+  {showReportFilters && (
+    <div style={{ marginTop: 12 }}>
+      <div style={{ fontWeight: "bold", marginBottom: 8 }}>📍 المنطقة</div>
+
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
+        {[
+          ["all", "⬜ الكل"],
+          ["near", "📍 قريب مني"],
+          ["beirut", "🟦 بيروت"],
+          ["mount", "🟩 جبل لبنان"],
+          ["north", "🟨 الشمال"],
+          ["bekaa", "🟧 البقاع"],
+          ["south", "🟥 الجنوب"],
+        ].map(([value, label]) => (
+          <button
+            key={value}
+            onClick={() => setGeoFilter(value)}
+            style={{
+              padding: "8px 10px",
+              borderRadius: 999,
+              border: geoFilter === value ? "2px solid #2563eb" : "1px solid #e5e7eb",
+              background: geoFilter === value ? "#eff6ff" : "white",
+              color: "#020617",
+              fontWeight: "bold",
+              fontSize: 12,
+              cursor: "pointer"
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      <div style={{ fontWeight: "bold", marginBottom: 8 }}>📂 النوع</div>
+
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
+        {[
+          ["all", "🌍 الكل"],
+          ["roads", "🛣️ الطرق"],
+          ["help", "🤝 مساعدة"],
+          ["ride", "🏍️ وصلني"],
+          ["stolen", "🚨 مسروقة"],
+        ].map(([value, label]) => (
+          <button
+            key={value}
+            onClick={() => setTypeFilter(value)}
+            style={{
+              padding: "8px 10px",
+              borderRadius: 999,
+              border: typeFilter === value ? "2px solid #2563eb" : "1px solid #e5e7eb",
+              background: typeFilter === value ? "#eff6ff" : "white",
+              color: "#020617",
+              fontWeight: "bold",
+              fontSize: 12,
+              cursor: "pointer"
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      <div style={{ fontWeight: "bold", marginBottom: 8 }}>📌 الترتيب</div>
+
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+        {[
+          ["newest", "🕒 الأحدث"],
+          ["nearest", "📍 الأقرب"],
+          ["important", "⭐ الأهم"],
+        ].map(([value, label]) => (
+          <button
+            key={value}
+            onClick={() => setSortFilter(value)}
+            style={{
+              padding: "8px 10px",
+              borderRadius: 999,
+              border: sortFilter === value ? "2px solid #2563eb" : "1px solid #e5e7eb",
+              background: sortFilter === value ? "#eff6ff" : "white",
+              color: "#020617",
+              fontWeight: "bold",
+              fontSize: 12,
+              cursor: "pointer"
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+    </div>
+  )}
+</div>
 
     {/* Reports List */}
     {/* TEMP NEW REPORT CARDS - WILL BE REPLACED BY OLD WORKING ENGINE */}
@@ -1797,14 +1921,51 @@ style={{
 
 {visibleReports
   .filter((r: any) => {
-    if (activeReportFamily !== "all" && r.reportFamily !== activeReportFamily) return false
 
-    const q = reportsSearch.trim().toLowerCase()
-    if (!q) return true
+  if (activeReportFamily !== "all" && r.reportFamily !== activeReportFamily) return false
 
-    return `${r.area || ""} ${r.street || ""} ${r.locationName || ""} ${r.city || ""} ${r.type || ""}`
-      .toLowerCase()
-      .includes(q)
+if (geoFilter !== "all") {
+  const area = `${r.area || ""} ${r.city || ""} ${r.street || ""} ${r.locationName || ""}`
+
+  if (geoFilter === "beirut" && !area.includes("بيروت")) return false
+
+  if (geoFilter === "mount" && !(
+    area.includes("بعبدا") ||
+    area.includes("المتن") ||
+    area.includes("كسروان") ||
+    area.includes("عاليه") ||
+    area.includes("الشوف") ||
+    area.includes("جبل لبنان")
+  )) return false
+
+  if (geoFilter === "north" && !(
+    area.includes("طرابلس") ||
+    area.includes("عكار") ||
+    area.includes("زغرتا") ||
+    area.includes("الكورة") ||
+    area.includes("البترون") ||
+    area.includes("بشري") ||
+    area.includes("الشمال")
+  )) return false
+
+  if (geoFilter === "bekaa" && !(
+    area.includes("زحلة") ||
+    area.includes("البقاع") ||
+    area.includes("بعلبك") ||
+    area.includes("الهرمل")
+  )) return false
+
+  if (geoFilter === "south" && !(
+    area.includes("صيدا") ||
+    area.includes("صور") ||
+    area.includes("النبطية") ||
+    area.includes("جزين") ||
+    area.includes("الجنوب")
+  )) return false
+}
+
+return true  
+
   })
   .map((r, index) => (
 
