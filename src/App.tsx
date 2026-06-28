@@ -55,6 +55,7 @@ phone?: string
 helperPhone?: string
 description?: string
 reportImageUrl?: string
+stolenBikeImageUrls?: string[]
 
 }
 
@@ -577,7 +578,7 @@ stolenBikeImageUrls,
       createdAt: Date.now()
     }
 
-alert(JSON.stringify(reportData, null, 2))
+
 
     await addDoc(
       collection(db, "reports"),
@@ -592,15 +593,12 @@ alert(JSON.stringify(reportData, null, 2))
 
     alert("✅ تم نشر البلاغ")
 }
-catch (error) {
-  
-
-  console.error(error)
+catch (error: any) {
+  console.error("STOLEN BIKE SUBMIT ERROR:", error)
 
   setIsSubmittingStolenBike(false)
 
-  alert("❌ فشل نشر البلاغ")
-
+  alert("❌ فشل نشر البلاغ: " + (error?.message || "خطأ غير معروف"))
 }
 }
   
@@ -1667,13 +1665,14 @@ eventHandlers={{
 <button
   onClick={() => setShowCommunityCenter(true)}
   style={{
-    display:
-      !showReportModal &&
-      !showReportsPage &&
-      !selectedReport &&
-      !showCommunityCenter
-        ? "block"
-        : "none",
+display:
+!showReportModal &&
+!showReportsPage &&
+!selectedReport &&
+!showCommunityCenter &&
+!showStolenModal
+    ? "block"
+    : "none",
     position: "fixed",
     top: 80,
     left: 10,
@@ -2017,12 +2016,26 @@ return true
   })
 
 .sort((a: any, b: any) => {
-  if (sortFilter !== "nearest" || !myLocation) return 0
+  if (sortFilter === "nearest" && myLocation) {
+    const distanceA =
+      a.lat != null && a.lng != null
+        ? (calculateDistance(myLocation, [a.lat, a.lng]) ?? 999999)
+: 999999
 
-  const distanceA = calculateDistance(myLocation, [a.lat, a.lng]) ?? 999999
-  const distanceB = calculateDistance(myLocation, [b.lat, b.lng]) ?? 999999
+    const distanceB =
+      b.lat != null && b.lng != null
+        ? (calculateDistance(myLocation, [b.lat, b.lng]) ?? 999999)
+        : 999999
 
-  return distanceA - distanceB
+    return distanceA - distanceB
+  }
+
+  if (sortFilter === "important") {
+    const priorityOrder: any = { high: 3, medium: 2, low: 1 }
+    return (priorityOrder[b.priority] || 0) - (priorityOrder[a.priority] || 0)
+  }
+
+  return (b.createdAt || 0) - (a.createdAt || 0)
 })
 
   .map((r, index) => (
@@ -2159,12 +2172,16 @@ background: "transparent",
   </div>
 )}
 
-{r.reportImageUrl && (
+{(r.reportImageUrl || r.stolenBikeImageUrls?.[0]) && (
 <img
-  src={r.reportImageUrl}
+  src={r.reportImageUrl || r.stolenBikeImageUrls?.[0]}
   alt="Report"
   loading="lazy"
-  onClick={() => setFullImageUrl(r.reportImageUrl!)}
+ onClick={() =>
+  setFullImageUrl(
+    r.reportImageUrl || r.stolenBikeImageUrls?.[0] || null
+  )
+}
   style={{
     width: 180,
     height: 115,
@@ -3480,7 +3497,23 @@ await submitAction()
 
 {showStolenModal && (
   <div style={{ position: "fixed", inset: 0, zIndex: 3000, background: "rgba(0,0,0,.65)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-    <div style={{ background: "#020617", width: "100%", maxWidth: 430, borderRadius: 28, padding: 22, textAlign: "center", direction: "rtl", color: "white" }}>
+  <div
+  style={{
+    background: "#020617",
+    width: "100%",
+    maxWidth: 430,
+    borderRadius: 28,
+    padding: 22,
+    textAlign: "center",
+    direction: "rtl",
+    color: "white",
+
+    maxHeight: "92vh",
+    overflowY: "auto",
+    WebkitOverflowScrolling: "touch",
+    paddingBottom: 40,
+  }}
+>
       <h2>🚨 الإبلاغ عن دراجة مسروقة</h2>
 
       <p style={{ color: "#fca5a5", fontSize: 13 }}>
@@ -3492,21 +3525,55 @@ await submitAction()
 <input value={stolenBikePlate} onChange={(e) => setStolenBikePlate(e.target.value)} placeholder="🔢 رقم اللوحة إذا موجود" style={{ width: "100%", padding: 14, marginTop: 10, borderRadius: 14 , fontSize: 16 }} />
 <input value={stolenBikePhone} onChange={(e) => setStolenBikePhone(e.target.value)} placeholder="📞 رقم التواصل" style={{ width: "100%", padding: 14, marginTop: 10, borderRadius: 14 , fontSize: 16}} />
 <input value={stolenBikePlace} onChange={(e) => setStolenBikePlace(e.target.value)} placeholder="📍 مكان السرقة" style={{ width: "100%", padding: 14, marginTop: 10, borderRadius: 14 , fontSize: 16 }} />
-<input value={stolenBikeDate} onChange={(e) => setStolenBikeDate(e.target.value)} type="date" style={{ width: "100%", padding: 14, marginTop: 10, borderRadius: 14 , fontSize: 16}} />
-<input value={stolenBikeTime} onChange={(e) => setStolenBikeTime(e.target.value)} type="time" style={{ width: "100%", padding: 14, marginTop: 10, borderRadius: 14 , fontSize: 16}} />
+<label style={{ color: "white", marginTop: 12, display: "block", textAlign: "right" }}>
+  📅 التاريخ
+</label>
+<input
+  value={stolenBikeDate}
+  onChange={(e) => setStolenBikeDate(e.target.value)}
+  type="date"
+  style={{ width: "100%", padding: 14, marginTop: 6, borderRadius: 14, fontSize: 16 }}
+/>
 
-    <input
+<label style={{ color: "white", marginTop: 12, display: "block", textAlign: "right" }}>
+  🕒 الوقت
+</label>
+<input
+  value={stolenBikeTime}
+  onChange={(e) => setStolenBikeTime(e.target.value)}
+  type="time"
+  style={{ width: "100%", padding: 14, marginTop: 6, borderRadius: 14, fontSize: 16 }}
+/>
+
+<input
   type="file"
   accept="image/*"
-   multiple
-  onChange={(e) => {
-const files = Array.from(e.target.files || []).slice(0, 5)
-if (files.length === 0) return
+  multiple
+  onChange={async (e) => {
+    const files = Array.from(e.target.files || []).slice(0, 5)
 
-setStolenBikeImages(files)
-setStolenBikeImagePreviews(files.map((file) => URL.createObjectURL(file)))
+    if (files.length === 0) return
+
+    const compressedFiles: File[] = []
+
+    for (const file of files) {
+      const compressedFile = await compressImage(file)
+      compressedFiles.push(compressedFile)
+    }
+
+    setStolenBikeImages(compressedFiles)
+    setStolenBikeImagePreviews(
+      compressedFiles.map((file) => URL.createObjectURL(file))
+    )
   }}
-  style={{ width: "100%", padding: 14, marginTop: 10, borderRadius: 14, background: "white", color: "black" }}
+  style={{
+    width: "100%",
+    padding: 14,
+    marginTop: 10,
+    borderRadius: 14,
+    background: "white",
+    color: "black",
+  }}
 />
 
 {stolenBikeImagePreviews.length > 0 && (
