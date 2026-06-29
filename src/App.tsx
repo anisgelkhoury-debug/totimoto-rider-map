@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useState, useRef } from "react"
-import { MapContainer, TileLayer, Marker, Popup, useMap, Circle, useMapEvents } from "react-leaflet"
+import { MapContainer, TileLayer, Marker, Popup, useMap, Circle } from "react-leaflet"
 import "leaflet/dist/leaflet.css"
-import L, { DivIcon } from "leaflet"
+import L from "leaflet"
 /* import { GoogleMap, LoadScript, MarkerF } from "@react-google-maps/api" */
 import { db, storage } from "./firebase"
 import {
@@ -11,10 +11,7 @@ import {
   doc,
   updateDoc,
   deleteDoc,
-  getDocs,
-  query,
-  where,
-  writeBatch
+ 
 } from "firebase/firestore"
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage"
 
@@ -182,7 +179,7 @@ const startingReports = [
 ]
 
 function makeIcon(emoji: string, color: string) {
-  return L.divIcon({
+  return new L.DivIcon({
     className: "",
     html: `
 <div style="
@@ -761,194 +758,7 @@ return {
 
 const [, forceUpdate] = useState(0)
 
-const fakeReports = [
-  {
-    type: "زحمة",
-    area: "الحمرا",
-    distance: "400 متر",
-    lat: 33.895,
-    lng: 35.482,
-    color: "#dc2626",
-    emoji: "🚗",
-    priority: "medium",
-    expiry: 45,
-    helperComing: false,
-    helperArrived: false,
-    helperStatus: "",
-    helpers: 0,
-  },
 
-  {
-    type: "حادث",
-    area: "الروشة",
-    distance: "1 كم",
-    lat: 33.889,
-    lng: 35.471,
-    color: "#f97316",
-    emoji: "⚠️",
-    priority: "high",
-    expiry: 60,
-    helperComing: false,
-    helperArrived: false,
-    helperStatus: "",
-    helpers: 0,
-  },
-
-  {
-    type: "محتاج دفشة",
-    area: "الأشرفية",
-    distance: "2 كم",
-    lat: 33.882,
-    lng: 35.521,
-    color: "#16a34a",
-    emoji: "🛵",
-    priority: "medium",
-    expiry: 35,
-    helperComing: false,
-    helperArrived: false,
-    resolved: false,
-    helperStatus: "",
-    helpers: 0,
-  },
-]
-
-async function generateTestReports(count: number) {
-  try {
-    const batch = writeBatch(db)
-
-    for (let i = 0; i < count; i++) {
-      const template =
-        fakeReports[Math.floor(Math.random() * fakeReports.length)]
-
-      const reportRef = doc(collection(db, "reports"))
-
-      batch.set(reportRef, {
-        ...template,
-
-        isTest: true,
-
-        createdAt: Date.now(),
-
-        ownerId: "load-test",
-
-        resolved: false,
-
-        lat: 33.85 + Math.random() * 0.12,
-        lng: 35.45 + Math.random() * 0.15,
-      })
-    }
-
-    await batch.commit()
-
-    alert(`✅ ${count} test reports created`)
-  } catch (error) {
-    console.error(error)
-    alert("❌ Failed creating test reports")
-  }
-}
-
-async function deleteTestReports() {
-  try {
-    const q = query(
-      collection(db, "reports"),
-      where("isTest", "==", true)
-    )
-
-    const snapshot = await getDocs(q)
-
-    if (snapshot.empty) {
-      alert("No test reports found")
-      return
-    }
-
-    const batch = writeBatch(db)
-
-    snapshot.docs.forEach((testDoc) => {
-      batch.delete(testDoc.ref)
-    })
-
-    await batch.commit()
-
-    alert(`🧹 Deleted ${snapshot.docs.length} test reports`)
-  } catch (error) {
-    console.error(error)
-    alert("❌ Failed deleting test reports")
-  }
-}
-
-  useEffect(() => {
-  const interval = setInterval(() => {
-
-    const randomReport =
-      fakeReports[Math.floor(Math.random() * fakeReports.length)]
-
-const newReport = {
-  ...randomReport,
-  createdAt: Date.now(),
-  resolved: false,
-  expiry: randomReport.expiry || 45,
-  lat: randomReport.lat + (Math.random() - 0.5) * 0.01,
-  lng: randomReport.lng + (Math.random() - 0.5) * 0.01,
-}
-
-   addDoc(collection(db, "reports"), newReport)
-
-  }, 9999999)
-
-  return () => clearInterval(interval)
-
-  const timer = setInterval(() => {
-
-   
-
-    forceUpdate(prev => prev + 1)
-
-setReports(prev =>
-  prev
-    .map((r: any) => {
-
-      
-
-      if (!r.helperMoving) return r
-      if (!r.helperLat || !r.helperLng || !r.helperTargetLat || !r.helperTargetLng) return r
-
-      const nextLat = r.helperLat + (r.helperTargetLat - r.helperLat) * 0.18
-      const nextLng = r.helperLng + (r.helperTargetLng - r.helperLng) * 0.18
-
-    
-
-      const closeEnough =
-        Math.abs(nextLat - r.helperTargetLat) < 0.00015 &&
-        Math.abs(nextLng - r.helperTargetLng) < 0.00015
-
-      return {
-        ...r,
-        helperLat: nextLat,
-        helperLng: nextLng,
-        helperMoving: !closeEnough,
-        helperArrived: closeEnough ? true : r.helperArrived,
-        helperStatus: closeEnough ? "وصل للموقع" : r.helperStatus,
-      }
-    })
-    .filter((r: any) => {
-      const minutesPassed =
-        Math.floor((Date.now() - r.createdAt) / 1000 / 60)
-
-      if (r.resolved && r.solvedAt) {
-        const solvedMinutes =
-          Math.floor((Date.now() - r.solvedAt) / 1000 / 60)
-
-        if (solvedMinutes >= 1) return false
-      }
-
-      return minutesPassed < (r.expiry || 45)
-    })
-)
-
-  }, 1000)
-
-  return () => clearInterval(timer)
-}, [])
 
 function canReceiveHelp(report: any) {
   return isAssistanceReport(report)
