@@ -422,6 +422,12 @@ const [geoFilter, setGeoFilter] = useState("all")
 const [typeFilter, setTypeFilter] = useState("all")
 const [sortFilter, setSortFilter] = useState("newest")
 
+const GPS_WRITE_DISTANCE_METERS = 50
+const GPS_HEARTBEAT_MS = 30000
+
+const lastHelperGpsWriteAtRef = useRef(0)
+const lastHelperGpsLocationRef = useRef<[number, number] | null>(null)
+
 const isIphoneSafari =
   /iPhone|iPad|iPod/i.test(navigator.userAgent) &&
   /Safari/i.test(navigator.userAgent) &&
@@ -435,6 +441,29 @@ function ensureContactInfo(action: any) {
 
   setPendingAction(() => action)
   setShowContactModal(true)
+}
+
+function getDistanceMeters(
+  lat1: number,
+  lng1: number,
+  lat2: number,
+  lng2: number
+) {
+  const R = 6371000
+
+  const dLat = (lat2 - lat1) * Math.PI / 180
+  const dLng = (lng2 - lng1) * Math.PI / 180
+
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) *
+      Math.cos(lat2 * Math.PI / 180) *
+      Math.sin(dLng / 2) *
+      Math.sin(dLng / 2)
+
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+
+  return R * c
 }
 
 function saveContactInfo() {
@@ -1066,6 +1095,60 @@ const [gpsUpdatedAt, setGpsUpdatedAt] = useState<number | null>(null)
 
   return () => clearInterval(interval)
 }, [])
+
+useEffect(() => {
+  if (!myLocation) return
+
+  const activeHelp = reports.find((r: any) =>
+    r.helperId === deviceId &&
+    r.helperComing &&
+    !r.resolved
+  )
+
+  if (!activeHelp) {
+    lastHelperGpsWriteAtRef.current = 0
+    lastHelperGpsLocationRef.current = null
+    return
+  }
+
+  const now = Date.now()
+  const lastWriteAt = lastHelperGpsWriteAtRef.current
+  const lastLocation = lastHelperGpsLocationRef.current
+
+  const secondsPassed = now - lastWriteAt >= GPS_HEARTBEAT_MS
+
+  const movedMeters = lastLocation
+    ? getDistanceMeters(
+        lastLocation[0],
+        lastLocation[1],
+        myLocation[0],
+        myLocation[1]
+      )
+    : GPS_WRITE_DISTANCE_METERS
+
+  const movedEnough = movedMeters >= GPS_WRITE_DISTANCE_METERS
+
+  if (!secondsPassed && !movedEnough) return
+
+const activeHelpId = String(activeHelp.id)
+
+async function updateHelperGps() {
+  try {
+   await updateDoc(doc(db, "reports", activeHelpId), {
+        helperLat: myLocation[0],
+        helperLng: myLocation[1],
+        helperLocationUpdatedAt: now,
+      })
+
+      lastHelperGpsWriteAtRef.current = now
+      lastHelperGpsLocationRef.current = myLocation
+    } catch (error) {
+      console.error("Failed to update smart helper GPS", error)
+    }
+  }
+
+  updateHelperGps()
+}, [myLocation, reports, deviceId])
 
 useEffect(() => {
   const watchId = navigator.geolocation.watchPosition(
