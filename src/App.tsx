@@ -3,7 +3,7 @@ import { MapContainer, TileLayer, Marker, Popup, useMap, Circle } from "react-le
 import "leaflet/dist/leaflet.css"
 import L from "leaflet"
 /* import { GoogleMap, LoadScript, MarkerF } from "@react-google-maps/api" */
-import { auth, db, storage, ensureAnonymousAuth } from "./firebase"
+import { auth, db, storage, ensureAnonymousAuth, requireAuthUid } from "./firebase"
 import { onAuthStateChanged } from "firebase/auth"
 import {
   collection,
@@ -12,6 +12,7 @@ import {
   doc,
   updateDoc,
   deleteDoc,
+  deleteField,
  
 } from "firebase/firestore"
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage"
@@ -28,8 +29,10 @@ locationName?: string
   lat: number
   lng: number
   ownerId?: string
+  ownerUid?: string
   ownerPhone?: string
   helperId?: string
+  helperUid?: string
   helperAcceptedAt?: number
   color: string
   emoji: string
@@ -582,6 +585,16 @@ setIsSubmittingStolenBike(true)
 
  ;(document.activeElement as HTMLElement)?.blur()   
 
+let ownerUid: string
+try {
+  ownerUid = await requireAuthUid()
+} catch (error) {
+  console.error("[TRN Auth] Cannot create stolen report without UID:", error instanceof Error ? error.message : error)
+  setIsSubmittingStolenBike(false)
+  alert("تعذّر التحقق من الجلسة. حاول مرة أخرى.")
+  return
+}
+
 const reportLat = 33.8938
 const reportLng = 35.5018
 
@@ -612,6 +625,7 @@ for (const image of stolenBikeImages) {
       emoji: "🚨",
       priority: "high",
       ownerId: deviceId,
+      ownerUid,
 
 area: locationInfo.area,
 street: locationInfo.street,
@@ -670,12 +684,22 @@ async function helperRespond(report: any) {
 
 
   try {
+   let helperUid: string
+   try {
+     helperUid = await requireAuthUid()
+   } catch (error) {
+     console.error("[TRN Auth] Cannot claim report without UID:", error instanceof Error ? error.message : error)
+     alert("تعذّر التحقق من الجلسة. حاول مرة أخرى.")
+     return
+   }
+
    await updateDoc(doc(db, "reports", (report.id)), {
 helperComing: true,
 helperStatus: "مساعد بالطريق",
 helpers: 1,
 joined: true,
 helperId: deviceId,
+helperUid,
 helperPhone: contactPhone,
 helperName: localStorage.getItem("contactName") || "",
 helperLat: myLocation ? myLocation[0] : null,
@@ -690,6 +714,7 @@ helperAcceptedAt: Date.now()
   helperComing: true,
   joined: true,
   helperId: deviceId,
+  helperUid,
   helperPhone: contactPhone,
   helperName: localStorage.getItem("contactName") || "",
   helperLat: myLocation ? myLocation[0] : null,
@@ -733,13 +758,23 @@ async function resolveReport(report: any) {
 
 async function cancelHelp(report: any) {
   try {
+    // Reopen claim slot; clear all helper identity/contact/location residue.
+    // helperId stays "" for legacy UI checks (helperId === deviceId / emptiness).
+    // Optional/new helper fields use deleteField() so no stale ownership or GPS remains.
     await updateDoc(doc(db, "reports", String(report.id)), {
       helperComing: false,
       helperStatus: "",
       helpers: 0,
       joined: false,
+      helperArrived: false,
       helperId: "",
-      helperAcceptedAt: null
+      helperUid: deleteField(),
+      helperName: deleteField(),
+      helperPhone: deleteField(),
+      helperLat: deleteField(),
+      helperLng: deleteField(),
+      helperLocationUpdatedAt: deleteField(),
+      helperAcceptedAt: deleteField(),
     })
 
 setSelectedReport({
@@ -748,11 +783,15 @@ setSelectedReport({
   helperStatus: "",
   helpers: 0,
   joined: false,
+  helperArrived: false,
   helperId: "",
-  helperPhone: "",
+  helperUid: undefined,
+  helperName: undefined,
+  helperPhone: undefined,
   helperLat: null,
   helperLng: null,
-  helperAcceptedAt: null
+  helperLocationUpdatedAt: undefined,
+  helperAcceptedAt: null,
 })
 
   
@@ -1117,6 +1156,16 @@ const refreshGps = () => {
   }
 
 async function createUserReport(type: any) {
+let ownerUid: string
+try {
+  ownerUid = await requireAuthUid()
+} catch (error) {
+  console.error("[TRN Auth] Cannot create report without UID:", error instanceof Error ? error.message : error)
+  setIsSubmittingReport(false)
+  alert("تعذّر التحقق من الجلسة. حاول مرة أخرى.")
+  return
+}
+
 const lat = myLocation ? myLocation[0] : 33.8938
 const lng = myLocation ? myLocation[1] : 35.5018
 const locationInfo = await getAddressFromCoords(lat, lng)
@@ -1142,7 +1191,6 @@ console.log("REPORT OWNER PHONE TEST:", {
 })
 
   const newReport = {
-    ownerId: deviceId,
       phone: contactPhone,
 ownerPhone: contactPhone,
 ownerName: contactName,
@@ -1168,6 +1216,8 @@ locationName: locationInfo.locationName,
 distance: "مباشر",
    lat,
    lng,
+    ownerId: deviceId,
+    ownerUid,
     createdAt: Date.now(),
   }
 

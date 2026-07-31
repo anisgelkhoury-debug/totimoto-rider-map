@@ -41,3 +41,16 @@ export function ensureAnonymousAuth(): Promise<User> {
 
   return anonymousSignInInFlight
 }
+
+/**
+ * Resolves a non-empty Firebase Auth UID for ownership writes.
+ * Reuses ensureAnonymousAuth (no duplicate sign-in). Never returns empty/null UID.
+ */
+export async function requireAuthUid(): Promise<string> {
+  const user = await ensureAnonymousAuth()
+  const uid = user?.uid?.trim()
+  if (!uid) {
+    throw new Error("Authenticated UID is unavailable")
+  }
+  return uid
+}
