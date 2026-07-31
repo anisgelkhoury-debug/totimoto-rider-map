@@ -3,7 +3,8 @@ import { MapContainer, TileLayer, Marker, Popup, useMap, Circle } from "react-le
 import "leaflet/dist/leaflet.css"
 import L from "leaflet"
 /* import { GoogleMap, LoadScript, MarkerF } from "@react-google-maps/api" */
-import { db, storage } from "./firebase"
+import { auth, db, storage, ensureAnonymousAuth } from "./firebase"
+import { onAuthStateChanged } from "firebase/auth"
 import {
   collection,
   addDoc,
@@ -335,6 +336,43 @@ const [activeReportFamily, setActiveReportFamily] = useState("all")
 
   return id
 })
+
+  // Silent Firebase Anonymous Auth — does not replace deviceId ownership.
+  const [, setFirebaseUid] = useState<string | null>(null)
+  const [, setAuthStatus] = useState<"pending" | "ready" | "error">("pending")
+
+  useEffect(() => {
+    let createdNewAnonymousSession = false
+
+    const redactUid = (uid: string) =>
+      uid.length <= 8 ? "****" : `${uid.slice(0, 4)}...${uid.slice(-4)}`
+
+    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        setFirebaseUid(user.uid)
+        setAuthStatus("ready")
+        if (import.meta.env.DEV) {
+          const status = createdNewAnonymousSession
+            ? "Created new anonymous session"
+            : "Restored existing anonymous session"
+          console.info(
+            `[TRN Auth]\nStatus: ${status}\nUID: ${redactUid(user.uid)}`
+          )
+        }
+        return
+      }
+
+      createdNewAnonymousSession = true
+      ensureAnonymousAuth().catch((error: unknown) => {
+        setAuthStatus("error")
+        const message =
+          error instanceof Error ? error.message : "Anonymous sign-in failed"
+        console.error("[TRN Auth] Anonymous sign-in failed:", message)
+      })
+    })
+
+    return () => unsubscribeAuth()
+  }, [])
 
 useEffect(() => {
   const unsubscribe = onSnapshot(collection(db, "reports"), (snapshot) => {
