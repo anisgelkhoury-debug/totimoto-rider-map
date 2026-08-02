@@ -2,6 +2,11 @@
 logs
 *.log
 npm-debug.log*
+firebase-debug.log*
+firestore-debug.log*
+ui-debug.log*
+storage-debug.log*
+*.rules.emulator.json
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*

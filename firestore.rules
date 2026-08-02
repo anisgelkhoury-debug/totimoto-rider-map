@@ -1,0 +1,218 @@
+rules_version = '2';
+
+/**
+ * TRN Task 005 — local Firestore security rules (NOT deployed).
+ *
+ * Legacy policy (reports without ownerUid):
+ * - Readable by authenticated clients (same as new reports; map requires collection reads).
+ * - Cannot be owner-updated or deleted under these rules (deviceId/ownerId is client-forgeable).
+ * - Authenticated helpers may still claim an unclaimed legacy report and set helperUid.
+ *
+ * Product impact: owners of pre-Task-004 reports cannot resolve/delete via client until a
+ * migration or admin tool attaches a verified ownerUid. Map display and helper claims continue.
+ *
+ * Unmatched collections are denied by default (no catch-all match — avoids double evaluation
+ * and the 1000-expression limit).
+ *
+ * Update paths rely on diff().affectedKeys().hasOnly(...) so non-listed fields (owner,
+ * type, content, contacts) cannot change without listing them in the allow-set.
+ */
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isNonEmptyString(value) {
+      return value is string && value.size() > 0;
+    }
+
+    function hasOwnerUid() {
+      return 'ownerUid' in resource.data
+        && resource.data.ownerUid is string
+        && resource.data.ownerUid.size() > 0;
+    }
+
+    function isOwner() {
+      return signedIn()
+        && hasOwnerUid()
+        && resource.data.ownerUid == request.auth.uid;
+    }
+
+    function isAcceptedHelper() {
+      return signedIn()
+        && 'helperUid' in resource.data
+        && resource.data.helperUid == request.auth.uid
+        && resource.data.helperComing == true;
+    }
+
+    function helperUidAbsent(data) {
+      return !('helperUid' in data)
+        || data.helperUid == null
+        || data.helperUid == '';
+    }
+
+    function helperIdEmptyOrAbsent(data) {
+      return !('helperId' in data)
+        || data.helperId == null
+        || data.helperId == '';
+    }
+
+    function isUnclaimed() {
+      return helperUidAbsent(resource.data)
+        && helperIdEmptyOrAbsent(resource.data)
+        && resource.data.get('helperComing', false) != true
+        && resource.data.get('helpers', 0) == 0;
+    }
+
+    function helperFieldsAbsentOnCreate(data) {
+      return helperUidAbsent(data)
+        && helperIdEmptyOrAbsent(data)
+        && (!('helperName' in data) || data.helperName == null || data.helperName == '')
+        && (!('helperPhone' in data) || data.helperPhone == null || data.helperPhone == '')
+        && (!('helperLat' in data) || data.helperLat == null)
+        && (!('helperLng' in data) || data.helperLng == null)
+        && !('helperLocationUpdatedAt' in data)
+        && !('helperAcceptedAt' in data);
+    }
+
+    function validReportCreate() {
+      let data = request.resource.data;
+      return signedIn()
+        && data.ownerUid == request.auth.uid
+        && isNonEmptyString(data.ownerId)
+        && isNonEmptyString(data.type)
+        && data.lat is number
+        && data.lng is number
+        && data.createdAt is number
+        && data.expiry is number
+        && data.resolved == false
+        && data.helperComing == false
+        && data.get('helperArrived', false) == false
+        && data.get('helpers', 0) == 0
+        && helperFieldsAbsentOnCreate(data);
+    }
+
+    function isOwnerResolve() {
+      return isOwner()
+        && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['resolved', 'solvedAt'])
+        && request.resource.data.resolved == true
+        && request.resource.data.solvedAt is number;
+    }
+
+    function isHelperClaim() {
+      return signedIn()
+        && isUnclaimed()
+        && (!hasOwnerUid() || resource.data.ownerUid != request.auth.uid)
+        && request.resource.data.helperUid == request.auth.uid
+        && isNonEmptyString(request.resource.data.helperId)
+        && request.resource.data.helperComing == true
+        && request.resource.data.helpers == 1
+        && request.resource.data.joined == true
+        && isNonEmptyString(request.resource.data.helperStatus)
+        && request.resource.data.helperAcceptedAt is number
+        && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly([
+              'helperComing',
+              'helperStatus',
+              'helpers',
+              'joined',
+              'helperId',
+              'helperUid',
+              'helperPhone',
+              'helperName',
+              'helperLat',
+              'helperLng',
+              'helperLocationUpdatedAt',
+              'helperAcceptedAt'
+            ]);
+    }
+
+    function isHelperGpsUpdate() {
+      return isAcceptedHelper()
+        && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['helperLat', 'helperLng', 'helperLocationUpdatedAt'])
+        && request.resource.data.helperLat is number
+        && request.resource.data.helperLng is number
+        && request.resource.data.helperLocationUpdatedAt is number;
+    }
+
+    function helperDataCleared() {
+      return request.resource.data.helperComing == false
+        && request.resource.data.helperStatus == ''
+        && request.resource.data.helpers == 0
+        && request.resource.data.joined == false
+        && request.resource.data.helperArrived == false
+        && request.resource.data.helperId == ''
+        && !('helperUid' in request.resource.data)
+        && !('helperName' in request.resource.data)
+        && !('helperPhone' in request.resource.data)
+        && !('helperLat' in request.resource.data)
+        && !('helperLng' in request.resource.data)
+        && !('helperLocationUpdatedAt' in request.resource.data)
+        && !('helperAcceptedAt' in request.resource.data);
+    }
+
+    function isHelperCancel() {
+      return isAcceptedHelper()
+        && helperDataCleared()
+        && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly([
+              'helperComing',
+              'helperStatus',
+              'helpers',
+              'joined',
+              'helperArrived',
+              'helperId',
+              'helperUid',
+              'helperName',
+              'helperPhone',
+              'helperLat',
+              'helperLng',
+              'helperLocationUpdatedAt',
+              'helperAcceptedAt'
+            ]);
+    }
+
+    match /reports/{reportId} {
+      // Temporary: authenticated collection reads required by current onSnapshot map load.
+      allow read: if signedIn();
+
+      allow create: if validReportCreate();
+
+      allow update: if isOwnerResolve()
+        || isHelperClaim()
+        || isHelperGpsUpdate()
+        || isHelperCancel();
+
+      // Legacy docs without ownerUid cannot be securely deleted by clients.
+      allow delete: if isOwner();
+    }
+
+    match /feedback/{feedbackId} {
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly([
+          'message',
+          'deviceId',
+          'contactName',
+          'contactPhone',
+          'createdAt',
+          'source'
+        ])
+        && isNonEmptyString(request.resource.data.message)
+        && request.resource.data.message.size() <= 2000
+        && isNonEmptyString(request.resource.data.deviceId)
+        && request.resource.data.deviceId.size() <= 128
+        && request.resource.data.contactName is string
+        && request.resource.data.contactName.size() <= 120
+        && request.resource.data.contactPhone is string
+        && request.resource.data.contactPhone.size() <= 40
+        && request.resource.data.createdAt is number
+        && request.resource.data.source == 'beta-feedback';
+
+      allow read, update, delete: if false;
+    }
+  }
+}

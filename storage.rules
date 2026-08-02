@@ -1,0 +1,63 @@
+rules_version = '2';
+
+/**
+ * TRN Task 005 — local Storage security rules (NOT deployed).
+ *
+ * Current app paths (no UID segment, no custom metadata ownership):
+ *   report-images/{timestamp}-{originalFileName}
+ *   stolen-bikes/{timestamp}-{originalFileName}
+ *
+ * What these rules CAN enforce today:
+ * - authenticated create only under the two known prefixes
+ * - image MIME types only
+ * - max size 2 MiB (matches client pre-compress guard)
+ * - create-only via resource == null (no overwrite)
+ * - deny client deletes (ownership not enforceable on current paths)
+ *
+ * What these rules CANNOT securely enforce today:
+ * - per-user ownership of an object (path has no auth.uid)
+ * - authorized delete by report owner
+ *
+ * Follow-up migration:
+ *   report-images/{uid}/{fileId}
+ *   stolen-bikes/{uid}/{fileId}
+ *
+ * Unmatched paths are denied by default (no catch-all).
+ */
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isImage() {
+      return request.resource.contentType.matches('image/.*');
+    }
+
+    function underSizeLimit() {
+      // 2 MiB — aligned with client File.size check before compressImage.
+      return request.resource.size <= 2 * 1024 * 1024;
+    }
+
+    // Create-only: resource == null rejects overwrite/update of existing objects.
+    function canCreateImage() {
+      return signedIn()
+        && resource == null
+        && isImage()
+        && underSizeLimit();
+    }
+
+    match /report-images/{fileName} {
+      allow read: if signedIn();
+      allow write: if canCreateImage();
+      allow delete: if false;
+    }
+
+    match /stolen-bikes/{fileName} {
+      allow read: if signedIn();
+      allow write: if canCreateImage();
+      allow delete: if false;
+    }
+  }
+}
