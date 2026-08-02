@@ -69,6 +69,100 @@ function baseReport(ownerUid, ownerId, extras = {}) {
   }
 }
 
+/** Mirrors src/App.tsx createUserReport object construction (including ...type → label). */
+function productionCreateUserReportPayload(ownerUid, ownerId, typeOverrides = {}) {
+  const type = {
+    label: "محتاج دفشة",
+    emoji: "🛵",
+    color: "#16a34a",
+    expiry: 30,
+    priority: "medium",
+    reportFamily: "assistance",
+    reportCategory: "push",
+    ...typeOverrides,
+  }
+  const description = typeOverrides.description ?? "UID TEST production-shape"
+  const locationInfo = {
+    area: "الحمرا",
+    street: "شارع فoch",
+    city: "بيروت",
+    district: "بيروت",
+    locationName: "شارع فoch - الحمرا - بيروت",
+  }
+  const contactPhone = "03123456"
+  const contactName = "Owner"
+  const reportImageUrl = ""
+  const lat = 33.8938
+  const lng = 35.5018
+
+  return {
+    phone: contactPhone,
+    ownerPhone: contactPhone,
+    ownerName: contactName,
+    description: description || "",
+    reportImageUrl,
+    ...type,
+    type: type.label,
+    color: type.color,
+    emoji: type.emoji,
+    priority: type.priority,
+    expiry: type.expiry,
+    helperComing: false,
+    helperArrived: false,
+    helpers: 0,
+    helpersList: [],
+    resolved: false,
+    area: locationInfo.area,
+    street: locationInfo.street,
+    city: locationInfo.city,
+    district: locationInfo.district,
+    locationName: locationInfo.locationName,
+    distance: "مباشر",
+    lat,
+    lng,
+    ownerId,
+    ownerUid,
+    createdAt: Date.now(),
+  }
+}
+
+/** Mirrors src/App.tsx submitStolenBikeReport create payload. */
+function productionStolenReportPayload(ownerUid, ownerId) {
+  return {
+    id: Date.now(),
+    type: "بلاغ عن دراجة مسروقة",
+    reportFamily: "stolen",
+    reportCategory: "stolen",
+    emoji: "🚨",
+    priority: "high",
+    ownerId,
+    ownerUid,
+    area: "بيروت",
+    street: "",
+    city: "بيروت",
+    district: "",
+    locationName: "بيروت",
+    lat: 33.8938,
+    lng: 35.5018,
+    distance: "الآن",
+    color: "#7f1d1d",
+    expiry: 43200,
+    helperComing: false,
+    helperArrived: false,
+    helpers: 0,
+    resolved: false,
+    stolenBikeType: "هوندا",
+    stolenBikeColor: "أحمر",
+    stolenBikePlate: "B123456",
+    stolenBikePhone: "03123456",
+    stolenBikePlace: "الحمرا",
+    stolenBikeDate: "2026-08-02",
+    stolenBikeTime: "20:00",
+    stolenBikeImageUrls: ["https://example.com/a.jpg"],
+    createdAt: Date.now(),
+  }
+}
+
 function claimPayload(helperUid, helperId) {
   return {
     helperComing: true,
@@ -125,6 +219,43 @@ describe("Firestore reports — positive", () => {
     const db = testEnv.authenticatedContext("owner-a").firestore()
     await assertSucceeds(
       setDoc(doc(db, "reports", "r-create"), baseReport("owner-a", "device-owner-a"))
+    )
+  })
+
+  it("production createUserReport payload shape is accepted", async () => {
+    const db = testEnv.authenticatedContext("owner-a").firestore()
+    const payload = productionCreateUserReportPayload("owner-a", "device-owner-a")
+    assert.equal("label" in payload, true, "expected label from ...type spread")
+    assert.equal(payload.type, "محتاج دفشة")
+    await assertSucceeds(setDoc(doc(db, "reports", "r-prod-assist"), payload))
+  })
+
+  it("production shared-ride createUserReport payload is accepted", async () => {
+    const db = testEnv.authenticatedContext("owner-a").firestore()
+    await assertSucceeds(
+      setDoc(
+        doc(db, "reports", "r-prod-ride"),
+        productionCreateUserReportPayload("owner-a", "device-owner-a", {
+          label: "وصلني معك",
+          emoji: "🤝",
+          color: "#db2777",
+          expiry: 10,
+          priority: "medium",
+          reportFamily: "sharedRide",
+          reportCategory: "ride",
+          description: "UID TEST shared ride shape",
+        })
+      )
+    )
+  })
+
+  it("production stolen-bike create payload is accepted", async () => {
+    const db = testEnv.authenticatedContext("owner-a").firestore()
+    await assertSucceeds(
+      setDoc(
+        doc(db, "reports", "r-prod-stolen"),
+        productionStolenReportPayload("owner-a", "device-owner-a")
+      )
     )
   })
 
@@ -263,6 +394,30 @@ describe("Firestore reports — negative", () => {
     const db = testEnv.authenticatedContext("attacker").firestore()
     await assertFails(
       setDoc(doc(db, "reports", "r-forge"), baseReport("victim-uid", "device-attacker"))
+    )
+  })
+
+  it("create missing resolved fails under strict equality", async () => {
+    const db = testEnv.authenticatedContext("owner-a").firestore()
+    const payload = productionCreateUserReportPayload("owner-a", "device-owner-a")
+    delete payload.resolved
+    await assertFails(setDoc(doc(db, "reports", "r-no-resolved"), payload))
+  })
+
+  it("create with helperArrived null fails helperArrived check", async () => {
+    const db = testEnv.authenticatedContext("owner-a").firestore()
+    const payload = productionCreateUserReportPayload("owner-a", "device-owner-a")
+    payload.helperArrived = null
+    await assertFails(setDoc(doc(db, "reports", "r-arrived-null"), payload))
+  })
+
+  it("unauthenticated production payload create fails", async () => {
+    const db = testEnv.unauthenticatedContext().firestore()
+    await assertFails(
+      setDoc(
+        doc(db, "reports", "r-prod-unauth"),
+        productionCreateUserReportPayload("owner-a", "device-owner-a")
+      )
     )
   })
 
