@@ -599,20 +599,28 @@ async function submitFeedback() {
 
     setFeedbackMessage("")
     alert("شكراً لك، تم إرسال ملاحظتك بنجاح")
-  } catch (error) {
-    console.error(error)
-    alert("تعذّر إرسال الملاحظة، حاول مرة أخرى")
+  } catch (error: any) {
+    if (import.meta.env.DEV) {
+      console.error("[TRN Feedback]", error?.code || error)
+    } else {
+      console.error("[TRN Feedback] write failed")
+    }
+    alert(
+      error?.code === "permission-denied" ||
+        error?.code === "firestore/permission-denied"
+        ? "ليس لديك صلاحية لإرسال الملاحظة. أعد فتح التطبيق ثم حاول مرة أخرى."
+        : "تعذّر إرسال الملاحظة، حاول مرة أخرى"
+    )
   } finally {
     setSendingFeedback(false)
   }
 }
 
 async function submitStolenBikeReport() {
+  if (isSubmittingStolenBike) return
+  setIsSubmittingStolenBike(true)
+
   try {
-if (isSubmittingStolenBike) return
-setIsSubmittingStolenBike(true)
-
-
  ;(document.activeElement as HTMLElement)?.blur()   
 
 let ownerUid: string
@@ -620,7 +628,6 @@ try {
   ownerUid = await requireAuthUid()
 } catch (error) {
   console.error("[TRN Auth] Cannot create stolen report without UID:", error instanceof Error ? error.message : error)
-  setIsSubmittingStolenBike(false)
   alert("تعذّر التحقق من الجلسة. حاول مرة أخرى.")
   return
 }
@@ -702,11 +709,20 @@ stolenBikeImageUrls,
     alert("✅ تم نشر البلاغ")
 }
 catch (error: any) {
-  console.error("STOLEN BIKE SUBMIT ERROR:", error)
+  if (import.meta.env.DEV) {
+    console.error("[TRN Stolen Create]", error?.code || error)
+  } else {
+    console.error("[TRN Stolen Create] write failed")
+  }
 
+  alert(
+    error?.code === "permission-denied" ||
+      error?.code === "firestore/permission-denied"
+      ? "ليس لديك صلاحية لنشر البلاغ. أعد فتح التطبيق ثم حاول مرة أخرى."
+      : "❌ فشل نشر البلاغ. حاول مرة أخرى."
+  )
+} finally {
   setIsSubmittingStolenBike(false)
-
-  alert("❌ فشل نشر البلاغ: " + (error?.message || "خطأ غير معروف"))
 }
 }
   
@@ -1185,15 +1201,15 @@ const refreshGps = () => {
     setSelectedType(null)
   }
 
-async function createUserReport(type: any) {
+async function createUserReport(type: any): Promise<boolean> {
+try {
 let ownerUid: string
 try {
   ownerUid = await requireAuthUid()
 } catch (error) {
   console.error("[TRN Auth] Cannot create report without UID:", error instanceof Error ? error.message : error)
-  setIsSubmittingReport(false)
   alert("تعذّر التحقق من الجلسة. حاول مرة أخرى.")
-  return
+  return false
 }
 
 const lat = myLocation ? myLocation[0] : 33.8938
@@ -1212,13 +1228,6 @@ if (reportImage) {
 
   reportImageUrl = await getDownloadURL(imageRef)
 }
-
-console.log("REPORT OWNER PHONE TEST:", {
-  contactPhone,
-  contactName,
-  savedPhone: localStorage.getItem("contactPhone"),
-  savedName: localStorage.getItem("contactName"),
-})
 
   const newReport = {
       phone: contactPhone,
@@ -1251,15 +1260,29 @@ distance: "مباشر",
     createdAt: Date.now(),
   }
 
-addDoc(collection(db, "reports"), newReport)
+await addDoc(collection(db, "reports"), newReport)
 
 setReportImage(null)
 setReportImagePreview("")
-setIsSubmittingReport(false)
-
-
 setShowReportModal(false)
 setReportDescription("")
+return true
+} catch (error: any) {
+  if (import.meta.env.DEV) {
+    console.error("[TRN Create]", error?.code || error)
+  } else {
+    console.error("[TRN Create] write failed")
+  }
+  alert(
+    error?.code === "permission-denied" ||
+      error?.code === "firestore/permission-denied"
+      ? "ليس لديك صلاحية لنشر البلاغ. أعد فتح التطبيق ثم حاول مرة أخرى."
+      : "تعذّر نشر البلاغ. حاول مرة أخرى."
+  )
+  return false
+} finally {
+  setIsSubmittingReport(false)
+}
 }
 
 const intelligenceCount =
@@ -3444,19 +3467,22 @@ setReportImagePreview(URL.createObjectURL(compressedFile))
     if (isSubmittingReport) return
     if (!pendingReportType) return
 
-    setIsSubmittingReport(true)
-
     const finalDescription = reportDescription
 
 const submitAction = async () => {
-  await createUserReport({
+  if (isSubmittingReport) return
+  setIsSubmittingReport(true)
+
+  const ok = await createUserReport({
     ...pendingReportType,
     description: finalDescription
   })
 
-  setReportDescription("")
-  setShowDescriptionModal(false)
-  setShowReportModal(false)
+  if (ok) {
+    setReportDescription("")
+    setShowDescriptionModal(false)
+    setShowReportModal(false)
+  }
 }
 
 if (

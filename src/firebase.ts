@@ -22,12 +22,15 @@ export const storage = getStorage(app)
 let anonymousSignInInFlight: Promise<User> | null = null
 
 /**
- * Returns the current user, or signs in anonymously once if none exists.
- * Does not sign in again when a persisted anonymous session is already restored.
+ * Waits for Auth restoration, then returns the current user, or signs in
+ * anonymously once if none exists. Does not create a second anonymous account
+ * when a persisted session is already restored.
  */
-export function ensureAnonymousAuth(): Promise<User> {
+export async function ensureAnonymousAuth(): Promise<User> {
+  await auth.authStateReady()
+
   if (auth.currentUser) {
-    return Promise.resolve(auth.currentUser)
+    return auth.currentUser
   }
 
   if (!anonymousSignInInFlight) {
