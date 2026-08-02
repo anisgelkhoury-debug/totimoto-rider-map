@@ -326,8 +326,10 @@ const communityBtnStyle = {
 };
 
 function App() {
-  const [reports, setReports] = useState<ReportItem[]>(startingReports)
-const [activeReportFamily, setActiveReportFamily] = useState("all")
+  // Empty until Auth is ready and the gated reports listener delivers live data.
+  // Do not treat startingReports seed data as current production reports.
+  const [reports, setReports] = useState<ReportItem[]>([])
+  const [activeReportFamily, setActiveReportFamily] = useState("all")
 
   const [deviceId] = useState(() => {
   let id = localStorage.getItem("deviceId")
@@ -342,7 +344,9 @@ const [activeReportFamily, setActiveReportFamily] = useState("all")
 
   // Silent Firebase Anonymous Auth — does not replace deviceId ownership.
   const [, setFirebaseUid] = useState<string | null>(null)
-  const [, setAuthStatus] = useState<"pending" | "ready" | "error">("pending")
+  const [authStatus, setAuthStatus] = useState<"checking" | "ready" | "error">(
+    "checking"
+  )
 
   useEffect(() => {
     let createdNewAnonymousSession = false
@@ -365,9 +369,12 @@ const [activeReportFamily, setActiveReportFamily] = useState("all")
         return
       }
 
+      // Still restoring or need a new anonymous session — not ready yet.
+      setAuthStatus("checking")
       createdNewAnonymousSession = true
       ensureAnonymousAuth().catch((error: unknown) => {
         setAuthStatus("error")
+        setReports([])
         const message =
           error instanceof Error ? error.message : "Anonymous sign-in failed"
         console.error("[TRN Auth] Anonymous sign-in failed:", message)
@@ -377,21 +384,33 @@ const [activeReportFamily, setActiveReportFamily] = useState("all")
     return () => unsubscribeAuth()
   }, [])
 
-useEffect(() => {
-  const unsubscribe = onSnapshot(collection(db, "reports"), (snapshot) => {
-const liveReports: any = snapshot.docs.map((doc) => ({
-  ...doc.data(),
-  id: doc.id,
-}))
+  // Attach reports listener only after Auth is ready (not on mount alone).
+  useEffect(() => {
+    if (authStatus !== "ready") {
+      if (authStatus === "error") {
+        setReports([])
+      }
+      return
+    }
 
+    const unsubscribe = onSnapshot(
+      collection(db, "reports"),
+      (snapshot) => {
+        const liveReports: any = snapshot.docs.map((doc) => ({
+          ...doc.data(),
+          id: doc.id,
+        }))
+        setReports(liveReports)
+      },
+      (error) => {
+        console.error("[TRN Firestore] reports listener error:", error)
+        // permission-denied / other listener failures: do not keep stale live data
+        setReports([])
+      }
+    )
 
-    setReports(liveReports)
-
-
-  })
-
-  return () => unsubscribe()
-}, [])
+    return () => unsubscribe()
+  }, [authStatus])
 
   const [selectedType, setSelectedType] = useState<any>(null)
   const [selectedReport, setSelectedReport] = useState<any>(null)
@@ -557,6 +576,17 @@ async function submitFeedback() {
 
   try {
     setSendingFeedback(true)
+
+    try {
+      await requireAuthUid()
+    } catch (error) {
+      console.error(
+        "[TRN Auth] Cannot submit feedback without UID:",
+        error instanceof Error ? error.message : error
+      )
+      alert("تعذّر التحقق من الجلسة. حاول مرة أخرى.")
+      return
+    }
 
     await addDoc(collection(db, "feedback"), {
       message: feedbackMessage.trim(),
