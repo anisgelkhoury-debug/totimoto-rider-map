@@ -3,6 +3,20 @@ import react from "@vitejs/plugin-react"
 import { VitePWA } from "vite-plugin-pwa"
 
 export default defineConfig({
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes("node_modules/firebase")) return "firebase"
+          if (id.includes("node_modules/@firebase")) return "firebase"
+          if (id.includes("node_modules/leaflet") || id.includes("node_modules/react-leaflet")) {
+            return "leaflet"
+          }
+          if (id.includes("node_modules/@react-google-maps")) return "google-maps"
+        },
+      },
+    },
+  },
   plugins: [
     react(),
     VitePWA({

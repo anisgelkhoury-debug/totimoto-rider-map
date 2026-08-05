@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, Fragment, type CSSProperties } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, Fragment, memo, type CSSProperties } from "react"
 import { CircleF, GoogleMap, MarkerF, TrafficLayer, useJsApiLoader } from "@react-google-maps/api"
 
 const DEFAULT_CENTER = { lat: 33.8938, lng: 35.5018 }
@@ -462,8 +462,9 @@ function GoogleMapCanvas({
 /**
  * Google Maps view for TRN Phase 2 — markers, helper live updates,
  * warning circles, map-type selector, and traffic toggle.
+ * Memoized so App UI state (sheets/modals) does not re-reconcile markers.
  */
-export default function GoogleMapView(props: GoogleMapViewProps) {
+function GoogleMapView(props: GoogleMapViewProps) {
   const apiKey = (import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? "").trim()
 
   if (!apiKey) {
@@ -474,3 +475,5 @@ export default function GoogleMapView(props: GoogleMapViewProps) {
 
   return <GoogleMapCanvas apiKey={apiKey} {...props} />
 }
+
+export default memo(GoogleMapView)

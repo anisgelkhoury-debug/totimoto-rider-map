@@ -1,9 +1,11 @@
-import { Fragment, useEffect, useState, useRef, lazy, Suspense } from "react"
+import { Fragment, useCallback, useEffect, useMemo, useState, useRef, lazy, Suspense } from "react"
 import { MapContainer, TileLayer, Marker, Popup, useMap, Circle } from "react-leaflet"
 import "leaflet/dist/leaflet.css"
 import L from "leaflet"
-/* import { GoogleMap, LoadScript, MarkerF } from "@react-google-maps/api" */
 import { auth, db, storage, ensureAnonymousAuth, requireAuthUid, getFirebaseMessagingIfSupported } from "./firebase"
+import {
+  reportsMapFingerprint,
+} from "./utils/reportsRenderStability"
 
 const useLeaflet = import.meta.env.VITE_USE_LEAFLET === "true"
 const GoogleMapView = !useLeaflet
@@ -422,11 +424,16 @@ function App() {
     const unsubscribe = onSnapshot(
       collection(db, "reports"),
       (snapshot) => {
-        const liveReports: any = snapshot.docs.map((doc) => ({
-          ...doc.data(),
-          id: doc.id,
+        const liveReports: any = snapshot.docs.map((docSnap) => ({
+          ...docSnap.data(),
+          id: docSnap.id,
         }))
-        setReports(liveReports)
+        setReports((prev: any) => {
+          if (reportsMapFingerprint(prev) === reportsMapFingerprint(liveReports)) {
+            return prev
+          }
+          return liveReports
+        })
       },
       (error) => {
         console.error("[TRN Firestore] reports listener error:", error)
@@ -569,9 +576,14 @@ const [sortFilter, setSortFilter] = useState("newest")
 
 const GPS_WRITE_DISTANCE_METERS = 50
 const GPS_HEARTBEAT_MS = 30000
+/** UI/map location updates — tighter than Firestore helper writes. */
+const GPS_UI_DISTANCE_METERS = 12
+const GPS_UI_INTERVAL_MS = 2500
 
 const lastHelperGpsWriteAtRef = useRef(0)
 const lastHelperGpsLocationRef = useRef<[number, number] | null>(null)
+const lastUiGpsAtRef = useRef(0)
+const lastUiGpsLocationRef = useRef<[number, number] | null>(null)
 
 const isIphoneSafari =
   /iPhone|iPad|iPod/i.test(navigator.userAgent) &&
@@ -1016,25 +1028,23 @@ useEffect(() => {
 
   useEffect(() => {
   const timer = setInterval(() => {
-    setReports((prev: any) =>
-      prev.map((item: any) => {
+    setReports((prev: any) => {
+      let changed = false
+      const next = prev.map((item: any) => {
         if (!item.moving) return item
-
-return {
-  ...item,
-  lat: item.lat + (item.targetLat - item.lat) * 0.35,
-  lng: item.lng + (item.targetLng - item.lng) * 0.35,
-}
+        changed = true
+        return {
+          ...item,
+          lat: item.lat + (item.targetLat - item.lat) * 0.35,
+          lng: item.lng + (item.targetLng - item.lng) * 0.35,
+        }
       })
-    )
+      return changed ? next : prev
+    })
   }, 1000)
 
   return () => clearInterval(timer)
 }, [])
-
-
-const [, forceUpdate] = useState(0)
-
 
 
 function canReceiveHelp(report: any) {
@@ -1264,14 +1274,15 @@ const [gpsUpdatedAt, setGpsUpdatedAt] = useState<number | null>(null)
 
   useEffect(() => {
   const interval = setInterval(() => {
-    setReports((currentReports: any) =>
-      currentReports.filter((report: any) => {
+    setReports((currentReports: any) => {
+      const next = currentReports.filter((report: any) => {
         const minutesPassed =
           (Date.now() - report.createdAt) / 1000 / 60
 
         return minutesPassed < report.expiry
       })
-    )
+      return next.length === currentReports.length ? currentReports : next
+    })
   }, 1000)
 
   return () => clearInterval(interval)
@@ -1334,12 +1345,29 @@ async function updateHelperGps() {
 useEffect(() => {
   const watchId = navigator.geolocation.watchPosition(
     (position) => {
-    setMyLocation([
-  position.coords.latitude,
-  position.coords.longitude,
-])
-setGpsStatus("ready")
-setGpsUpdatedAt(Date.now())
+      const next: [number, number] = [
+        position.coords.latitude,
+        position.coords.longitude,
+      ]
+      const now = Date.now()
+      const last = lastUiGpsLocationRef.current
+      const elapsed = now - lastUiGpsAtRef.current
+      const moved = last
+        ? getDistanceMeters(last[0], last[1], next[0], next[1])
+        : GPS_UI_DISTANCE_METERS
+
+      setGpsStatus("ready")
+
+      if (
+        !last ||
+        moved >= GPS_UI_DISTANCE_METERS ||
+        elapsed >= GPS_UI_INTERVAL_MS
+      ) {
+        lastUiGpsAtRef.current = now
+        lastUiGpsLocationRef.current = next
+        setMyLocation(next)
+        setGpsUpdatedAt(now)
+      }
     },
 (error) => {
   console.log("GPS error:", error)
@@ -1409,13 +1437,13 @@ const refreshGps = () => {
 
   useEffect(() => {
   const moveInterval = setInterval(() => {
-    setReports((currentReports: any) =>
-      currentReports.map((r: any) => {
+    setReports((currentReports: any) => {
+      let changed = false
+      const next = currentReports.map((r: any) => {
         if (!r.isHelper) return r
-
+        changed = true
         const nextLat = r.lat + (r.targetLat - r.lat) * 0.08
         const nextLng = r.lng + (r.targetLng - r.lng) * 0.08
-
         return {
           ...r,
           lat: nextLat,
@@ -1423,7 +1451,8 @@ const refreshGps = () => {
           distance: "يقترب الآن",
         }
       })
-    )
+      return changed ? next : currentReports
+    })
   }, 1000)
 
   return () => clearInterval(moveInterval)
@@ -1546,23 +1575,43 @@ const stolenCount =
   reports.filter((r: any) => !r.resolved && r?.reportFamily === "stolen").length
 
 
-const visibleReports = reports.filter((r: any) => {
+const visibleReports = useMemo(
+  () =>
+    reports
+      .filter((r: any) => {
+        if (r.resolved) return false
+        if (activeReportFamily !== "all" && r.reportFamily !== activeReportFamily) {
+          return false
+        }
+        return true
+      })
+      .sort((a: any, b: any) => {
+        if (a.ownerId === deviceId && b.ownerId !== deviceId) return -1
+        if (a.ownerId !== deviceId && b.ownerId === deviceId) return 1
+        return 0
+      }),
+  [reports, activeReportFamily, deviceId]
+)
 
+const handleGoogleReportSelect = useCallback(
+  (r: any) => {
+    if (
+      r.type === "زحمة" ||
+      r.type === "حادث" ||
+      r.type === "طريق مسكر" ||
+      r.type === "طريق زلق"
+    ) {
+      return
+    }
 
-  if (r.resolved) return false
+    if (r.ownerId === deviceId && !r.helperComing) {
+      return
+    }
 
-  if (activeReportFamily !== "all" && r.reportFamily !== activeReportFamily) return false
-
-  const isHelpRequest = canReceiveHelp(r)
-
-
-return true
-
-}).sort((a: any, b: any) => {
-  if (a.ownerId === deviceId && b.ownerId !== deviceId) return -1
-  if (a.ownerId !== deviceId && b.ownerId === deviceId) return 1
-  return 0
-})
+    setSelectedReport(r)
+  },
+  [deviceId]
+)
 
   return (
     <>
@@ -1681,22 +1730,7 @@ zoom={12}
         selectedReportId={selectedReport?.id ?? null}
         mapTarget={mapTarget}
         mapZoom={mapZoom}
-        onReportSelect={(r) => {
-          if (
-            r.type === "زحمة" ||
-            r.type === "حادث" ||
-            r.type === "طريق مسكر" ||
-            r.type === "طريق زلق"
-          ) {
-            return
-          }
-
-          if (r.ownerId === deviceId && !r.helperComing) {
-            return
-          }
-
-          setSelectedReport(r)
-        }}
+        onReportSelect={handleGoogleReportSelect}
       />
     </div>
   </Suspense>
