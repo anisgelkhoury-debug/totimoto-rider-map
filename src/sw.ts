@@ -15,6 +15,7 @@ import { getMessaging, onBackgroundMessage } from "firebase/messaging/sw"
 import { firebaseConfig } from "./firebaseConfig"
 import {
   buildTrnDeepLink,
+  isSafeTrnDeepLink,
   normalizeFcmDisplayPayload,
 } from "./notifications/notificationPayload"
 
@@ -61,7 +62,7 @@ self.addEventListener("notificationclick", (event) => {
     deepLink?: string
   }
 
-  const deepLink =
+  const deepLinkCandidate =
     (typeof raw.deepLink === "string" && raw.deepLink) ||
     buildTrnDeepLink(
       {
@@ -70,6 +71,16 @@ self.addEventListener("notificationclick", (event) => {
       },
       self.location.origin
     )
+
+  const deepLink = isSafeTrnDeepLink(deepLinkCandidate, self.location.origin)
+    ? deepLinkCandidate
+    : buildTrnDeepLink(
+        {
+          reportId: raw.reportId,
+          notificationType: raw.notificationType,
+        },
+        self.location.origin
+      )
 
   const absoluteUrl = deepLink.startsWith("http")
     ? deepLink

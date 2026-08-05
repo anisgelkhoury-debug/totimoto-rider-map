@@ -216,17 +216,34 @@ function GoogleMapCanvas({
   }, [map, mapTypeId])
 
   // Track zoom for high-priority circle visibility (Leaflet: mapZoom >= 14).
+  // Only commit React state when the integer zoom changes to avoid pinch thrash.
   useEffect(() => {
     if (!map) return
+    let raf = 0
     const syncZoom = () => {
-      setCurrentZoom(map.getZoom() ?? DEFAULT_ZOOM)
+      cancelAnimationFrame(raf)
+      raf = requestAnimationFrame(() => {
+        const next = Math.round(map.getZoom() ?? DEFAULT_ZOOM)
+        setCurrentZoom((prev) => (prev === next ? prev : next))
+      })
     }
     syncZoom()
     const listener = map.addListener("zoom_changed", syncZoom)
     return () => {
+      cancelAnimationFrame(raf)
       listener.remove()
     }
   }, [map])
+
+  // Smooth camera focus when the selected report changes.
+  useEffect(() => {
+    if (!map || selectedReportId == null) return
+    const selected = reports.find(
+      (r) => r.id != null && String(r.id) === String(selectedReportId)
+    )
+    if (!selected || !isValidLatLng(selected.lat, selected.lng)) return
+    map.panTo({ lat: selected.lat, lng: selected.lng })
+  }, [map, selectedReportId, reports])
 
   // Recenter / fly-to: only when mapTarget changes (not on every render/zoom).
   useEffect(() => {
@@ -295,6 +312,35 @@ function GoogleMapCanvas({
     return cache
   }, [isLoaded, validReports, selectedReportId])
 
+  const warningCircleModels = useMemo(() => {
+    return warningReports.map((report, index) => {
+      const color = report.color || "#dc2626"
+      const center = { lat: report.lat as number, lng: report.lng as number }
+      return {
+        keyBase: reportMarkerKey(report, index),
+        center,
+        innerOptions: {
+          strokeColor: color,
+          strokeOpacity: 0.85,
+          strokeWeight: 3,
+          fillColor: color,
+          fillOpacity: 0.1,
+          clickable: false,
+          zIndex: 1,
+        },
+        outerOptions: {
+          strokeColor: color,
+          strokeOpacity: 0.7,
+          strokeWeight: 2,
+          fillColor: color,
+          fillOpacity: 0.05,
+          clickable: false,
+          zIndex: 1,
+        },
+      }
+    })
+  }, [warningReports])
+
   if (loadError) {
     return (
       <MapFallback message="تعذّر تحميل خريطة Google. تحقق من الاتصال أو إعدادات المفتاح ثم أعد المحاولة." />
@@ -328,41 +374,20 @@ function GoogleMapCanvas({
       >
         {trafficOn ? <TrafficLayer /> : null}
 
-        {warningReports.map((report, index) => {
-          const color = report.color || "#dc2626"
-          const center = { lat: report.lat as number, lng: report.lng as number }
-          const keyBase = reportMarkerKey(report, index)
-          return (
-            <Fragment key={`circles-${keyBase}`}>
-              <CircleF
-                center={center}
-                radius={40}
-                options={{
-                  strokeColor: color,
-                  strokeOpacity: 0.85,
-                  strokeWeight: 3,
-                  fillColor: color,
-                  fillOpacity: 0.1,
-                  clickable: false,
-                  zIndex: 1,
-                }}
-              />
-              <CircleF
-                center={center}
-                radius={60}
-                options={{
-                  strokeColor: color,
-                  strokeOpacity: 0.7,
-                  strokeWeight: 2,
-                  fillColor: color,
-                  fillOpacity: 0.05,
-                  clickable: false,
-                  zIndex: 1,
-                }}
-              />
-            </Fragment>
-          )
-        })}
+        {warningCircleModels.map((model) => (
+          <Fragment key={`circles-${model.keyBase}`}>
+            <CircleF
+              center={model.center}
+              radius={40}
+              options={model.innerOptions}
+            />
+            <CircleF
+              center={model.center}
+              radius={60}
+              options={model.outerOptions}
+            />
+          </Fragment>
+        ))}
 
         {validReports.map((report, index) => {
           const { emoji, color } = reportVisual(report)

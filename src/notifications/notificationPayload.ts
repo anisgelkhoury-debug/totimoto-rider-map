@@ -34,12 +34,41 @@ const DEFAULT_BADGE = "/icon-192.png"
 const DEFAULT_TITLE = "توتيموتو"
 const DEFAULT_BODY = "لديك تنبيه جديد"
 
+const ALLOWED_NOTIFICATION_HOSTS = new Set([
+  "app.totimoto.com",
+  "totimoto-rider-network.web.app",
+  "totimoto-rider-network.firebaseapp.com",
+  "localhost",
+  "127.0.0.1",
+])
+
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" ? (value as Record<string, unknown>) : {}
 }
 
 function asString(value: unknown): string {
   return typeof value === "string" ? value.trim() : ""
+}
+
+/**
+ * Allow only same-origin or known TRN hosts. Reject javascript:/data: etc.
+ */
+export function isSafeTrnDeepLink(deepLink: string, origin = ""): boolean {
+  const raw = asString(deepLink)
+  if (!raw) return false
+  if (raw.startsWith("/") && !raw.startsWith("//")) return true
+  try {
+    const base = origin || "https://app.totimoto.com"
+    const url = new URL(raw, base)
+    if (url.protocol !== "http:" && url.protocol !== "https:") return false
+    if (origin) {
+      const originHost = new URL(origin).hostname
+      if (url.hostname === originHost) return true
+    }
+    return ALLOWED_NOTIFICATION_HOSTS.has(url.hostname)
+  } catch {
+    return false
+  }
 }
 
 export function buildTrnDeepLink(
@@ -115,10 +144,14 @@ export function normalizeFcmDisplayPayload(
       ? `trn-${notificationType}-${reportId}`
       : `trn-${notificationType}`)
 
-  const deepLink =
+  const deepLinkRaw =
     asString(data.deepLink) ||
     asString(root.deepLink) ||
     buildTrnDeepLink({ reportId, notificationType }, origin)
+
+  const deepLink = isSafeTrnDeepLink(deepLinkRaw, origin)
+    ? deepLinkRaw
+    : buildTrnDeepLink({ reportId, notificationType }, origin)
 
   return {
     title,

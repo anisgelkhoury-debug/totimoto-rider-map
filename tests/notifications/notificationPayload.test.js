@@ -6,6 +6,7 @@ import assert from "node:assert/strict"
 import {
   buildTrnDeepLink,
   createMockNotificationPayload,
+  isSafeTrnDeepLink,
   normalizeFcmDisplayPayload,
   parseTrnSearchParams,
 } from "../../src/notifications/notificationPayload.ts"
@@ -59,6 +60,33 @@ describe("notification payload + deep links", () => {
     assert.equal(
       display.data.deepLink,
       "https://app.totimoto.com/?report=rep-9&notification=helper_accepted"
+    )
+  })
+
+  it("rejects unsafe deep links and falls back to TRN path", () => {
+    assert.equal(isSafeTrnDeepLink("javascript:alert(1)"), false)
+    assert.equal(isSafeTrnDeepLink("https://evil.example/phish"), false)
+    assert.equal(isSafeTrnDeepLink("/?report=1&notification=helper_accepted"), true)
+    assert.equal(
+      isSafeTrnDeepLink(
+        "https://app.totimoto.com/?notification=owner_cancelled"
+      ),
+      true
+    )
+
+    const display = normalizeFcmDisplayPayload(
+      {
+        data: {
+          reportId: "safe-1",
+          notificationType: "helper_accepted",
+          deepLink: "https://evil.example/steal",
+        },
+      },
+      "https://app.totimoto.com"
+    )
+    assert.equal(
+      display.data.deepLink,
+      "https://app.totimoto.com/?report=safe-1&notification=helper_accepted"
     )
   })
 
