@@ -3,7 +3,7 @@
  */
 import { describe, it } from "node:test"
 import assert from "node:assert/strict"
-import { timeAgo, timeLeft } from "../../src/utils/reportTimeLabels.ts"
+import { timeAgo, timeLeft, reportAgeColor, minutesSince } from "../../src/utils/reportTimeLabels.ts"
 
 describe("reportTimeLabels", () => {
   const now = Date.UTC(2026, 6, 29, 12, 0, 0)
@@ -30,5 +30,15 @@ describe("reportTimeLabels", () => {
       timeLeft({ createdAt: now - 5 * 60_000, expiry: 30 }, now),
       "ينتهي خلال 25 دقيقة"
     )
+  })
+
+  it("reportAgeColor tracks freshness bands", () => {
+    assert.equal(reportAgeColor(now - 5 * 60_000, now), "#22c55e")
+    assert.equal(reportAgeColor(now - 15 * 60_000, now), "#f59e0b")
+    assert.equal(reportAgeColor(now - 45 * 60_000, now), "#ef4444")
+  })
+
+  it("minutesSince never goes negative", () => {
+    assert.equal(minutesSince(now + 60_000, now), 0)
   })
 })

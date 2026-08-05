@@ -3,6 +3,9 @@
  * Does not send via FCM / Cloud Functions.
  */
 import { createMockNotificationPayload } from "./notificationPayload"
+import { isLocalDevHostname } from "./localDevHost"
+
+export { isLocalDevHostname } from "./localDevHost"
 
 export async function requestMockBackgroundNotification(
   overrides?: Parameters<typeof createMockNotificationPayload>[0]
@@ -10,8 +13,7 @@ export async function requestMockBackgroundNotification(
   if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) {
     return false
   }
-  const host = window.location.hostname
-  if (host !== "localhost" && host !== "127.0.0.1" && host !== "[::1]") {
+  if (!isLocalDevHostname(window.location.hostname)) {
     return false
   }
 

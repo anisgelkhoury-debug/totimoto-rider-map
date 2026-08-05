@@ -1,7 +1,11 @@
 /** Arabic relative time labels for report UI. */
 
+export function minutesSince(timestamp: number, now = Date.now()): number {
+  return Math.max(0, Math.floor((now - timestamp) / 1000 / 60))
+}
+
 export function timeAgo(timestamp: number, now = Date.now()): string {
-  const minutes = Math.floor((now - timestamp) / 1000 / 60)
+  const minutes = minutesSince(timestamp, now)
 
   if (minutes <= 0) return "الآن"
   if (minutes === 1) return "منذ دقيقة"
@@ -18,11 +22,19 @@ export function timeLeft(
   now = Date.now()
 ): string {
   const createdAt = report.createdAt ?? now
-  const minutesPassed = Math.floor((now - createdAt) / 1000 / 60)
+  const minutesPassed = minutesSince(createdAt, now)
   const remaining = (report.expiry ?? 0) - minutesPassed
 
   if (remaining <= 0) return "انتهى"
   if (remaining === 1) return "ينتهي خلال دقيقة"
 
   return `ينتهي خلال ${remaining} دقيقة`
+}
+
+/** Age color for list cards: fresh / mid / stale. */
+export function reportAgeColor(timestamp: number, now = Date.now()): string {
+  const minutes = minutesSince(timestamp, now)
+  if (minutes < 10) return "#22c55e"
+  if (minutes < 30) return "#f59e0b"
+  return "#ef4444"
 }

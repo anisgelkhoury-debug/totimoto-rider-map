@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef } from "react"
+import { Fragment, memo, useEffect, useMemo, useRef } from "react"
 import {
   MapContainer,
   TileLayer,
@@ -10,7 +10,7 @@ import {
 import "leaflet/dist/leaflet.css"
 import L from "leaflet"
 import { formatLebaneseLocationConcise } from "../utils/formatLebaneseLocation"
-import { distanceMeters } from "../utils/reportsRenderStability"
+import { distanceKm } from "../utils/reportsRenderStability"
 import { timeAgo, timeLeft } from "../utils/reportTimeLabels"
 
 type LatLng = [number, number]
@@ -43,8 +43,12 @@ type Props = {
   canReceiveHelp: (report: LeafletReport) => boolean
 }
 
+const iconCache = new Map<string, L.DivIcon>()
+
 function makeIcon(_emoji: string, color: string) {
-  return new L.DivIcon({
+  const cached = iconCache.get(color)
+  if (cached) return cached
+  const icon = new L.DivIcon({
     className: "",
     html: `
 <div style="
@@ -70,6 +74,8 @@ animation:
     iconSize: [16, 16],
     iconAnchor: [8, 8],
   })
+  iconCache.set(color, icon)
+  return icon
 }
 
 function MyLocation({ position }: { position: LatLng | null }) {
@@ -119,12 +125,12 @@ function MapZoomTracker({
   return null
 }
 
-function distanceKm(from: LatLng | null, to: LatLng) {
+function distanceKmPair(from: LatLng | null, to: LatLng) {
   if (!from) return null
-  return distanceMeters(from[0], from[1], to[0], to[1]) / 1000
+  return distanceKm(from[0], from[1], to[0], to[1])
 }
 
-export default function LeafletMapView({
+function LeafletMapView({
   userLocation,
   reports,
   mapTarget,
@@ -134,32 +140,34 @@ export default function LeafletMapView({
   onMapZoomChange,
   canReceiveHelp,
 }: Props) {
-  const sortedReports = [...reports].sort((a, b) => {
+  const sortedReports = useMemo(() => {
     const priorityOrder: Record<string, number> = {
       high: 3,
       medium: 2,
       low: 1,
     }
 
-    const pa = priorityOrder[a.priority || ""] ?? 0
-    const pb = priorityOrder[b.priority || ""] ?? 0
+    return [...reports].sort((a, b) => {
+      const pa = priorityOrder[a.priority || ""] ?? 0
+      const pb = priorityOrder[b.priority || ""] ?? 0
 
-    if (pb !== pa) return pb - pa
+      if (pb !== pa) return pb - pa
 
-    const distanceA =
-      userLocation && a.lat && a.lng
-        ? distanceKm(userLocation, [a.lat, a.lng]) ?? 999999
-        : 999999
+      const distanceA =
+        userLocation && a.lat && a.lng
+          ? distanceKmPair(userLocation, [a.lat, a.lng]) ?? 999999
+          : 999999
 
-    const distanceB =
-      userLocation && b.lat && b.lng
-        ? distanceKm(userLocation, [b.lat, b.lng]) ?? 999999
-        : 999999
+      const distanceB =
+        userLocation && b.lat && b.lng
+          ? distanceKmPair(userLocation, [b.lat, b.lng]) ?? 999999
+          : 999999
 
-    if (distanceA !== distanceB) return distanceA - distanceB
+      if (distanceA !== distanceB) return distanceA - distanceB
 
-    return (b.createdAt || 0) - (a.createdAt || 0)
-  })
+      return (b.createdAt || 0) - (a.createdAt || 0)
+    })
+  }, [reports, userLocation])
 
   return (
     <>
@@ -361,9 +369,7 @@ export default function LeafletMapView({
               </Popup>
             </Marker>
             {r.priority === "high" && mapZoom >= 14 && (
-              <Fragment
-                key={`circle-${r.id || r.createdAt}-${index}`}
-              >
+              <Fragment key={`circle-${r.id || r.createdAt}-${index}`}>
                 <Circle
                   center={[r.lat, r.lng]}
                   radius={40}
@@ -392,3 +398,5 @@ export default function LeafletMapView({
     </>
   )
 }
+
+export default memo(LeafletMapView)

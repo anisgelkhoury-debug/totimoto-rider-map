@@ -58,3 +58,19 @@ export function distanceMeters(
       Math.sin(dLng / 2)
   return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 }
+
+/** Haversine distance in kilometers between two points. */
+export function distanceKm(
+  lat1: number,
+  lng1: number,
+  lat2: number,
+  lng2: number
+): number {
+  return distanceMeters(lat1, lng1, lat2, lng2) / 1000
+}
+
+export function formatDistanceKm(km: number | null): string {
+  if (km === null) return "المسافة غير معروفة"
+  if (km < 1) return `${Math.round(km * 1000)} متر منك`
+  return `${km.toFixed(1)} كم منك`
+}

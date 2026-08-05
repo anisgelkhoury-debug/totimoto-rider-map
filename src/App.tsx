@@ -2,8 +2,11 @@ import { useCallback, useEffect, useMemo, useState, useRef, lazy, Suspense } fro
 import { auth, db, storage, ensureAnonymousAuth, requireAuthUid, getFirebaseMessagingIfSupported } from "./firebase"
 import {
   distanceMeters,
+  distanceKm,
+  formatDistanceKm,
   reportsMapFingerprint,
 } from "./utils/reportsRenderStability"
+import { reportAgeColor, timeAgo } from "./utils/reportTimeLabels"
 
 const useLeaflet = import.meta.env.VITE_USE_LEAFLET === "true"
 const GoogleMapView = !useLeaflet
@@ -36,15 +39,16 @@ import {
   shouldOfferNotificationPromptAfterCreate,
   wasPromptAskedThisSession,
 } from "./notifications/notificationSupport"
-import {
-  disableNotificationsLocally,
-  enableNotificationsFromUserGesture,
-  getOrCreateInstallationId,
-} from "./notifications/notificationSubscription"
+import { getOrCreateInstallationId } from "./notifications/installationId"
 import { parseTrnSearchParams } from "./notifications/notificationPayload"
+import {
+  countUnresolvedByFamily,
+  filterAndSortReports,
+} from "./utils/reportListQuery"
+import { capMapReports } from "./utils/capMapReports"
 
 type ReportItem = {
-  id?: number
+  id?: string | number
   type: string
   area: string
 street?: string
@@ -77,6 +81,7 @@ helperLng?: number
 helperTargetLat?: number
 helperTargetLng?: number
 helperMoving?: boolean
+reportFamily?: string
 
 phone?: string
 helperPhone?: string
@@ -183,20 +188,10 @@ const reportTypes = [
   { label: "وصلني معك", emoji: "🤝", color: "#db2777", expiry: 10, priority: "medium", reportFamily: "sharedRide", reportCategory: "ride" },
 ] 
 
-function formatDistance(km: number | null) {
-  if (km === null) return "المسافة غير معروفة"
-
-  if (km < 1) {
-    return `${Math.round(km * 1000)} متر منك`
-  }
-
-  return `${km.toFixed(1)} كم منك`
-}
-
-/** Haversine km between [lat,lng] pairs; shared meter helper underneath. */
+/** Haversine km between [lat,lng] pairs. */
 function calculateDistance(from: any, to: any) {
   if (!from || !to) return null
-  return distanceMeters(from[0], from[1], to[0], to[1]) / 1000
+  return distanceKm(from[0], from[1], to[0], to[1])
 }
 
 const communityBtnStyle = {
@@ -538,6 +533,9 @@ async function confirmEnableNotifications() {
     }
 
     const messaging = await getFirebaseMessagingIfSupported()
+    const { enableNotificationsFromUserGesture } = await import(
+      "./notifications/notificationSubscription"
+    )
     const result = await enableNotificationsFromUserGesture({
       messaging,
       deviceId,
@@ -929,7 +927,7 @@ function centerMapOnReport(lat: unknown, lng: unknown) {
     alert("موقع البلاغ غير متوفر")
     return
   }
-  setMapTarget([lat + Math.random() * 0.000001, lng])
+  setMapTarget([lat, lng])
   setMapZoom(15)
 }
 
@@ -1103,10 +1101,16 @@ helperComing: false,
  addDoc(collection(db, "reports"), newReport)
 }
 
-  const [myLocation, setMyLocation] = useState<any>(null)
+  const [myLocation, setMyLocation] = useState<[number, number] | null>(null)
 
-  const [gpsStatus, setGpsStatus] = useState("checking")
-const [gpsUpdatedAt, setGpsUpdatedAt] = useState<number | null>(null)
+  const isActivelyHelping = useMemo(
+    () =>
+      reports.some(
+        (r: any) =>
+          r.helperId === deviceId && r.helperComing && !r.resolved
+      ),
+    [reports, deviceId]
+  )
 
   useEffect(() => {
   const interval = setInterval(() => {
@@ -1119,7 +1123,7 @@ const [gpsUpdatedAt, setGpsUpdatedAt] = useState<number | null>(null)
       })
       return next.length === currentReports.length ? currentReports : next
     })
-  }, 1000)
+  }, 30000)
 
   return () => clearInterval(interval)
 }, [])
@@ -1192,8 +1196,6 @@ useEffect(() => {
         ? distanceMeters(last[0], last[1], next[0], next[1])
         : GPS_UI_DISTANCE_METERS
 
-      setGpsStatus("ready")
-
       if (
         !last ||
         moved >= GPS_UI_DISTANCE_METERS ||
@@ -1202,66 +1204,31 @@ useEffect(() => {
         lastUiGpsAtRef.current = now
         lastUiGpsLocationRef.current = next
         setMyLocation(next)
-        setGpsUpdatedAt(now)
       }
     },
 (error) => {
   console.log("GPS error:", error)
-  setGpsStatus("error")
 },
     {
-      enableHighAccuracy: true,
-      maximumAge: 5000,
+      enableHighAccuracy: isActivelyHelping,
+      maximumAge: isActivelyHelping ? 5000 : 15000,
       timeout: 10000,
     }
   )
 
   return () => navigator.geolocation.clearWatch(watchId)
-}, [])
-
-/*  useEffect(() => {
-  if (!myLocation) return
-
-  const activeHelp = reports.find((r: any) =>
-    r.helperId === deviceId &&
-    r.helperComing &&
-    !r.resolved
-  )
-
-  if (!activeHelp) return
-
-  const updateHelperLocation = async () => {
-    try {
-      await updateDoc(doc(db, "reports", String(activeHelp.id)), {
-        helperLat: myLocation[0],
-        helperLng: myLocation[1],
-        helperLocationUpdatedAt: Date.now()
-      })
-    } catch (error) {
-      console.error("Failed to update helper live location", error)
-    }
-  }
-
-  updateHelperLocation()
-}, [myLocation, reports, deviceId])
-*/
+}, [isActivelyHelping])
 
 const refreshGps = () => {
-  setGpsStatus("checking")
-
   navigator.geolocation.getCurrentPosition(
     (position) => {
       setMyLocation([
         position.coords.latitude,
         position.coords.longitude,
       ])
-
-      setGpsStatus("ready")
-      setGpsUpdatedAt(Date.now())
     },
     (error) => {
       console.log("Manual GPS refresh error:", error)
-      setGpsStatus("error")
     },
     {
       enableHighAccuracy: true,
@@ -1270,29 +1237,6 @@ const refreshGps = () => {
     }
   )
 }
-
-  useEffect(() => {
-  const moveInterval = setInterval(() => {
-    setReports((currentReports: any) => {
-      let changed = false
-      const next = currentReports.map((r: any) => {
-        if (!r.isHelper) return r
-        changed = true
-        const nextLat = r.lat + (r.targetLat - r.lat) * 0.08
-        const nextLng = r.lng + (r.targetLng - r.lng) * 0.08
-        return {
-          ...r,
-          lat: nextLat,
-          lng: nextLng,
-          distance: "يقترب الآن",
-        }
-      })
-      return changed ? next : currentReports
-    })
-  }, 1000)
-
-  return () => clearInterval(moveInterval)
-}, [])
 
   function sendReport() {
     if (!selectedType || !myLocation) return
@@ -1398,18 +1342,14 @@ return true
 }
 }
 
-const intelligenceCount =
-  reports.filter((r: any) => !r.resolved && r?.reportFamily === "intelligence").length
-
-const assistanceCount =
-  reports.filter((r: any) => !r.resolved && r?.reportFamily === "assistance").length
-
-const sharedRideCount =
-  reports.filter((r: any) => !r.resolved && r?.reportFamily === "sharedRide").length
-
-const stolenCount =
-  reports.filter((r: any) => !r.resolved && r?.reportFamily === "stolen").length
-
+const familyCounts = useMemo(
+  () => countUnresolvedByFamily(reports),
+  [reports]
+)
+const intelligenceCount = familyCounts.intelligence
+const assistanceCount = familyCounts.assistance
+const sharedRideCount = familyCounts.sharedRide
+const stolenCount = familyCounts.stolen
 
 const visibleReports = useMemo(
   () =>
@@ -1427,6 +1367,28 @@ const visibleReports = useMemo(
         return 0
       }),
   [reports, activeReportFamily, deviceId]
+)
+
+const listedReports = useMemo(
+  () =>
+    filterAndSortReports(visibleReports, {
+      geoFilter,
+      sortFilter,
+      myLocation,
+    }),
+  [visibleReports, geoFilter, sortFilter, myLocation]
+)
+
+/** Cap map markers for large datasets; list view stays uncapped. */
+const MAP_MARKER_CAP = 400
+const mapReports = useMemo(
+  () =>
+    capMapReports(visibleReports, {
+      cap: MAP_MARKER_CAP,
+      deviceId,
+      selectedId: selectedReport?.id,
+    }),
+  [visibleReports, deviceId, selectedReport?.id]
 )
 
 const handleGoogleReportSelect = useCallback(
@@ -1503,7 +1465,28 @@ const handleGoogleReportSelect = useCallback(
   </div>
 )}
 
-    <div style={{ height: "100dvh", width: "100%", background: "#020617", direction: "rtl", fontFamily: "Arial", position: "relative", overflow: "auto" }}>
+    <div style={{ height: "100dvh", width: "100%", background: "#020617", direction: "rtl", fontFamily: "Arial", position: "relative", overflow: "hidden" }}>
+{authStatus === "error" && (
+  <div
+    style={{
+      position: "absolute",
+      top: 12,
+      left: 12,
+      right: 12,
+      zIndex: 5000,
+      background: "#7f1d1d",
+      color: "white",
+      borderRadius: 12,
+      padding: "10px 12px",
+      fontSize: 13,
+      fontWeight: "bold",
+      textAlign: "center",
+      boxShadow: "0 8px 20px rgba(0,0,0,.35)",
+    }}
+  >
+    تعذّر تسجيل الدخول. أعد فتح التطبيق أو تحقق من الاتصال.
+  </div>
+)}
 {(() => {
   const mapFallback = (
     <div
@@ -1528,7 +1511,7 @@ const handleGoogleReportSelect = useCallback(
         <div style={{ height: "100%", width: "100%" }}>
           <GoogleMapView
             userLocation={myLocation}
-            reports={visibleReports}
+            reports={mapReports}
             selectedReportId={selectedReport?.id ?? null}
             mapTarget={mapTarget}
             mapZoom={mapZoom}
@@ -1545,7 +1528,7 @@ const handleGoogleReportSelect = useCallback(
         <div style={{ height: "100%", width: "100%" }}>
           <LeafletMapView
             userLocation={myLocation}
-            reports={visibleReports}
+            reports={mapReports}
             mapTarget={mapTarget}
             mapZoom={mapZoom}
             deviceId={deviceId}
@@ -1614,7 +1597,7 @@ style={{
         e.stopPropagation()
         refreshGps()
         if (myLocation) {
-          setMapTarget([myLocation[0] + Math.random() * 0.000001, myLocation[1]])
+          setMapTarget([myLocation[0], myLocation[1]])
           setMapZoom(16)
         }
       }}
@@ -1777,25 +1760,6 @@ transition: "all .2s ease",
     </button>
   ))}
 </div>
-{/*
-
-<input
-  value={reportsSearch}
-  onChange={(e) => setReportsSearch(e.target.value)}
-  placeholder="🔎 ابحث بالمنطقة، الشارع، المدينة..."
-  style={{
-    width: "100%",
-    padding: "12px 14px",
-    borderRadius: 14,
-    border: "1px solid #e5e7eb",
-    marginBottom: 14,
-    fontSize: 14,
-    direction: "rtl",
-    outline: "none",
-    boxShadow: "0 2px 8px rgba(0,0,0,.05)"
-  }}
-/>
-*/}
 
 {/* Reports Filter Panel */}
 <div style={{
@@ -1922,95 +1886,16 @@ transition: "all .2s ease",
     <div
 style={{
   maxHeight: "calc(100vh - 240px)",
-  overflowY: "scroll",
+  overflowY: "auto",
   overflowX: "hidden",
   touchAction: "pan-y",
+  WebkitOverflowScrolling: "touch",
+  overscrollBehavior: "contain",
   paddingBottom: 80
 }}
 >
 
-{visibleReports
-  .filter((r: any) => {
-
-  if (activeReportFamily !== "all" && r.reportFamily !== activeReportFamily) return false
-
-  if (geoFilter === "near") {
-  if (!myLocation || !r.lat || !r.lng) return false
-
- const km = calculateDistance(myLocation, [r.lat, r.lng]) ?? 999999
-
-if (km > 25) return false
-
-}
-
-if (geoFilter !== "all") {
-  const area = `${r.area || ""} ${r.city || ""} ${r.street || ""} ${r.locationName || ""}`
-
-  if (geoFilter === "beirut" && !area.includes("بيروت")) return false
-
-  if (geoFilter === "mount" && !(
-    area.includes("بعبدا") ||
-    area.includes("المتن") ||
-    area.includes("كسروان") ||
-    area.includes("عاليه") ||
-    area.includes("الشوف") ||
-    area.includes("جبل لبنان")
-  )) return false
-
-  if (geoFilter === "north" && !(
-    area.includes("طرابلس") ||
-    area.includes("عكار") ||
-    area.includes("زغرتا") ||
-    area.includes("الكورة") ||
-    area.includes("البترون") ||
-    area.includes("بشري") ||
-    area.includes("الشمال")
-  )) return false
-
-  if (geoFilter === "bekaa" && !(
-    area.includes("زحلة") ||
-    area.includes("البقاع") ||
-    area.includes("بعلبك") ||
-    area.includes("الهرمل")
-  )) return false
-
-  if (geoFilter === "south" && !(
-    area.includes("صيدا") ||
-    area.includes("صور") ||
-    area.includes("النبطية") ||
-    area.includes("جزين") ||
-    area.includes("الجنوب")
-  )) return false
-}
-
-return true  
-
-  })
-
-.sort((a: any, b: any) => {
-  if (sortFilter === "nearest" && myLocation) {
-    const distanceA =
-      a.lat != null && a.lng != null
-        ? (calculateDistance(myLocation, [a.lat, a.lng]) ?? 999999)
-: 999999
-
-    const distanceB =
-      b.lat != null && b.lng != null
-        ? (calculateDistance(myLocation, [b.lat, b.lng]) ?? 999999)
-        : 999999
-
-    return distanceA - distanceB
-  }
-
-  if (sortFilter === "important") {
-    const priorityOrder: any = { high: 3, medium: 2, low: 1 }
-    return (priorityOrder[b.priority] || 0) - (priorityOrder[a.priority] || 0)
-  }
-
-  return (b.createdAt || 0) - (a.createdAt || 0)
-})
-
-  .map((r, index) => (
+{listedReports.map((r, index) => (
 
 
 <div
@@ -2018,7 +1903,7 @@ return true
 
 onClick={() => {
   setSelectedReport(r)
-  setMapTarget([r.lat + Math.random() * 0.000001, r.lng])
+  setMapTarget([r.lat, r.lng])
   setShowReportsPage(false)
 }} 
 
@@ -2168,24 +2053,19 @@ background: "transparent",
 
 {myLocation && r.lat != null && r.lng != null && (
   <div style={{ color: "#22c55e", fontSize: 12, fontWeight: "bold", marginTop: 2 }}>
-    📍 يبعد {formatDistance(calculateDistance(myLocation, [r.lat, r.lng]))}
+    📍 يبعد {formatDistanceKm(calculateDistance(myLocation, [r.lat, r.lng]))}
   </div>
 )}
 
 <div
   style={{
-    color:
-      Math.floor((Date.now() - (r.createdAt || Date.now())) / 60000) < 10
-        ? "#22c55e"
-        : Math.floor((Date.now() - (r.createdAt || Date.now())) / 60000) < 30
-        ? "#f59e0b"
-        : "#ef4444",
+    color: reportAgeColor(r.createdAt || Date.now()),
     fontSize: 10,
     marginTop: 2,
     fontWeight: "bold"
   }}
 >
-  ⏱️ منذ {Math.floor((Date.now() - (r.createdAt || Date.now())) / 60000)} دقيقة
+  ⏱️ {timeAgo(r.createdAt || Date.now())}
 </div>
 
   {r.helperComing && isAssistanceReport(r) && (
@@ -2489,45 +2369,6 @@ setShowMobileDashboard(false)
 
 
 
-      {showMobileDashboard && (
-<div style={{ position: window.innerWidth <= 600 ? "fixed" : "absolute", bottom: 0, right: 0, left: 0, zIndex: 1500, background: "rgba(2,6,23,.96)", padding: window.innerWidth <= 600 ? 8 : 12, display: window.innerWidth <= 600 ? "grid" : "flex", gridTemplateColumns: window.innerWidth <= 600 ? "repeat(3, 1fr)" : undefined, gap: 10, overflowX: window.innerWidth <= 600 ? "hidden" : "auto" }}>
-        <button
-  onClick={() => setShowMobileDashboard(false)}
-  style={{
-position: "fixed",
-bottom: 185,
-right: 12,
-display: window.innerWidth <= 600 ? "block" : "none",
-    background: "#111827",
-    color: "white",
-    border: "none",
-    borderRadius: 999,
-    padding: "10px 14px",
-    fontWeight: "bold",
-    zIndex: 2001
-  }}
->
-  👁️ إخفاء
-</button>
-        {reportTypes.map((btn) => (
-          <button key={btn.label} onClick={() => {
-
-  if (btn.label.includes("مسروقة")) {
-    setShowStolenModal(true)
-    return
-  }
-
- setPendingReportType(btn)
-setShowDescriptionModal(true)
-setShowMobileDashboard(false) 
-
-}} style={{ minWidth: window.innerWidth <= 600 ? 0 : 108, border: "none", borderRadius: 1, padding: "1px 1px", background: btn.color, color: "white", fontWeight: "bold", fontSize: 12 }}>
-            <div style={{ fontSize: 23 }}>{btn.emoji}</div>
-            {btn.label}
-          </button>
-        ))}
-      </div>
-)}
       {selectedType && (
         <div style={{ position: "fixed", inset: 0, zIndex: 2000, background: "rgba(0,0,0,.35)", display: "flex", alignItems: "end", justifyContent: "center", padding: 20 }}>
           <div style={{
@@ -3130,7 +2971,10 @@ await submitAction()
               {notifState === "active" && (
                 <button
                   type="button"
-                  onClick={() => {
+                  onClick={async () => {
+                    const { disableNotificationsLocally } = await import(
+                      "./notifications/notificationSubscription"
+                    )
                     disableNotificationsLocally()
                     setNotifSettingsTick((n) => n + 1)
                     alert(

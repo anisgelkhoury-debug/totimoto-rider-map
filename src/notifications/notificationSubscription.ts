@@ -11,7 +11,6 @@ import {
   evaluateNotificationSupport,
   hasVapidKeyConfigured,
   markPermissionDeniedLocal,
-  NOTIF_STORAGE,
   readVapidKey,
   setLocalEnabledFlag,
   setServerRegisteredFlag,
@@ -22,12 +21,15 @@ import {
   detectBrowserLabel,
   detectPlatform,
 } from "./subscriptionMeta"
+import { getOrCreateInstallationId } from "./installationId"
 
 export {
   ALLOW_PRODUCTION_SUBSCRIPTION_WRITE,
   detectBrowserLabel,
   detectPlatform,
 } from "./subscriptionMeta"
+
+export { getOrCreateInstallationId } from "./installationId"
 
 export type RegisterOutcome =
   | {
@@ -49,25 +51,6 @@ export type RegisterOutcome =
         | "write_failed"
       messageAr: string
     }
-
-function fallbackUuid(): string {
-  return `trn-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`
-}
-
-export function getOrCreateInstallationId(): string {
-  try {
-    const existing = localStorage.getItem(NOTIF_STORAGE.installationId)
-    if (existing && existing.trim()) return existing.trim()
-    const id =
-      typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
-        ? crypto.randomUUID()
-        : fallbackUuid()
-    localStorage.setItem(NOTIF_STORAGE.installationId, id)
-    return id
-  } catch {
-    return fallbackUuid()
-  }
-}
 
 export async function waitForServiceWorkerRegistration(
   timeoutMs = 8000

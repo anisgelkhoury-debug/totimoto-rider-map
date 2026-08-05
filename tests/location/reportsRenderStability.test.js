@@ -5,6 +5,8 @@ import { describe, it } from "node:test"
 import assert from "node:assert/strict"
 import {
   distanceMeters,
+  distanceKm,
+  formatDistanceKm,
   reportMapFingerprint,
   reportsMapFingerprint,
 } from "../../src/utils/reportsRenderStability.ts"
@@ -53,5 +55,16 @@ describe("reportsRenderStability", () => {
     const far = distanceMeters(33.89, 35.5, 33.9, 35.5)
     assert.ok(far > near)
     assert.ok(far > 100)
+  })
+
+  it("distanceKm matches meters/1000", () => {
+    const m = distanceMeters(33.89, 35.5, 33.9, 35.5)
+    assert.ok(Math.abs(distanceKm(33.89, 35.5, 33.9, 35.5) - m / 1000) < 1e-9)
+  })
+
+  it("formatDistanceKm labels meters under 1km", () => {
+    assert.equal(formatDistanceKm(0.25), "250 متر منك")
+    assert.equal(formatDistanceKm(2.5), "2.5 كم منك")
+    assert.equal(formatDistanceKm(null), "المسافة غير معروفة")
   })
 })
