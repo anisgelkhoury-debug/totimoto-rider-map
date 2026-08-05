@@ -2,7 +2,10 @@
  * Shared claim → select → send → retry orchestration for lifecycle notifications.
  */
 
-import { payloadContainsForbiddenKeys } from "./payloadSafety"
+import {
+  payloadContainsForbiddenKeys,
+  payloadValuesAreAllStrings,
+} from "./payloadSafety"
 import type { PreferenceKey } from "./report"
 import {
   isPermanentInvalidTokenError,
@@ -110,6 +113,9 @@ export async function processLifecycleNotification(
 
   if (payloadContainsForbiddenKeys(request.payload)) {
     return { ...empty, status: "failed", reason: "unsafe_payload" }
+  }
+  if (!payloadValuesAreAllStrings(request.payload)) {
+    return { ...empty, status: "failed", reason: "non_string_payload" }
   }
 
   let success = 0

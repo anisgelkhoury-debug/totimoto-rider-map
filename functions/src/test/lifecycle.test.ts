@@ -23,7 +23,7 @@ import {
   isOwnerCancelledTransition,
   isOwnerResolvedTransition,
 } from "../lifecycle/transitions"
-import { payloadContainsForbiddenKeys } from "../shared/payloadSafety"
+import { payloadContainsForbiddenKeys, payloadValuesAreAllStrings } from "../shared/payloadSafety"
 import type { ReportSnapshot } from "../shared/report"
 import {
   isPermanentInvalidTokenError,
@@ -413,6 +413,15 @@ describe("lifecycle orchestration shared behaviors", () => {
     ]) {
       assert.equal(payloadContainsForbiddenKeys(payload), false)
     }
+  })
+
+  it("payload values are all strings", () => {
+    const payload = toFcmDataMap(buildOwnerResolvedPayload("r1", 1))
+    assert.equal(payloadValuesAreAllStrings(payload), true)
+    assert.equal(
+      payloadValuesAreAllStrings({ ...payload, bad: 1 }),
+      false
+    )
   })
 
   it("event keys follow recommended shapes", () => {
