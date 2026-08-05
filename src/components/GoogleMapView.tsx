@@ -1,14 +1,16 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
-import { GoogleMap, MarkerF, useJsApiLoader } from "@react-google-maps/api"
+import { useCallback, useEffect, useMemo, useRef, useState, Fragment, type CSSProperties } from "react"
+import { CircleF, GoogleMap, MarkerF, useJsApiLoader } from "@react-google-maps/api"
 
 const DEFAULT_CENTER = { lat: 33.8938, lng: 35.5018 }
 const DEFAULT_ZOOM = 12
+const CIRCLE_MIN_ZOOM = 14
 
 const mapContainerStyle: CSSProperties = {
   width: "100%",
   height: "100%",
 }
 
+/** Conservative mobile options: keep gestures, hide cluttering controls. */
 const mapOptions = {
   disableDefaultUI: true,
   zoomControl: true,
@@ -19,6 +21,7 @@ const mapOptions = {
   scaleControl: false,
   clickableIcons: false,
   keyboardShortcuts: false,
+  gestureHandling: "greedy" as const,
 }
 
 const fallbackStyle: CSSProperties = {
@@ -45,9 +48,14 @@ export type GoogleMapReport = {
   type?: string
   emoji?: string
   color?: string
+  priority?: string
   helperComing?: boolean
+  helperLat?: number | null
+  helperLng?: number | null
+  helperLocationUpdatedAt?: number | null
   ownerId?: string
   createdAt?: number
+  resolved?: boolean
   reportFamily?: string
   reportCategory?: string
 }
@@ -91,11 +99,18 @@ function reportVisual(report: GoogleMapReport): { emoji: string; color: string }
   }
 }
 
-function markerIconUrl(emoji: string, color: string, size: number): string {
+function markerIconUrl(
+  emoji: string,
+  color: string,
+  size: number,
+  selected = false
+): string {
+  const stroke = selected ? "#fbbf24" : "#ffffff"
+  const strokeWidth = selected ? 3 : 2
   const svg = `
 <svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
-  <circle cx="${size / 2}" cy="${size / 2}" r="${size / 2 - 1}" fill="${color}" stroke="#ffffff" stroke-width="2"/>
-  <text x="50%" y="54%" text-anchor="middle" dominant-baseline="middle" font-size="${Math.round(size * 0.45)}">${emoji}</text>
+  <circle cx="${size / 2}" cy="${size / 2}" r="${size / 2 - strokeWidth}" fill="${color}" stroke="${stroke}" stroke-width="${strokeWidth}"/>
+  <text x="50%" y="54%" text-anchor="middle" dominant-baseline="middle" font-size="${Math.round(size * 0.42)}">${emoji}</text>
 </svg>`.trim()
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`
 }
@@ -103,6 +118,24 @@ function markerIconUrl(emoji: string, color: string, size: number): string {
 function reportMarkerKey(report: GoogleMapReport, index: number): string {
   if (report.id != null && report.id !== "") return `report-${report.id}`
   return `report-${report.lat}-${report.lng}-${report.createdAt ?? "x"}-${index}`
+}
+
+function helperMarkerKey(report: GoogleMapReport, index: number): string {
+  if (report.id != null && report.id !== "") return `helper-${report.id}`
+  return `helper-${report.helperLat}-${report.helperLng}-${index}`
+}
+
+function buildIcon(
+  emoji: string,
+  color: string,
+  size: number,
+  selected = false
+): google.maps.Icon {
+  return {
+    url: markerIconUrl(emoji, color, size, selected),
+    scaledSize: new google.maps.Size(size, size),
+    anchor: new google.maps.Point(size / 2, size / 2),
+  }
 }
 
 function GoogleMapCanvas({
@@ -120,18 +153,33 @@ function GoogleMapCanvas({
   })
 
   const [map, setMap] = useState<google.maps.Map | null>(null)
+  const [currentZoom, setCurrentZoom] = useState(DEFAULT_ZOOM)
   const hasCenteredOnUser = useRef(false)
   const mapZoomRef = useRef(mapZoom)
   mapZoomRef.current = mapZoom
 
   const onLoad = useCallback((nextMap: google.maps.Map) => {
     setMap(nextMap)
+    setCurrentZoom(nextMap.getZoom() ?? DEFAULT_ZOOM)
   }, [])
 
   const onUnmount = useCallback(() => {
     setMap(null)
     hasCenteredOnUser.current = false
   }, [])
+
+  // Track zoom for high-priority circle visibility (Leaflet: mapZoom >= 14).
+  useEffect(() => {
+    if (!map) return
+    const syncZoom = () => {
+      setCurrentZoom(map.getZoom() ?? DEFAULT_ZOOM)
+    }
+    syncZoom()
+    const listener = map.addListener("zoom_changed", syncZoom)
+    return () => {
+      listener.remove()
+    }
+  }, [map])
 
   // Recenter / fly-to: only when mapTarget changes (not on every render/zoom).
   useEffect(() => {
@@ -155,17 +203,31 @@ function GoogleMapCanvas({
   }, [map, userLocation])
 
   const validReports = useMemo(() => {
-    return reports.filter((r) => isValidLatLng(r.lat, r.lng))
+    return reports.filter((r) => !r.resolved && isValidLatLng(r.lat, r.lng))
   }, [reports])
+
+  const helperReports = useMemo(() => {
+    return reports.filter(
+      (r) =>
+        !r.resolved &&
+        r.helperComing === true &&
+        isValidLatLng(r.helperLat, r.helperLng)
+    )
+  }, [reports])
+
+  const warningReports = useMemo(() => {
+    if (currentZoom < CIRCLE_MIN_ZOOM) return []
+    return validReports.filter((r) => r.priority === "high")
+  }, [validReports, currentZoom])
 
   const userIcon = useMemo(() => {
     if (!isLoaded || typeof google === "undefined") return undefined
-    const size = 28
-    return {
-      url: markerIconUrl("🔵", "#2563eb", size),
-      scaledSize: new google.maps.Size(size, size),
-      anchor: new google.maps.Point(size / 2, size / 2),
-    }
+    return buildIcon("🔵", "#2563eb", 28)
+  }, [isLoaded])
+
+  const helperIcon = useMemo(() => {
+    if (!isLoaded || typeof google === "undefined") return undefined
+    return buildIcon("🏍️", "#2563eb", 30)
   }, [isLoaded])
 
   const reportIcons = useMemo(() => {
@@ -177,14 +239,10 @@ function GoogleMapCanvas({
         selectedReportId != null &&
         report.id != null &&
         String(report.id) === String(selectedReportId)
-      const size = selected ? 34 : 28
-      const key = `${emoji}|${color}|${size}`
+      const size = selected ? 36 : 28
+      const key = `${emoji}|${color}|${size}|${selected ? "s" : "n"}`
       if (!cache.has(key)) {
-        cache.set(key, {
-          url: markerIconUrl(emoji, color, size),
-          scaledSize: new google.maps.Size(size, size),
-          anchor: new google.maps.Point(size / 2, size / 2),
-        })
+        cache.set(key, buildIcon(emoji, color, size, selected))
       }
     }
     return cache
@@ -214,14 +272,41 @@ function GoogleMapCanvas({
       onLoad={onLoad}
       onUnmount={onUnmount}
     >
-      {userPos && (
-        <MarkerF
-          position={userPos}
-          icon={userIcon}
-          title="موقعك الحالي"
-          zIndex={1000}
-        />
-      )}
+      {warningReports.map((report, index) => {
+        const color = report.color || "#dc2626"
+        const center = { lat: report.lat as number, lng: report.lng as number }
+        const keyBase = reportMarkerKey(report, index)
+        return (
+          <Fragment key={`circles-${keyBase}`}>
+            <CircleF
+              center={center}
+              radius={40}
+              options={{
+                strokeColor: color,
+                strokeOpacity: 0.85,
+                strokeWeight: 3,
+                fillColor: color,
+                fillOpacity: 0.1,
+                clickable: false,
+                zIndex: 1,
+              }}
+            />
+            <CircleF
+              center={center}
+              radius={60}
+              options={{
+                strokeColor: color,
+                strokeOpacity: 0.7,
+                strokeWeight: 2,
+                fillColor: color,
+                fillOpacity: 0.05,
+                clickable: false,
+                zIndex: 1,
+              }}
+            />
+          </Fragment>
+        )
+      })}
 
       {validReports.map((report, index) => {
         const { emoji, color } = reportVisual(report)
@@ -229,8 +314,10 @@ function GoogleMapCanvas({
           selectedReportId != null &&
           report.id != null &&
           String(report.id) === String(selectedReportId)
-        const size = selected ? 34 : 28
-        const icon = reportIcons.get(`${emoji}|${color}|${size}`)
+        const size = selected ? 36 : 28
+        const icon = reportIcons.get(
+          `${emoji}|${color}|${size}|${selected ? "s" : "n"}`
+        )
         return (
           <MarkerF
             key={reportMarkerKey(report, index)}
@@ -242,13 +329,36 @@ function GoogleMapCanvas({
           />
         )
       })}
+
+      {helperReports.map((report, index) => (
+        <MarkerF
+          key={helperMarkerKey(report, index)}
+          position={{
+            lat: report.helperLat as number,
+            lng: report.helperLng as number,
+          }}
+          icon={helperIcon}
+          title="مساعد بالطريق"
+          zIndex={800}
+          clickable={false}
+        />
+      ))}
+
+      {userPos && (
+        <MarkerF
+          position={userPos}
+          icon={userIcon}
+          title="موقعك الحالي"
+          zIndex={1000}
+        />
+      )}
     </GoogleMap>
   )
 }
 
 /**
- * Google Maps view for TRN Phase 2 — user GPS + visible report markers.
- * Data/callbacks come from App; no Firebase access here.
+ * Google Maps view for TRN Phase 2 — user GPS, reports, helper live marker,
+ * and high-priority warning circles. Data/callbacks from App only.
  */
 export default function GoogleMapView(props: GoogleMapViewProps) {
   const apiKey = (import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? "").trim()
