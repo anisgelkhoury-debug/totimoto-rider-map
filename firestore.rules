@@ -214,5 +214,147 @@ service cloud.firestore {
 
       allow read, update, delete: if false;
     }
+
+    // -------------------------------------------------------------------------
+    // Task 034C — private FCM subscription docs (local rules; deploy separately).
+    // Clients may get/update/delete only their own docs. Collection list is denied.
+    // -------------------------------------------------------------------------
+
+    function stringLen(value, max) {
+      return value is string
+        && value.size() > 0
+        && value.size() <= max;
+    }
+
+    function validPermissionState(value) {
+      return value in ['default', 'granted', 'denied'];
+    }
+
+    function validBrowserSupportState(value) {
+      return value in [
+        'supported',
+        'unsupported_browser',
+        'ios_requires_install',
+        'permission_denied',
+        'missing_vapid_key',
+        'service_worker_unavailable'
+      ];
+    }
+
+    function validNotifPlatform(value) {
+      return value in ['android', 'ios', 'desktop', 'unknown'];
+    }
+
+    function validNotificationPreferences(prefs) {
+      return prefs is map
+        && prefs.keys().hasOnly([
+          'helperLifecycle',
+          'ownerLifecycle',
+          'stolenNearby',
+          'criticalRoads',
+          'sharedRides',
+          'communityRides',
+          'announcements',
+          'marketing'
+        ])
+        && prefs.keys().size() == 8
+        && prefs.helperLifecycle is bool
+        && prefs.ownerLifecycle is bool
+        && prefs.stolenNearby is bool
+        && prefs.criticalRoads is bool
+        && prefs.sharedRides is bool
+        && prefs.communityRides is bool
+        && prefs.announcements is bool
+        && prefs.marketing is bool;
+    }
+
+    function validSubscriptionTimestamp(value) {
+      return value is timestamp || value is number;
+    }
+
+    function subscriptionFieldKeysOnly(data) {
+      return data.keys().hasOnly([
+        'uid',
+        'installationId',
+        'deviceId',
+        'token',
+        'platform',
+        'browser',
+        'locale',
+        'enabled',
+        'permissionState',
+        'browserSupportState',
+        'notificationPreferences',
+        'createdAt',
+        'updatedAt',
+        'lastSeenAt',
+        'appVersion'
+      ]);
+    }
+
+    function validSubscriptionShape(data) {
+      return subscriptionFieldKeysOnly(data)
+        && stringLen(data.uid, 128)
+        && stringLen(data.installationId, 128)
+        && stringLen(data.deviceId, 128)
+        && stringLen(data.token, 4096)
+        && validNotifPlatform(data.platform)
+        && stringLen(data.browser, 64)
+        && stringLen(data.locale, 16)
+        && data.enabled is bool
+        && validPermissionState(data.permissionState)
+        && validBrowserSupportState(data.browserSupportState)
+        && validNotificationPreferences(data.notificationPreferences)
+        && stringLen(data.appVersion, 64)
+        && validSubscriptionTimestamp(data.createdAt)
+        && validSubscriptionTimestamp(data.updatedAt)
+        && validSubscriptionTimestamp(data.lastSeenAt);
+    }
+
+    function isSubscriptionOwner() {
+      return signedIn()
+        && resource.data.uid == request.auth.uid;
+    }
+
+    function validSubscriptionCreate() {
+      let data = request.resource.data;
+      return signedIn()
+        && data.uid == request.auth.uid
+        && validSubscriptionShape(data);
+    }
+
+    function validSubscriptionUpdate() {
+      let data = request.resource.data;
+      let affected = data.diff(resource.data).affectedKeys();
+      return isSubscriptionOwner()
+        && validSubscriptionShape(data)
+        && data.uid == resource.data.uid
+        && data.installationId == resource.data.installationId
+        && data.createdAt == resource.data.createdAt
+        && !affected.hasAny(['uid', 'installationId', 'createdAt'])
+        && affected.hasOnly([
+          'deviceId',
+          'token',
+          'platform',
+          'browser',
+          'locale',
+          'enabled',
+          'permissionState',
+          'browserSupportState',
+          'notificationPreferences',
+          'updatedAt',
+          'lastSeenAt',
+          'appVersion'
+        ]);
+    }
+
+    match /notificationSubscriptions/{subscriptionId} {
+      allow get: if isSubscriptionOwner();
+      allow list: if false;
+
+      allow create: if validSubscriptionCreate();
+      allow update: if validSubscriptionUpdate();
+      allow delete: if isSubscriptionOwner();
+    }
   }
 }

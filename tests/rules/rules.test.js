@@ -21,6 +21,7 @@ import {
   deleteDoc,
   collection,
   addDoc,
+  getDocs,
   deleteField,
 } from "firebase/firestore"
 import {
@@ -714,5 +715,442 @@ describe("Storage — negative", () => {
     })
     const storage = testEnv.authenticatedContext("stranger").storage(STORAGE_BUCKET)
     await assertFails(deleteObject(ref(storage, "stolen-bikes/locked.jpg")))
+  })
+})
+
+function defaultNotificationPreferences(overrides = {}) {
+  return {
+    helperLifecycle: true,
+    ownerLifecycle: true,
+    stolenNearby: false,
+    criticalRoads: false,
+    sharedRides: false,
+    communityRides: false,
+    announcements: false,
+    marketing: false,
+    ...overrides,
+  }
+}
+
+function baseSubscription(uid, extras = {}) {
+  const now = Date.now()
+  return {
+    uid,
+    installationId: "install-" + uid,
+    deviceId: "device-" + uid,
+    token: "fcm-token-" + uid + "-abcdefghijklmnopqrstuvwxyz012345",
+    platform: "android",
+    browser: "chrome",
+    locale: "ar",
+    enabled: true,
+    permissionState: "granted",
+    browserSupportState: "supported",
+    notificationPreferences: defaultNotificationPreferences(),
+    createdAt: now,
+    updatedAt: now,
+    lastSeenAt: now,
+    appVersion: "web",
+    ...extras,
+  }
+}
+
+describe("Firestore notificationSubscriptions — positive", () => {
+  it("create own subscription", async () => {
+    const db = testEnv.authenticatedContext("rider-a").firestore()
+    await assertSucceeds(
+      setDoc(doc(db, "notificationSubscriptions", "sub-a1"), baseSubscription("rider-a"))
+    )
+  })
+
+  it("update enabled", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(
+        doc(ctx.firestore(), "notificationSubscriptions", "sub-en"),
+        baseSubscription("rider-a")
+      )
+    })
+    const db = testEnv.authenticatedContext("rider-a").firestore()
+    await assertSucceeds(
+      updateDoc(doc(db, "notificationSubscriptions", "sub-en"), {
+        enabled: false,
+        updatedAt: Date.now(),
+        lastSeenAt: Date.now(),
+      })
+    )
+  })
+
+  it("update preferences", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(
+        doc(ctx.firestore(), "notificationSubscriptions", "sub-pref"),
+        baseSubscription("rider-a")
+      )
+    })
+    const db = testEnv.authenticatedContext("rider-a").firestore()
+    await assertSucceeds(
+      updateDoc(doc(db, "notificationSubscriptions", "sub-pref"), {
+        notificationPreferences: defaultNotificationPreferences({
+          announcements: true,
+          marketing: false,
+        }),
+        updatedAt: Date.now(),
+        lastSeenAt: Date.now(),
+      })
+    )
+  })
+
+  it("update permissionState", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(
+        doc(ctx.firestore(), "notificationSubscriptions", "sub-perm"),
+        baseSubscription("rider-a")
+      )
+    })
+    const db = testEnv.authenticatedContext("rider-a").firestore()
+    await assertSucceeds(
+      updateDoc(doc(db, "notificationSubscriptions", "sub-perm"), {
+        permissionState: "denied",
+        updatedAt: Date.now(),
+        lastSeenAt: Date.now(),
+      })
+    )
+  })
+
+  it("update browserSupportState", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(
+        doc(ctx.firestore(), "notificationSubscriptions", "sub-bss"),
+        baseSubscription("rider-a")
+      )
+    })
+    const db = testEnv.authenticatedContext("rider-a").firestore()
+    await assertSucceeds(
+      updateDoc(doc(db, "notificationSubscriptions", "sub-bss"), {
+        browserSupportState: "missing_vapid_key",
+        updatedAt: Date.now(),
+        lastSeenAt: Date.now(),
+      })
+    )
+  })
+
+  it("update lastSeenAt", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(
+        doc(ctx.firestore(), "notificationSubscriptions", "sub-seen"),
+        baseSubscription("rider-a")
+      )
+    })
+    const db = testEnv.authenticatedContext("rider-a").firestore()
+    await assertSucceeds(
+      updateDoc(doc(db, "notificationSubscriptions", "sub-seen"), {
+        lastSeenAt: Date.now() + 1000,
+        updatedAt: Date.now() + 1000,
+      })
+    )
+  })
+
+  it("delete own subscription", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(
+        doc(ctx.firestore(), "notificationSubscriptions", "sub-del"),
+        baseSubscription("rider-a")
+      )
+    })
+    const db = testEnv.authenticatedContext("rider-a").firestore()
+    await assertSucceeds(deleteDoc(doc(db, "notificationSubscriptions", "sub-del")))
+  })
+
+  it("multiple devices same uid", async () => {
+    const db = testEnv.authenticatedContext("rider-a").firestore()
+    await assertSucceeds(
+      setDoc(
+        doc(db, "notificationSubscriptions", "sub-phone"),
+        baseSubscription("rider-a", {
+          installationId: "install-phone",
+          deviceId: "device-phone",
+          token: "fcm-token-phone-abcdefghijklmnopqrstuvwxyz012345",
+        })
+      )
+    )
+    await assertSucceeds(
+      setDoc(
+        doc(db, "notificationSubscriptions", "sub-tablet"),
+        baseSubscription("rider-a", {
+          installationId: "install-tablet",
+          deviceId: "device-tablet",
+          token: "fcm-token-tablet-abcdefghijklmnopqrstuvwxyz012345",
+        })
+      )
+    )
+  })
+
+  it("get own subscription", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(
+        doc(ctx.firestore(), "notificationSubscriptions", "sub-get"),
+        baseSubscription("rider-a")
+      )
+    })
+    const db = testEnv.authenticatedContext("rider-a").firestore()
+    await assertSucceeds(getDoc(doc(db, "notificationSubscriptions", "sub-get")))
+  })
+})
+
+describe("Firestore notificationSubscriptions — negative", () => {
+  it("unauthenticated create fails", async () => {
+    const db = testEnv.unauthenticatedContext().firestore()
+    await assertFails(
+      setDoc(doc(db, "notificationSubscriptions", "sub-anon"), baseSubscription("rider-a"))
+    )
+  })
+
+  it("forged uid fails", async () => {
+    const db = testEnv.authenticatedContext("rider-a").firestore()
+    await assertFails(
+      setDoc(doc(db, "notificationSubscriptions", "sub-forge"), baseSubscription("rider-b"))
+    )
+  })
+
+  it("read another subscription fails", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(
+        doc(ctx.firestore(), "notificationSubscriptions", "sub-other"),
+        baseSubscription("rider-b")
+      )
+    })
+    const db = testEnv.authenticatedContext("rider-a").firestore()
+    await assertFails(getDoc(doc(db, "notificationSubscriptions", "sub-other")))
+  })
+
+  it("list subscriptions fails", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(
+        doc(ctx.firestore(), "notificationSubscriptions", "sub-list-1"),
+        baseSubscription("rider-a")
+      )
+    })
+    const db = testEnv.authenticatedContext("rider-a").firestore()
+    await assertFails(getDocs(collection(db, "notificationSubscriptions")))
+  })
+
+  it("update another subscription fails", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(
+        doc(ctx.firestore(), "notificationSubscriptions", "sub-upd-other"),
+        baseSubscription("rider-b")
+      )
+    })
+    const db = testEnv.authenticatedContext("rider-a").firestore()
+    await assertFails(
+      updateDoc(doc(db, "notificationSubscriptions", "sub-upd-other"), {
+        enabled: false,
+        updatedAt: Date.now(),
+        lastSeenAt: Date.now(),
+      })
+    )
+  })
+
+  it("delete another subscription fails", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(
+        doc(ctx.firestore(), "notificationSubscriptions", "sub-del-other"),
+        baseSubscription("rider-b")
+      )
+    })
+    const db = testEnv.authenticatedContext("rider-a").firestore()
+    await assertFails(deleteDoc(doc(db, "notificationSubscriptions", "sub-del-other")))
+  })
+
+  it("modify uid fails", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(
+        doc(ctx.firestore(), "notificationSubscriptions", "sub-uid"),
+        baseSubscription("rider-a")
+      )
+    })
+    const db = testEnv.authenticatedContext("rider-a").firestore()
+    await assertFails(
+      updateDoc(doc(db, "notificationSubscriptions", "sub-uid"), {
+        uid: "rider-b",
+        updatedAt: Date.now(),
+        lastSeenAt: Date.now(),
+      })
+    )
+  })
+
+  it("modify installationId fails", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(
+        doc(ctx.firestore(), "notificationSubscriptions", "sub-inst"),
+        baseSubscription("rider-a")
+      )
+    })
+    const db = testEnv.authenticatedContext("rider-a").firestore()
+    await assertFails(
+      updateDoc(doc(db, "notificationSubscriptions", "sub-inst"), {
+        installationId: "hacked-install",
+        updatedAt: Date.now(),
+        lastSeenAt: Date.now(),
+      })
+    )
+  })
+
+  it("modify createdAt fails", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(
+        doc(ctx.firestore(), "notificationSubscriptions", "sub-created"),
+        baseSubscription("rider-a")
+      )
+    })
+    const db = testEnv.authenticatedContext("rider-a").firestore()
+    await assertFails(
+      updateDoc(doc(db, "notificationSubscriptions", "sub-created"), {
+        createdAt: Date.now() + 99999,
+        updatedAt: Date.now(),
+        lastSeenAt: Date.now(),
+      })
+    )
+  })
+
+  it("oversized token fails", async () => {
+    const db = testEnv.authenticatedContext("rider-a").firestore()
+    await assertFails(
+      setDoc(
+        doc(db, "notificationSubscriptions", "sub-big-token"),
+        baseSubscription("rider-a", { token: "x".repeat(4097) })
+      )
+    )
+  })
+
+  it("invalid permissionState fails", async () => {
+    const db = testEnv.authenticatedContext("rider-a").firestore()
+    await assertFails(
+      setDoc(
+        doc(db, "notificationSubscriptions", "sub-bad-perm"),
+        baseSubscription("rider-a", { permissionState: "maybe" })
+      )
+    )
+  })
+
+  it("invalid browserSupportState fails", async () => {
+    const db = testEnv.authenticatedContext("rider-a").firestore()
+    await assertFails(
+      setDoc(
+        doc(db, "notificationSubscriptions", "sub-bad-bss"),
+        baseSubscription("rider-a", { browserSupportState: "magic" })
+      )
+    )
+  })
+
+  it("invalid platform fails", async () => {
+    const db = testEnv.authenticatedContext("rider-a").firestore()
+    await assertFails(
+      setDoc(
+        doc(db, "notificationSubscriptions", "sub-bad-plat"),
+        baseSubscription("rider-a", { platform: "blackberry" })
+      )
+    )
+  })
+
+  it("unknown field fails", async () => {
+    const db = testEnv.authenticatedContext("rider-a").firestore()
+    await assertFails(
+      setDoc(doc(db, "notificationSubscriptions", "sub-extra"), {
+        ...baseSubscription("rider-a"),
+        adminFlag: true,
+      })
+    )
+  })
+
+  it("unknown preference fails", async () => {
+    const db = testEnv.authenticatedContext("rider-a").firestore()
+    await assertFails(
+      setDoc(
+        doc(db, "notificationSubscriptions", "sub-bad-pref-key"),
+        baseSubscription("rider-a", {
+          notificationPreferences: {
+            ...defaultNotificationPreferences(),
+            spamAllLebanon: true,
+          },
+        })
+      )
+    )
+  })
+
+  it("invalid preference type fails", async () => {
+    const db = testEnv.authenticatedContext("rider-a").firestore()
+    await assertFails(
+      setDoc(
+        doc(db, "notificationSubscriptions", "sub-bad-pref-type"),
+        baseSubscription("rider-a", {
+          notificationPreferences: defaultNotificationPreferences({
+            helperLifecycle: "yes",
+          }),
+        })
+      )
+    )
+  })
+
+  it("invalid nested object fails", async () => {
+    const db = testEnv.authenticatedContext("rider-a").firestore()
+    await assertFails(
+      setDoc(
+        doc(db, "notificationSubscriptions", "sub-nested"),
+        baseSubscription("rider-a", {
+          notificationPreferences: {
+            helperLifecycle: true,
+            ownerLifecycle: { nested: true },
+            stolenNearby: false,
+            criticalRoads: false,
+            sharedRides: false,
+            communityRides: false,
+            announcements: false,
+            marketing: false,
+          },
+        })
+      )
+    )
+  })
+
+  it("write token into reports via update fails", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(
+        doc(ctx.firestore(), "reports", "r-token"),
+        baseReport("owner-a", "device-owner-a")
+      )
+    })
+    const db = testEnv.authenticatedContext("owner-a").firestore()
+    await assertFails(
+      updateDoc(doc(db, "reports", "r-token"), {
+        token: "fcm-should-not-live-on-report",
+        resolved: true,
+        solvedAt: Date.now(),
+      })
+    )
+  })
+
+  it("empty token fails", async () => {
+    const db = testEnv.authenticatedContext("rider-a").firestore()
+    await assertFails(
+      setDoc(
+        doc(db, "notificationSubscriptions", "sub-empty-token"),
+        baseSubscription("rider-a", { token: "" })
+      )
+    )
+  })
+
+  it("missing preference keys fails", async () => {
+    const db = testEnv.authenticatedContext("rider-a").firestore()
+    await assertFails(
+      setDoc(
+        doc(db, "notificationSubscriptions", "sub-partial-pref"),
+        baseSubscription("rider-a", {
+          notificationPreferences: {
+            helperLifecycle: true,
+            announcements: false,
+          },
+        })
+      )
+    )
   })
 })
