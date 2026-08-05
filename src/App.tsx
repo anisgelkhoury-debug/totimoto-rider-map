@@ -5,8 +5,8 @@ import L from "leaflet"
 /* import { GoogleMap, LoadScript, MarkerF } from "@react-google-maps/api" */
 import { auth, db, storage, ensureAnonymousAuth, requireAuthUid } from "./firebase"
 
-const useGoogleMaps = import.meta.env.VITE_USE_GOOGLE_MAPS === "true"
-const GoogleMapView = useGoogleMaps
+const useLeaflet = import.meta.env.VITE_USE_LEAFLET === "true"
+const GoogleMapView = !useLeaflet
   ? lazy(() => import("./components/GoogleMapView"))
   : null
 import { onAuthStateChanged } from "firebase/auth"
@@ -1412,7 +1412,7 @@ zoom={12}
 
 
 
-{useGoogleMaps && GoogleMapView ? (
+{!useLeaflet && GoogleMapView ? (
   <Suspense
     fallback={
       <div

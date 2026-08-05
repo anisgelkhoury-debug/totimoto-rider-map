@@ -2,7 +2,8 @@
 
 interface ImportMetaEnv {
   readonly VITE_GOOGLE_MAPS_API_KEY?: string
-  readonly VITE_USE_GOOGLE_MAPS?: string
+  /** Emergency fallback only. When exactly "true", use Leaflet instead of Google Maps. */
+  readonly VITE_USE_LEAFLET?: string
 }
 
 interface ImportMeta {
