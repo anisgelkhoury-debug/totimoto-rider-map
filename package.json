@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "test:rules": "firebase emulators:exec --project totimoto-rider-network --only auth,firestore,storage \"node --test tests/rules/rules.test.js\"",
     "test:location": "node --experimental-strip-types --test tests/location/formatLebaneseLocation.test.js",
-    "test:notifications": "node --experimental-strip-types --test tests/notifications/notificationSupport.test.js"
+    "test:notifications": "node --experimental-strip-types --test tests/notifications/*.test.js"
   },
   "dependencies": {
     "@react-google-maps/api": "^2.20.8",
@@ -35,6 +35,9 @@
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.59.2",
     "vite": "^8.0.12",
-    "vite-plugin-pwa": "^1.3.0"
+    "vite-plugin-pwa": "^1.3.0",
+    "workbox-core": "^7.4.1",
+    "workbox-precaching": "^7.4.1",
+    "workbox-routing": "^7.4.1"
   }
 }

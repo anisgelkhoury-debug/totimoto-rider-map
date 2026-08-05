@@ -37,6 +37,7 @@ import {
   enableNotificationsFromUserGesture,
   getOrCreateInstallationId,
 } from "./notifications/notificationSubscription"
+import { parseTrnSearchParams } from "./notifications/notificationPayload"
 
 type ReportItem = {
   id?: number
@@ -453,6 +454,64 @@ function App() {
 }
 
 }, [reports, selectedReport])
+
+  const pendingDeepLinkReportId = useRef<string | null>(
+    typeof window !== "undefined"
+      ? parseTrnSearchParams(window.location.search).reportId
+      : null
+  )
+
+  const applyDeepLinkReportId = (reportId: string | null) => {
+    if (!reportId) return false
+    const found = reports.find((r: any) => String(r.id) === String(reportId))
+    if (!found) return false
+    setSelectedReport(found)
+    try {
+      const url = new URL(window.location.href)
+      url.searchParams.delete("report")
+      url.searchParams.delete("notification")
+      window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`)
+    } catch {
+      /* ignore */
+    }
+    pendingDeepLinkReportId.current = null
+    return true
+  }
+
+  useEffect(() => {
+    const fromUrl = parseTrnSearchParams(window.location.search)
+    if (fromUrl.reportId) {
+      pendingDeepLinkReportId.current = fromUrl.reportId
+    }
+    if (pendingDeepLinkReportId.current) {
+      applyDeepLinkReportId(pendingDeepLinkReportId.current)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: re-check when reports refresh
+  }, [reports])
+
+  useEffect(() => {
+    if (!("serviceWorker" in navigator)) return
+
+    const onSwMessage = (event: MessageEvent) => {
+      const data = event.data
+      if (!data || data.type !== "TRN_NOTIFICATION_CLICK") return
+      const reportId =
+        typeof data.reportId === "string" && data.reportId.trim()
+          ? data.reportId.trim()
+          : null
+      if (!reportId) return
+      pendingDeepLinkReportId.current = reportId
+      if (!applyDeepLinkReportId(reportId)) {
+        // Report may still be loading; keep pending for reports effect.
+      }
+    }
+
+    navigator.serviceWorker.addEventListener("message", onSwMessage)
+    return () => {
+      navigator.serviceWorker.removeEventListener("message", onSwMessage)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reports])
 
   const [showReportModal, setShowReportModal] = useState(false)
  const [showDescriptionModal, setShowDescriptionModal] = useState(false) 
