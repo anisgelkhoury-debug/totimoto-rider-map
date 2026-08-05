@@ -21,6 +21,7 @@ import {
  
 } from "firebase/firestore"
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage"
+import { formatLebaneseLocationConcise, formatLebaneseLocationDetailed, parseNominatimToLocationInfo } from "./utils/formatLebaneseLocation"
 
 type ReportItem = {
   id?: number
@@ -901,6 +902,144 @@ const showBottomActionBar =
   !showStolenModal &&
   !selectedReport;
 
+/** Open Google Maps turn-by-turn navigation to report coords (no Directions API). */
+function openReportNavigation(
+  lat: unknown,
+  lng: unknown,
+  locationLabel?: string
+) {
+  if (
+    typeof lat !== "number" ||
+    typeof lng !== "number" ||
+    !Number.isFinite(lat) ||
+    !Number.isFinite(lng)
+  ) {
+    alert("موقع البلاغ غير متوفر")
+    return
+  }
+  const destination = `${lat},${lng}`
+  const url = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}&travelmode=driving`
+  // Keep coords as destination; label is for rider context only (share / UI).
+  void locationLabel
+  window.open(url, "_blank")
+}
+
+/** Reuse existing fly-to / mapTarget navigation path. */
+function centerMapOnReport(lat: unknown, lng: unknown) {
+  if (
+    typeof lat !== "number" ||
+    typeof lng !== "number" ||
+    !Number.isFinite(lat) ||
+    !Number.isFinite(lng)
+  ) {
+    alert("موقع البلاغ غير متوفر")
+    return
+  }
+  setMapTarget([lat + Math.random() * 0.000001, lng])
+  setMapZoom(15)
+}
+
+/** Share Google Maps pin link via Web Share API, or copy to clipboard. */
+async function shareReportLocation(
+  lat: unknown,
+  lng: unknown,
+  report?: { type?: string; locationName?: string; street?: string; district?: string; city?: string; area?: string }
+) {
+  if (
+    typeof lat !== "number" ||
+    typeof lng !== "number" ||
+    !Number.isFinite(lat) ||
+    !Number.isFinite(lng)
+  ) {
+    alert("موقع البلاغ غير متوفر")
+    return
+  }
+
+  const url = `https://www.google.com/maps?q=${lat},${lng}`
+  const place = formatLebaneseLocationDetailed(report || {})
+  const typeLabel = report?.type?.trim() || "بلاغ"
+  const title = `${typeLabel} — Totimoto`
+  const text = place ? `${typeLabel} • ${place}` : title
+
+  try {
+    if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+      await navigator.share({ title, text, url })
+      return
+    }
+  } catch (error: any) {
+    if (error?.name === "AbortError") return
+  }
+
+  try {
+    await navigator.clipboard.writeText(`${text}\n${url}`)
+    alert("تم نسخ رابط الموقع")
+  } catch {
+    window.prompt("انسخ رابط الموقع:", `${text}\n${url}`)
+  }
+}
+
+const riderActionBtnStyle = {
+  width: "100%",
+  padding: "10px 6px",
+  borderRadius: 12,
+  border: "none",
+  background: "#0f172a",
+  color: "white",
+  fontWeight: "bold" as const,
+  fontSize: 12,
+  cursor: "pointer",
+  lineHeight: 1.25,
+}
+
+function renderRiderActionBar(report: any) {
+  const placeLabel = formatLebaneseLocationConcise(report)
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "1fr 1fr 1fr",
+        gap: 6,
+        marginTop: 12,
+        marginBottom: 8,
+        direction: "rtl",
+        width: "100%",
+      }}
+    >
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation()
+          openReportNavigation(report.lat, report.lng, placeLabel)
+        }}
+        style={riderActionBtnStyle}
+        title={placeLabel}
+      >
+        🧭 توجيه
+      </button>
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation()
+          centerMapOnReport(report.lat, report.lng)
+        }}
+        style={riderActionBtnStyle}
+      >
+        📍 توسيط
+      </button>
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation()
+          void shareReportLocation(report.lat, report.lng, report)
+        }}
+        style={riderActionBtnStyle}
+      >
+        📤 مشاركة
+      </button>
+    </div>
+  )
+}
+
 async function getAddressFromCoords(lat: number, lng: number) {
   try {
     const response = await fetch(
@@ -908,51 +1047,7 @@ async function getAddressFromCoords(lat: number, lng: number) {
     )
 
     const data = await response.json()
-    const address = data.address || {}
-
-    const street =
-      address.road ||
-      address.street ||
-      address.pedestrian ||
-      address.footway ||
-      address.cycleway ||
-      address.highway ||
-      address.path ||
-      ""
-
-    const area =
-      address.neighbourhood ||
-      address.suburb ||
-      address.quarter ||
-      address.city_district ||
-      address.hamlet ||
-      ""
-
-    const city =
-      address.city ||
-      address.town ||
-      address.village ||
-      address.municipality ||
-      ""
-
-    const district =
-      address.county ||
-      address.state ||
-      address.region ||
-      ""
-
-    const locationName =
-      [street, area, city, district].filter(Boolean).join(" - ") ||
-      data.display_name ||
-      "موقع البلاغ"
-
-    return {
-      street,
-      area: area || city || district || locationName,
-      city,
-      district,
-      locationName
-    }
+    return parseNominatimToLocationInfo(data)
   } catch (error) {
     console.error("Reverse geocoding failed:", error)
 
@@ -1548,7 +1643,7 @@ eventHandlers={{
       <div style={{ textAlign: "right", direction: "rtl" }}>
 <b>{r.emoji} {r.type}</b>
 <br />
-📍 المنطقة: {r.area || "موقعك الحالي"}
+📍 المنطقة: {formatLebaneseLocationConcise(r)}
 <br />
 🕒 وقت البلاغ: {new Date(r.createdAt || Date.now()).toLocaleTimeString("ar-LB", {
   hour: "2-digit",
@@ -2213,7 +2308,7 @@ background: "transparent",
         direction: "rtl"
       }}
     >
-      📍 {r.locationName || `${r.area || ""}${r.street ? " - " + r.street : ""}`}
+      📍 {formatLebaneseLocationConcise(r)}
 
     </div>
   )}
@@ -2249,7 +2344,7 @@ background: "transparent",
   lineHeight: 1.1,
   marginTop: 2
 }}>
-  📍 {r.area}
+  📍 {formatLebaneseLocationConcise(r)}
 
 {r.description && (
   <div style={{ marginTop: 4, color: "#e5e7eb", fontSize: 11, lineHeight: 1.25 }}>
@@ -2977,7 +3072,7 @@ if (
       direction: "rtl",
     }}
   >
-    📍 {r.locationName || `${r.area || ""}${r.street ? " - " + r.street : ""}`}
+    📍 {formatLebaneseLocationConcise(r)}
   </div>
 )}
 
@@ -3011,9 +3106,7 @@ if (
   lineHeight: 1.1,
   marginTop: 2
 }}>
-📍 {(r as any).street
-  ? `${(r as any).street} - ${r.area}`
-  : r.area || "موقع البلاغ"}
+📍 {formatLebaneseLocationConcise(r)}
 
 {r.description && (
   <div style={{ marginTop: 4, color: "#e5e7eb", fontSize: 11, lineHeight: 1.25 }}>
@@ -4120,11 +4213,13 @@ await submitAction()
 <div>🏍️ نوع الدراجة: <b>{selectedReport.stolenBikeType || "غير محدد"}</b></div>
 <div>🎨 اللون: <b>{selectedReport.stolenBikeColor || "غير محدد"}</b></div>
 <div>🔢 رقم اللوحة: <b>{selectedReport.stolenBikePlate || "غير محدد"}</b></div>
-<div>📍 مكان السرقة: <b>{selectedReport.street || selectedReport.area || selectedReport.stolenBikePlace || "غير محدد"}</b></div>
+<div>📍 مكان السرقة: <b>{formatLebaneseLocationDetailed(selectedReport) || selectedReport.stolenBikePlace || "غير محدد"}</b></div>
 <div>🗓️ التاريخ: <b>{selectedReport.stolenBikeDate || "غير محدد"}</b></div>
 <div>⏰ الوقت: <b>{selectedReport.stolenBikeTime || "غير محدد"}</b></div>
 <div>📞 رقم التواصل: <b>{selectedReport.stolenBikePhone || "غير محدد"}</b></div>
         </div>
+
+        {renderRiderActionBar(selectedReport)}
 
         <div style={{ fontSize: 11, color: "red", marginTop: 8 }}>
  
@@ -4198,7 +4293,7 @@ await submitAction()
         </h2>
 
         <div style={{ color: "#94a3b8", marginTop: 8, fontSize: 15 }}>
-          {selectedReport.area}
+          {formatLebaneseLocationDetailed(selectedReport)}
         </div>
 
  {selectedReport.description && (
@@ -4215,6 +4310,8 @@ await submitAction()
     📝 {selectedReport.description}
   </div>
 )}   
+
+        {renderRiderActionBar(selectedReport)}
 
 {selectedReport.helperId === deviceId && selectedReport.helperComing && (
   <div
