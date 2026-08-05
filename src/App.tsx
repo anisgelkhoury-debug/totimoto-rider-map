@@ -3,7 +3,7 @@ import { MapContainer, TileLayer, Marker, Popup, useMap, Circle } from "react-le
 import "leaflet/dist/leaflet.css"
 import L from "leaflet"
 /* import { GoogleMap, LoadScript, MarkerF } from "@react-google-maps/api" */
-import { auth, db, storage, ensureAnonymousAuth, requireAuthUid } from "./firebase"
+import { auth, db, storage, ensureAnonymousAuth, requireAuthUid, getFirebaseMessagingIfSupported } from "./firebase"
 
 const useLeaflet = import.meta.env.VITE_USE_LEAFLET === "true"
 const GoogleMapView = !useLeaflet
@@ -22,6 +22,21 @@ import {
 } from "firebase/firestore"
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage"
 import { formatLebaneseLocationConcise, formatLebaneseLocationDetailed, parseNominatimToLocationInfo } from "./utils/formatLebaneseLocation"
+import { NotificationPermissionSheet } from "./notifications/NotificationPermissionSheet"
+import {
+  evaluateNotificationSupport,
+  markPromptAskedThisSession,
+  resolveSettingsNotificationState,
+  setSoftDismiss,
+  settingsStateLabelAr,
+  shouldOfferNotificationPromptAfterCreate,
+  wasPromptAskedThisSession,
+} from "./notifications/notificationSupport"
+import {
+  disableNotificationsLocally,
+  enableNotificationsFromUserGesture,
+  getOrCreateInstallationId,
+} from "./notifications/notificationSubscription"
 
 type ReportItem = {
   id?: number
@@ -348,6 +363,10 @@ function App() {
   return id
 })
 
+  useEffect(() => {
+    getOrCreateInstallationId()
+  }, [])
+
   // Silent Firebase Anonymous Auth — does not replace deviceId ownership.
   const [, setFirebaseUid] = useState<string | null>(null)
   const [authStatus, setAuthStatus] = useState<"checking" | "ready" | "error">(
@@ -477,6 +496,10 @@ const [sendingFeedback, setSendingFeedback] = useState(false)
 
 const [installPrompt, setInstallPrompt] = useState<any>(null)
 const [showInstallGuide, setShowInstallGuide] = useState(false)
+const [showNotifPrompt, setShowNotifPrompt] = useState(false)
+const [notifPromptBusy, setNotifPromptBusy] = useState(false)
+const [notifPromptError, setNotifPromptError] = useState("")
+const [notifSettingsTick, setNotifSettingsTick] = useState(0)
 
 const [fullImageUrl, setFullImageUrl] = useState<string | null>(null)
 
@@ -570,6 +593,72 @@ async function handleInstallApp() {
   }
 
   setShowInstallGuide(true)
+}
+
+function openNotificationPrompt(options?: { force?: boolean }) {
+  const support = evaluateNotificationSupport()
+  if (support.code === "ios_requires_install") {
+    setShowCommunityCenter(false)
+    setShowInstallGuide(true)
+    return
+  }
+  if (!options?.force && wasPromptAskedThisSession()) return
+  markPromptAskedThisSession()
+  setNotifPromptError("")
+  setShowNotifPrompt(true)
+}
+
+function dismissNotificationPrompt() {
+  setSoftDismiss()
+  markPromptAskedThisSession()
+  setShowNotifPrompt(false)
+  setNotifPromptError("")
+  setNotifSettingsTick((n) => n + 1)
+}
+
+async function confirmEnableNotifications() {
+  if (notifPromptBusy) return
+  setNotifPromptBusy(true)
+  setNotifPromptError("")
+  markPromptAskedThisSession()
+
+  try {
+    const support = evaluateNotificationSupport()
+    if (support.code === "ios_requires_install") {
+      setShowNotifPrompt(false)
+      setShowInstallGuide(true)
+      return
+    }
+
+    const messaging = await getFirebaseMessagingIfSupported()
+    const result = await enableNotificationsFromUserGesture({
+      messaging,
+      deviceId,
+    })
+
+    if (!result.ok) {
+      if (result.reason === "ios_requires_install") {
+        setShowNotifPrompt(false)
+        setShowInstallGuide(true)
+        return
+      }
+      setNotifPromptError(result.messageAr)
+      setNotifSettingsTick((n) => n + 1)
+      return
+    }
+
+    setShowNotifPrompt(false)
+    setNotifSettingsTick((n) => n + 1)
+    if (result.mode === "local_pending_rules") {
+      alert(
+        "تم السماح بالإشعارات على هذا الجهاز. اكتمال الربط مع الخادم سيتم في التحديث القادم."
+      )
+    } else {
+      alert("تم تفعيل الإشعارات ✅")
+    }
+  } finally {
+    setNotifPromptBusy(false)
+  }
 }
 
 async function submitFeedback() {
@@ -3626,6 +3715,13 @@ const submitAction = async () => {
     setReportDescription("")
     setShowDescriptionModal(false)
     setShowReportModal(false)
+    if (
+      shouldOfferNotificationPromptAfterCreate({
+        reportFamily: pendingReportType?.reportFamily,
+      })
+    ) {
+      openNotificationPrompt()
+    }
   }
 }
 
@@ -3944,6 +4040,105 @@ await submitAction()
     >
       <h2>⚙️ توتيموتو</h2>
 
+      {(() => {
+        void notifSettingsTick
+        const notifState = resolveSettingsNotificationState()
+        const label = settingsStateLabelAr(notifState)
+        return (
+          <div
+            style={{
+              ...communityBtnStyle,
+              textAlign: "right",
+              cursor: "default",
+              display: "block",
+              paddingTop: 14,
+              paddingBottom: 14,
+            }}
+          >
+            <div style={{ fontWeight: "bold", marginBottom: 4 }}>الإشعارات</div>
+            <div style={{ fontSize: 13, color: "#64748b", marginBottom: 10 }}>
+              الحالة: {label}
+            </div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {(notifState === "inactive" || notifState === "needs_setup") && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowCommunityCenter(false)
+                    openNotificationPrompt({ force: true })
+                  }}
+                  style={{
+                    flex: 1,
+                    minWidth: 110,
+                    padding: "10px 8px",
+                    borderRadius: 12,
+                    border: "none",
+                    background: "#0f172a",
+                    color: "white",
+                    fontWeight: "bold",
+                    fontSize: 13,
+                  }}
+                >
+                  {notifState === "needs_setup" ? "إعادة المحاولة" : "تفعيل"}
+                </button>
+              )}
+              {notifState === "needs_install" && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowCommunityCenter(false)
+                    setShowInstallGuide(true)
+                  }}
+                  style={{
+                    flex: 1,
+                    minWidth: 110,
+                    padding: "10px 8px",
+                    borderRadius: 12,
+                    border: "none",
+                    background: "#0f172a",
+                    color: "white",
+                    fontWeight: "bold",
+                    fontSize: 13,
+                  }}
+                >
+                  فتح تعليمات التثبيت
+                </button>
+              )}
+              {notifState === "active" && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    disableNotificationsLocally()
+                    setNotifSettingsTick((n) => n + 1)
+                    alert(
+                      "تم إيقاف تفضيل الإشعارات على هذا الجهاز. إلغاء الاشتراك الكامل من الخادم يأتي لاحقاً."
+                    )
+                  }}
+                  style={{
+                    flex: 1,
+                    minWidth: 110,
+                    padding: "10px 8px",
+                    borderRadius: 12,
+                    border: "none",
+                    background: "#e5e7eb",
+                    color: "#0f172a",
+                    fontWeight: "bold",
+                    fontSize: 13,
+                  }}
+                >
+                  إيقاف محلي
+                </button>
+              )}
+              {notifState === "denied" && (
+                <div style={{ fontSize: 12, color: "#b91c1c", lineHeight: 1.5 }}>
+                  فعّل الإشعارات من إعدادات المتصفح أو الجهاز ثم أعد المحاولة.
+                </div>
+              )}
+            </div>
+          </div>
+        )
+      })()}
+
       <button
   onClick={() => {
     setShowCommunityCenter(false)
@@ -4164,6 +4359,9 @@ await submitAction()
       <p>1. اضغط زر المشاركة أسفل الشاشة</p>
       <p>2. اختر <strong>Add to Home Screen</strong></p>
       <p>3. اضغط <strong>Add</strong></p>
+      <p style={{ fontSize: 13, color: "#64748b" }}>
+        الإشعارات على iPhone تعمل فقط بعد تثبيت التطبيق على الشاشة الرئيسية وفتحه منه.
+      </p>
 
       <hr />
 
@@ -4179,6 +4377,16 @@ await submitAction()
     </div>
   </div>
 )}
+
+<NotificationPermissionSheet
+  open={showNotifPrompt}
+  busy={notifPromptBusy}
+  errorAr={notifPromptError}
+  onEnable={() => {
+    void confirmEnableNotifications()
+  }}
+  onDismiss={dismissNotificationPrompt}
+/>
 
 {selectedReport && (
   <div style={{ position: "fixed", inset: 0, zIndex: 2000, background: "rgba(0,0,0,.55)", display: "flex", alignItems: "end", justifyContent: "center" }}>

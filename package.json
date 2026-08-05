@@ -9,7 +9,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test:rules": "firebase emulators:exec --project totimoto-rider-network --only auth,firestore,storage \"node --test tests/rules/rules.test.js\"",
-    "test:location": "node --experimental-strip-types --test tests/location/formatLebaneseLocation.test.js"
+    "test:location": "node --experimental-strip-types --test tests/location/formatLebaneseLocation.test.js",
+    "test:notifications": "node --experimental-strip-types --test tests/notifications/notificationSupport.test.js"
   },
   "dependencies": {
     "@react-google-maps/api": "^2.20.8",
