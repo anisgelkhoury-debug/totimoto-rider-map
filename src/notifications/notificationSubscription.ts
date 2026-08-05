@@ -17,9 +17,17 @@ import {
   setServerRegisteredFlag,
   type NotificationSupportResult,
 } from "./notificationSupport"
+import {
+  ALLOW_PRODUCTION_SUBSCRIPTION_WRITE,
+  detectBrowserLabel,
+  detectPlatform,
+} from "./subscriptionMeta"
 
-/** Flip to true only after 034C secure rules are live (or when targeting emulator). */
-export const ALLOW_PRODUCTION_SUBSCRIPTION_WRITE = false
+export {
+  ALLOW_PRODUCTION_SUBSCRIPTION_WRITE,
+  detectBrowserLabel,
+  detectPlatform,
+} from "./subscriptionMeta"
 
 export type RegisterOutcome =
   | {
@@ -59,27 +67,6 @@ export function getOrCreateInstallationId(): string {
   } catch {
     return fallbackUuid()
   }
-}
-
-export function detectPlatform(
-  support: NotificationSupportResult
-): "android" | "ios" | "desktop" | "unknown" {
-  if (support.isIos) return "ios"
-  if (typeof navigator === "undefined") return "unknown"
-  const ua = navigator.userAgent
-  if (/Android/i.test(ua)) return "android"
-  if (/Windows|Macintosh|Linux/i.test(ua)) return "desktop"
-  return "unknown"
-}
-
-export function detectBrowserLabel(): string {
-  if (typeof navigator === "undefined") return "unknown"
-  const ua = navigator.userAgent
-  if (/Edg\//i.test(ua)) return "edge"
-  if (/Chrome\//i.test(ua) && !/Edg\//i.test(ua)) return "chrome"
-  if (/Safari\//i.test(ua) && !/Chrome\//i.test(ua)) return "safari"
-  if (/Firefox\//i.test(ua)) return "firefox"
-  return "other"
 }
 
 export async function waitForServiceWorkerRegistration(
