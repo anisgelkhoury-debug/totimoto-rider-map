@@ -356,5 +356,10 @@ service cloud.firestore {
       allow update: if validSubscriptionUpdate();
       allow delete: if isSubscriptionOwner();
     }
+
+    // Trusted-backend-only idempotency ledger (Admin SDK). Clients must not access.
+    match /notificationEvents/{eventId} {
+      allow read, write: if false;
+    }
   }
 }

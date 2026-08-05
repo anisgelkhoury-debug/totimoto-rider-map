@@ -1154,3 +1154,96 @@ describe("Firestore notificationSubscriptions — negative", () => {
     )
   })
 })
+
+describe("Firestore notificationEvents — client deny", () => {
+  const eventDoc = {
+    type: "helper_accepted",
+    reportId: "r-deny-1",
+    status: "processing",
+    createdAt: Date.now(),
+  }
+
+  it("authenticated client cannot get notificationEvents document", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(
+        doc(ctx.firestore(), "notificationEvents", "evt-get"),
+        eventDoc
+      )
+    })
+    const db = testEnv.authenticatedContext("rider-a").firestore()
+    await assertFails(getDoc(doc(db, "notificationEvents", "evt-get")))
+  })
+
+  it("authenticated client cannot list notificationEvents", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(
+        doc(ctx.firestore(), "notificationEvents", "evt-list"),
+        eventDoc
+      )
+    })
+    const db = testEnv.authenticatedContext("rider-a").firestore()
+    await assertFails(getDocs(collection(db, "notificationEvents")))
+  })
+
+  it("authenticated client cannot create notificationEvents", async () => {
+    const db = testEnv.authenticatedContext("rider-a").firestore()
+    await assertFails(
+      setDoc(doc(db, "notificationEvents", "evt-create"), eventDoc)
+    )
+  })
+
+  it("authenticated client cannot update notificationEvents", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(
+        doc(ctx.firestore(), "notificationEvents", "evt-upd"),
+        eventDoc
+      )
+    })
+    const db = testEnv.authenticatedContext("rider-a").firestore()
+    await assertFails(
+      updateDoc(doc(db, "notificationEvents", "evt-upd"), { status: "sent" })
+    )
+  })
+
+  it("authenticated client cannot delete notificationEvents", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(
+        doc(ctx.firestore(), "notificationEvents", "evt-del"),
+        eventDoc
+      )
+    })
+    const db = testEnv.authenticatedContext("rider-a").firestore()
+    await assertFails(deleteDoc(doc(db, "notificationEvents", "evt-del")))
+  })
+
+  it("unauthenticated client cannot read or write notificationEvents", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(
+        doc(ctx.firestore(), "notificationEvents", "evt-anon"),
+        eventDoc
+      )
+    })
+    const db = testEnv.unauthenticatedContext().firestore()
+    await assertFails(getDoc(doc(db, "notificationEvents", "evt-anon")))
+    await assertFails(
+      setDoc(doc(db, "notificationEvents", "evt-anon-write"), eventDoc)
+    )
+    await assertFails(
+      updateDoc(doc(db, "notificationEvents", "evt-anon"), { status: "x" })
+    )
+    await assertFails(deleteDoc(doc(db, "notificationEvents", "evt-anon")))
+  })
+
+  it("Admin / withSecurityRulesDisabled may create fixture notificationEvents", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await assertSucceeds(
+        setDoc(doc(ctx.firestore(), "notificationEvents", "evt-admin"), eventDoc)
+      )
+      const snap = await getDoc(
+        doc(ctx.firestore(), "notificationEvents", "evt-admin")
+      )
+      assert.equal(snap.exists(), true)
+      assert.equal(snap.data()?.type, "helper_accepted")
+    })
+  })
+})
