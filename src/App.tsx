@@ -1432,7 +1432,29 @@ zoom={12}
     }
   >
     <div style={{ height: "100%", width: "100%" }}>
-      <GoogleMapView />
+      <GoogleMapView
+        userLocation={myLocation}
+        reports={visibleReports}
+        selectedReportId={selectedReport?.id ?? null}
+        mapTarget={mapTarget}
+        mapZoom={mapZoom}
+        onReportSelect={(r) => {
+          if (
+            r.type === "زحمة" ||
+            r.type === "حادث" ||
+            r.type === "طريق مسكر" ||
+            r.type === "طريق زلق"
+          ) {
+            return
+          }
+
+          if (r.ownerId === deviceId && !r.helperComing) {
+            return
+          }
+
+          setSelectedReport(r)
+        }}
+      />
     </div>
   </Suspense>
 ) : (
