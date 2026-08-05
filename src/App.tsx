@@ -1,9 +1,14 @@
-import { Fragment, useEffect, useState, useRef } from "react"
+import { Fragment, useEffect, useState, useRef, lazy, Suspense } from "react"
 import { MapContainer, TileLayer, Marker, Popup, useMap, Circle } from "react-leaflet"
 import "leaflet/dist/leaflet.css"
 import L from "leaflet"
 /* import { GoogleMap, LoadScript, MarkerF } from "@react-google-maps/api" */
 import { auth, db, storage, ensureAnonymousAuth, requireAuthUid } from "./firebase"
+
+const useGoogleMaps = import.meta.env.VITE_USE_GOOGLE_MAPS === "true"
+const GoogleMapView = useGoogleMaps
+  ? lazy(() => import("./components/GoogleMapView"))
+  : null
 import { onAuthStateChanged } from "firebase/auth"
 import {
   collection,
@@ -1407,6 +1412,30 @@ zoom={12}
 
 
 
+{useGoogleMaps && GoogleMapView ? (
+  <Suspense
+    fallback={
+      <div
+        style={{
+          height: "100%",
+          width: "100%",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          color: "#e2e8f0",
+          background: "#0b1220",
+          direction: "rtl",
+        }}
+      >
+        جارٍ تحميل الخريطة...
+      </div>
+    }
+  >
+    <div style={{ height: "100%", width: "100%" }}>
+      <GoogleMapView />
+    </div>
+  </Suspense>
+) : (
       <MapContainer
  center={myLocation || [33.8750, 35.5120]}
 zoom={myLocation ? 16 : 13}
@@ -1418,31 +1447,6 @@ zoom={myLocation ? 16 : 13}
         <MapZoomTracker setMapZoom={setMapZoom} />
 
         <MyLocation position={myLocation} />
-
-
-{showBottomActionBar && (
-        <button
-  onClick={() => setShowReportModal(true)}
-style={{
-  position: "fixed",
-  bottom: 10,
-  left: 15,
-  zIndex: 3000,
-  width: isIphoneSafari ? 105 : 105,
-  height: isIphoneSafari ? 38 : 42,
-  background: "#dc2626",
-  color: "white",
-  border: "none",
-  borderRadius: 999,
-  fontWeight: "bold",
-  fontSize: isIphoneSafari ? 11 : 12,
-  cursor: "pointer",
-  boxShadow: "0 8px 22px rgba(0,0,0,.35)"
-}}
->
-  🚨 تبليغ مباشر
-</button>
-)}
 
 {myLocation && (
   <Marker position={myLocation} icon={makeIcon("🔵", "#2563eb")}>
@@ -1646,6 +1650,31 @@ eventHandlers={{
 ))}
 
 </MapContainer>
+)}
+
+{showBottomActionBar && (
+        <button
+  onClick={() => setShowReportModal(true)}
+style={{
+  position: "fixed",
+  bottom: 10,
+  left: 15,
+  zIndex: 3000,
+  width: isIphoneSafari ? 105 : 105,
+  height: isIphoneSafari ? 38 : 42,
+  background: "#dc2626",
+  color: "white",
+  border: "none",
+  borderRadius: 999,
+  fontWeight: "bold",
+  fontSize: isIphoneSafari ? 11 : 12,
+  cursor: "pointer",
+  boxShadow: "0 8px 22px rgba(0,0,0,.35)"
+}}
+>
+  🚨 تبليغ مباشر
+</button>
+)}
 
 <button
   onClick={() => setShowTopInfo(!showTopInfo)}
