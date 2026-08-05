@@ -1,9 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState, Fragment, type CSSProperties } from "react"
-import { CircleF, GoogleMap, MarkerF, useJsApiLoader } from "@react-google-maps/api"
+import { CircleF, GoogleMap, MarkerF, TrafficLayer, useJsApiLoader } from "@react-google-maps/api"
 
 const DEFAULT_CENTER = { lat: 33.8938, lng: 35.5018 }
 const DEFAULT_ZOOM = 12
 const CIRCLE_MIN_ZOOM = 14
+
+type MapTypeMode = "roadmap" | "satellite" | "terrain"
+
+const MAP_TYPE_OPTIONS: { id: MapTypeMode; label: string }[] = [
+  { id: "roadmap", label: "خريطة" },
+  { id: "satellite", label: "قمر صناعي" },
+  { id: "terrain", label: "تضاريس" },
+]
 
 const mapContainerStyle: CSSProperties = {
   width: "100%",
@@ -38,6 +46,36 @@ const fallbackStyle: CSSProperties = {
   fontFamily: "Arial, sans-serif",
   fontSize: 16,
   lineHeight: 1.6,
+}
+
+/** Left stack under TRN eye toggle; away from Google zoom (right) and bottom sheet. */
+const layerControlsStyle: CSSProperties = {
+  position: "absolute",
+  top: 58,
+  left: 10,
+  zIndex: 5,
+  display: "flex",
+  flexDirection: "column",
+  gap: 6,
+  direction: "rtl",
+  maxWidth: 118,
+  pointerEvents: "auto",
+}
+
+const layerButtonBase: CSSProperties = {
+  border: "1px solid rgba(255,255,255,0.18)",
+  borderRadius: 12,
+  padding: "8px 10px",
+  fontSize: 12,
+  fontWeight: 700,
+  fontFamily: "Arial, sans-serif",
+  cursor: "pointer",
+  textAlign: "center",
+  lineHeight: 1.2,
+  boxShadow: "0 4px 14px rgba(0,0,0,0.35)",
+  WebkitTapHighlightColor: "transparent",
+  touchAction: "manipulation",
+  userSelect: "none",
 }
 
 /** Minimal report shape needed for map markers (from App visibleReports). */
@@ -154,6 +192,8 @@ function GoogleMapCanvas({
 
   const [map, setMap] = useState<google.maps.Map | null>(null)
   const [currentZoom, setCurrentZoom] = useState(DEFAULT_ZOOM)
+  const [mapTypeId, setMapTypeId] = useState<MapTypeMode>("roadmap")
+  const [trafficOn, setTrafficOn] = useState(false)
   const hasCenteredOnUser = useRef(false)
   const mapZoomRef = useRef(mapZoom)
   mapZoomRef.current = mapZoom
@@ -161,12 +201,19 @@ function GoogleMapCanvas({
   const onLoad = useCallback((nextMap: google.maps.Map) => {
     setMap(nextMap)
     setCurrentZoom(nextMap.getZoom() ?? DEFAULT_ZOOM)
+    nextMap.setMapTypeId("roadmap")
   }, [])
 
   const onUnmount = useCallback(() => {
     setMap(null)
     hasCenteredOnUser.current = false
   }, [])
+
+  // Apply map type without remounting the map instance.
+  useEffect(() => {
+    if (!map) return
+    map.setMapTypeId(mapTypeId)
+  }, [map, mapTypeId])
 
   // Track zoom for high-priority circle visibility (Leaflet: mapZoom >= 14).
   useEffect(() => {
@@ -263,102 +310,158 @@ function GoogleMapCanvas({
       ? { lat: userLocation[0], lng: userLocation[1] }
       : null
 
+  const stopMapGesture = (
+    event: { stopPropagation: () => void }
+  ) => {
+    event.stopPropagation()
+  }
+
   return (
-    <GoogleMap
-      mapContainerStyle={mapContainerStyle}
-      center={DEFAULT_CENTER}
-      zoom={DEFAULT_ZOOM}
-      options={mapOptions}
-      onLoad={onLoad}
-      onUnmount={onUnmount}
-    >
-      {warningReports.map((report, index) => {
-        const color = report.color || "#dc2626"
-        const center = { lat: report.lat as number, lng: report.lng as number }
-        const keyBase = reportMarkerKey(report, index)
-        return (
-          <Fragment key={`circles-${keyBase}`}>
-            <CircleF
-              center={center}
-              radius={40}
-              options={{
-                strokeColor: color,
-                strokeOpacity: 0.85,
-                strokeWeight: 3,
-                fillColor: color,
-                fillOpacity: 0.1,
-                clickable: false,
-                zIndex: 1,
-              }}
-            />
-            <CircleF
-              center={center}
-              radius={60}
-              options={{
-                strokeColor: color,
-                strokeOpacity: 0.7,
-                strokeWeight: 2,
-                fillColor: color,
-                fillOpacity: 0.05,
-                clickable: false,
-                zIndex: 1,
-              }}
-            />
-          </Fragment>
-        )
-      })}
+    <div style={{ position: "relative", width: "100%", height: "100%" }}>
+      <GoogleMap
+        mapContainerStyle={mapContainerStyle}
+        center={DEFAULT_CENTER}
+        zoom={DEFAULT_ZOOM}
+        options={mapOptions}
+        onLoad={onLoad}
+        onUnmount={onUnmount}
+      >
+        {trafficOn ? <TrafficLayer /> : null}
 
-      {validReports.map((report, index) => {
-        const { emoji, color } = reportVisual(report)
-        const selected =
-          selectedReportId != null &&
-          report.id != null &&
-          String(report.id) === String(selectedReportId)
-        const size = selected ? 36 : 28
-        const icon = reportIcons.get(
-          `${emoji}|${color}|${size}|${selected ? "s" : "n"}`
-        )
-        return (
+        {warningReports.map((report, index) => {
+          const color = report.color || "#dc2626"
+          const center = { lat: report.lat as number, lng: report.lng as number }
+          const keyBase = reportMarkerKey(report, index)
+          return (
+            <Fragment key={`circles-${keyBase}`}>
+              <CircleF
+                center={center}
+                radius={40}
+                options={{
+                  strokeColor: color,
+                  strokeOpacity: 0.85,
+                  strokeWeight: 3,
+                  fillColor: color,
+                  fillOpacity: 0.1,
+                  clickable: false,
+                  zIndex: 1,
+                }}
+              />
+              <CircleF
+                center={center}
+                radius={60}
+                options={{
+                  strokeColor: color,
+                  strokeOpacity: 0.7,
+                  strokeWeight: 2,
+                  fillColor: color,
+                  fillOpacity: 0.05,
+                  clickable: false,
+                  zIndex: 1,
+                }}
+              />
+            </Fragment>
+          )
+        })}
+
+        {validReports.map((report, index) => {
+          const { emoji, color } = reportVisual(report)
+          const selected =
+            selectedReportId != null &&
+            report.id != null &&
+            String(report.id) === String(selectedReportId)
+          const size = selected ? 36 : 28
+          const icon = reportIcons.get(
+            `${emoji}|${color}|${size}|${selected ? "s" : "n"}`
+          )
+          return (
+            <MarkerF
+              key={reportMarkerKey(report, index)}
+              position={{ lat: report.lat as number, lng: report.lng as number }}
+              icon={icon}
+              title={report.type || "بلاغ"}
+              zIndex={selected ? 900 : 100}
+              onClick={() => onReportSelect(report)}
+            />
+          )
+        })}
+
+        {helperReports.map((report, index) => (
           <MarkerF
-            key={reportMarkerKey(report, index)}
-            position={{ lat: report.lat as number, lng: report.lng as number }}
-            icon={icon}
-            title={report.type || "بلاغ"}
-            zIndex={selected ? 900 : 100}
-            onClick={() => onReportSelect(report)}
+            key={helperMarkerKey(report, index)}
+            position={{
+              lat: report.helperLat as number,
+              lng: report.helperLng as number,
+            }}
+            icon={helperIcon}
+            title="مساعد بالطريق"
+            zIndex={800}
+            clickable={false}
           />
-        )
-      })}
+        ))}
 
-      {helperReports.map((report, index) => (
-        <MarkerF
-          key={helperMarkerKey(report, index)}
-          position={{
-            lat: report.helperLat as number,
-            lng: report.helperLng as number,
+        {userPos && (
+          <MarkerF
+            position={userPos}
+            icon={userIcon}
+            title="موقعك الحالي"
+            zIndex={1000}
+          />
+        )}
+      </GoogleMap>
+
+      <div
+        style={layerControlsStyle}
+        onMouseDown={stopMapGesture}
+        onTouchStart={stopMapGesture}
+        onClick={stopMapGesture}
+      >
+        {MAP_TYPE_OPTIONS.map((option) => {
+          const active = mapTypeId === option.id
+          return (
+            <button
+              key={option.id}
+              type="button"
+              aria-pressed={active}
+              onClick={(event) => {
+                event.stopPropagation()
+                setMapTypeId(option.id)
+              }}
+              style={{
+                ...layerButtonBase,
+                background: active ? "#1d4ed8" : "rgba(15,23,42,0.92)",
+                color: "#f8fafc",
+              }}
+            >
+              {option.label}
+            </button>
+          )
+        })}
+
+        <button
+          type="button"
+          aria-pressed={trafficOn}
+          onClick={(event) => {
+            event.stopPropagation()
+            setTrafficOn((prev) => !prev)
           }}
-          icon={helperIcon}
-          title="مساعد بالطريق"
-          zIndex={800}
-          clickable={false}
-        />
-      ))}
-
-      {userPos && (
-        <MarkerF
-          position={userPos}
-          icon={userIcon}
-          title="موقعك الحالي"
-          zIndex={1000}
-        />
-      )}
-    </GoogleMap>
+          style={{
+            ...layerButtonBase,
+            marginTop: 2,
+            background: trafficOn ? "#b45309" : "rgba(15,23,42,0.92)",
+            color: "#f8fafc",
+          }}
+        >
+          حركة السير
+        </button>
+      </div>
+    </div>
   )
 }
 
 /**
- * Google Maps view for TRN Phase 2 — user GPS, reports, helper live marker,
- * and high-priority warning circles. Data/callbacks from App only.
+ * Google Maps view for TRN Phase 2 — markers, helper live updates,
+ * warning circles, map-type selector, and traffic toggle.
  */
 export default function GoogleMapView(props: GoogleMapViewProps) {
   const apiKey = (import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? "").trim()
