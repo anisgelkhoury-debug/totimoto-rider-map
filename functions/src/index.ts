@@ -1,15 +1,24 @@
 /**
- * TRN Cloud Functions — helper accepted → notify report owner.
- * 2nd gen Firestore trigger. No client sends. No production deploy in this task.
+ * TRN Cloud Functions — owner↔helper lifecycle notifications.
+ * 2nd gen Firestore triggers. No client sends. No production deploy in this task.
  */
 import { initializeApp } from "firebase-admin/app"
 import { FieldValue, getFirestore, type DocumentData } from "firebase-admin/firestore"
 import { getMessaging } from "firebase-admin/messaging"
-import { onDocumentUpdated } from "firebase-functions/v2/firestore"
+import {
+  onDocumentDeleted,
+  onDocumentUpdated,
+} from "firebase-functions/v2/firestore"
 import { processHelperAcceptedUpdate } from "./helperAccepted/handler"
-import type { SubscriptionDoc } from "./helperAccepted/subscriptions"
-import type { ReportSnapshot } from "./helperAccepted/transition"
+import {
+  processHelperCancelledUpdate,
+  processOwnerCancelledDelete,
+  processOwnerResolvedUpdate,
+} from "./lifecycle/handlers"
 import { safeError, safeInfo } from "./lib/safeLog"
+import type { PreferenceKey, ReportSnapshot } from "./shared/report"
+import type { LifecycleNotifyOutcome } from "./shared/processLifecycle"
+import type { SubscriptionDoc } from "./shared/subscriptions"
 
 initializeApp()
 
@@ -44,7 +53,6 @@ async function claimEventOnce(
       typeof error === "object" && error && "code" in error
         ? String((error as { code?: unknown }).code)
         : ""
-    // Firestore create conflict
     if (code === "already-exists" || code === "6") {
       return "duplicate"
     }
@@ -74,13 +82,21 @@ async function markEventComplete(
   )
 }
 
-async function listOwnerSubscriptions(ownerUid: string): Promise<SubscriptionDoc[]> {
+async function listSubscriptions(
+  recipientUid: string,
+  preferenceKey: PreferenceKey
+): Promise<SubscriptionDoc[]> {
+  const prefPath =
+    preferenceKey === "ownerLifecycle"
+      ? "notificationPreferences.ownerLifecycle"
+      : "notificationPreferences.helperLifecycle"
+
   const snap = await db
     .collection("notificationSubscriptions")
-    .where("uid", "==", ownerUid)
+    .where("uid", "==", recipientUid)
     .where("enabled", "==", true)
     .where("permissionState", "==", "granted")
-    .where("notificationPreferences.helperLifecycle", "==", true)
+    .where(prefPath, "==", true)
     .get()
 
   return snap.docs.map((doc) => {
@@ -106,7 +122,7 @@ async function sendDataMessage(
       data,
       android: {
         priority: "high",
-        collapseKey: data.tag || "trn-helper-accepted",
+        collapseKey: data.tag || "trn-lifecycle",
       },
       webpush: {
         headers: {
@@ -139,7 +155,37 @@ async function disableSubscription(subscriptionId: string): Promise<void> {
   )
 }
 
-export const onReportHelperAccepted = onDocumentUpdated(
+const sharedDeps = {
+  claimEventOnce,
+  releaseEventClaim,
+  markEventComplete,
+  listSubscriptions,
+  sendDataMessage,
+  disableSubscription,
+}
+
+function logOutcome(label: string, outcome: LifecycleNotifyOutcome): void {
+  safeInfo(label, {
+    status: outcome.status,
+    attempted: outcome.attempted,
+    success: outcome.success,
+    failed: outcome.failed,
+    disabledTokens: outcome.disabledTokens,
+    reason: outcome.reason || "",
+  })
+}
+
+function throwIfRetryable(outcome: LifecycleNotifyOutcome, message: string): void {
+  if (outcome.reason === "transient_all_failed_retryable") {
+    throw new Error(message)
+  }
+}
+
+/**
+ * Single update trigger for mutually exclusive lifecycle transitions
+ * (helper accepted / cancelled / owner resolved).
+ */
+export const onReportLifecycleUpdated = onDocumentUpdated(
   {
     document: "reports/{reportId}",
     region: "us-central1",
@@ -149,27 +195,47 @@ export const onReportHelperAccepted = onDocumentUpdated(
     const before = asReportSnapshot(event.data?.before.data())
     const after = asReportSnapshot(event.data?.after.data())
 
-    const outcome = await processHelperAcceptedUpdate(reportId, before, after, {
-      claimEventOnce,
-      releaseEventClaim,
-      markEventComplete,
-      listOwnerSubscriptions,
-      sendDataMessage,
-      disableSubscription,
-    })
+    const accepted = await processHelperAcceptedUpdate(
+      reportId,
+      before,
+      after,
+      sharedDeps
+    )
+    logOutcome("helper_accepted_outcome", accepted)
+    throwIfRetryable(accepted, "helper_accepted_transient_fcm_failure")
 
-    safeInfo("helper_accepted_outcome", {
-      status: outcome.status,
-      attempted: outcome.attempted,
-      success: outcome.success,
-      failed: outcome.failed,
-      disabledTokens: outcome.disabledTokens,
-      reason: outcome.reason || "",
-    })
+    const cancelled = await processHelperCancelledUpdate(
+      reportId,
+      before,
+      after,
+      sharedDeps
+    )
+    logOutcome("helper_cancelled_outcome", cancelled)
+    throwIfRetryable(cancelled, "helper_cancelled_transient_fcm_failure")
 
-    // Transient total failure: throw so platform may retry after claim release.
-    if (outcome.reason === "transient_all_failed_retryable") {
-      throw new Error("helper_accepted_transient_fcm_failure")
-    }
+    const resolved = await processOwnerResolvedUpdate(
+      reportId,
+      before,
+      after,
+      sharedDeps
+    )
+    logOutcome("owner_resolved_outcome", resolved)
+    throwIfRetryable(resolved, "owner_resolved_transient_fcm_failure")
+  }
+)
+
+/** Owner deleted an accepted active report → notify previous helper. */
+export const onReportOwnerCancelled = onDocumentDeleted(
+  {
+    document: "reports/{reportId}",
+    region: "us-central1",
+  },
+  async (event) => {
+    const reportId = event.params.reportId
+    const before = asReportSnapshot(event.data?.data())
+
+    const outcome = await processOwnerCancelledDelete(reportId, before, sharedDeps)
+    logOutcome("owner_cancelled_outcome", outcome)
+    throwIfRetryable(outcome, "owner_cancelled_transient_fcm_failure")
   }
 )

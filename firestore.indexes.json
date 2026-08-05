@@ -9,6 +9,16 @@
         { "fieldPath": "permissionState", "order": "ASCENDING" },
         { "fieldPath": "notificationPreferences.helperLifecycle", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "notificationSubscriptions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "uid", "order": "ASCENDING" },
+        { "fieldPath": "enabled", "order": "ASCENDING" },
+        { "fieldPath": "permissionState", "order": "ASCENDING" },
+        { "fieldPath": "notificationPreferences.ownerLifecycle", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

@@ -54,7 +54,7 @@ function mockDeps(overrides: Partial<HelperAcceptedDeps> = {}): HelperAcceptedDe
     sends,
     disabled,
     claimEventOnce: async () => "claimed",
-    listOwnerSubscriptions: async () => [
+    listSubscriptions: async () => [
       {
         id: "sub-1",
         uid: "owner-1",
@@ -78,10 +78,7 @@ function mockDeps(overrides: Partial<HelperAcceptedDeps> = {}): HelperAcceptedDe
 
 describe("helper accepted transition detection", () => {
   it("detects assistance accepted", () => {
-    assert.equal(
-      isHelperAcceptedTransition(baseBefore(), baseAfter()),
-      true
-    )
+    assert.equal(isHelperAcceptedTransition(baseBefore(), baseAfter()), true)
   })
 
   it("detects sharedRide accepted", () => {
@@ -132,7 +129,7 @@ describe("helper accepted transition detection", () => {
     assert.equal(
       isHelperAcceptedTransition(
         baseBefore(),
-        baseAfter({ ownerUid: "same", helperUid: "same" })
+        baseAfter({ helperUid: "owner-1" })
       ),
       false
     )
@@ -183,7 +180,7 @@ describe("helper accepted orchestration", () => {
 
   it("ignores preference off / no subscriptions", async () => {
     const deps = mockDeps({
-      listOwnerSubscriptions: async () => [],
+      listSubscriptions: async () => [],
     })
     const outcome = await processHelperAcceptedUpdate(
       "r1",
@@ -196,7 +193,7 @@ describe("helper accepted orchestration", () => {
 
   it("selects multiple subscriptions", async () => {
     const deps = mockDeps({
-      listOwnerSubscriptions: async () => [
+      listSubscriptions: async () => [
         {
           id: "a",
           uid: "owner-1",
@@ -309,7 +306,10 @@ describe("helper accepted orchestration", () => {
       "https://app.totimoto.com/?report=rep-9&notification=helper_accepted"
     )
     assert.equal(payload.tag, "trn-helper-accepted-rep-9")
-    assert.equal(payloadContainsForbiddenKeys(payload as unknown as Record<string, unknown>), false)
+    assert.equal(
+      payloadContainsForbiddenKeys(payload as unknown as Record<string, unknown>),
+      false
+    )
     assert.equal(
       payloadContainsForbiddenKeys({ ...payload, phone: "03123456" }),
       true

@@ -3,6 +3,8 @@
  * No UIDs, tokens, phones, names, or coordinates.
  */
 
+export { payloadContainsForbiddenKeys } from "../shared/payloadSafety"
+
 export type HelperAcceptedDataPayload = {
   title: string
   body: string
@@ -35,26 +37,4 @@ export function buildHelperAcceptedPayload(
     tag: `trn-helper-accepted-${safeReportId}`,
     createdAt: String(createdAtMs),
   }
-}
-
-/** Reject payloads that accidentally include PII-like keys. */
-export function payloadContainsForbiddenKeys(
-  payload: Record<string, unknown>
-): boolean {
-  const forbidden = [
-    "uid",
-    "ownerUid",
-    "helperUid",
-    "token",
-    "phone",
-    "ownerPhone",
-    "helperPhone",
-    "ownerName",
-    "helperName",
-    "lat",
-    "lng",
-    "helperLat",
-    "helperLng",
-  ]
-  return Object.keys(payload).some((key) => forbidden.includes(key))
 }

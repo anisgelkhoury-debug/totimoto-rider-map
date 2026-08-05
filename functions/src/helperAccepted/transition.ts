@@ -1,40 +1,23 @@
 /**
  * Report snapshot fields used by helper-accepted notifications.
- * Keep this free of Admin/Firestore SDK imports for unit testing.
+ * Re-exports shared helpers; keeps helper-accepted-specific transition logic here.
  */
 
-export type ReportFamily =
-  | "assistance"
-  | "sharedRide"
-  | "intelligence"
-  | "stolen"
-  | string
+export type { ReportSnapshot } from "../shared/report"
+export {
+  asNonEmptyString,
+  isTruthyComing,
+  isResolved,
+  isNotifiableReportFamily,
+} from "../shared/report"
 
-export type ReportSnapshot = {
-  ownerUid?: unknown
-  helperUid?: unknown
-  helperComing?: unknown
-  helperAcceptedAt?: unknown
-  resolved?: unknown
-  reportFamily?: unknown
-}
-
-export function asNonEmptyString(value: unknown): string {
-  if (typeof value !== "string") return ""
-  return value.trim()
-}
-
-export function isTruthyComing(value: unknown): boolean {
-  return value === true
-}
-
-export function isResolved(value: unknown): boolean {
-  return value === true
-}
-
-export function isNotifiableReportFamily(family: unknown): boolean {
-  return family === "assistance" || family === "sharedRide"
-}
+import {
+  asNonEmptyString,
+  isNotifiableReportFamily,
+  isResolved,
+  isTruthyComing,
+  type ReportSnapshot,
+} from "../shared/report"
 
 /**
  * True only for unclaimed → claimed helper-accept transitions.
