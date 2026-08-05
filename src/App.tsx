@@ -901,6 +901,132 @@ const showBottomActionBar =
   !showStolenModal &&
   !selectedReport;
 
+/** Open Google Maps turn-by-turn navigation to report coords (no Directions API). */
+function openReportNavigation(lat: unknown, lng: unknown) {
+  if (
+    typeof lat !== "number" ||
+    typeof lng !== "number" ||
+    !Number.isFinite(lat) ||
+    !Number.isFinite(lng)
+  ) {
+    alert("موقع البلاغ غير متوفر")
+    return
+  }
+  const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`
+  window.open(url, "_blank")
+}
+
+/** Reuse existing fly-to / mapTarget navigation path. */
+function centerMapOnReport(lat: unknown, lng: unknown) {
+  if (
+    typeof lat !== "number" ||
+    typeof lng !== "number" ||
+    !Number.isFinite(lat) ||
+    !Number.isFinite(lng)
+  ) {
+    alert("موقع البلاغ غير متوفر")
+    return
+  }
+  setMapTarget([lat + Math.random() * 0.000001, lng])
+  setMapZoom(15)
+}
+
+/** Share Google Maps pin link via Web Share API, or copy to clipboard. */
+async function shareReportLocation(
+  lat: unknown,
+  lng: unknown,
+  label?: string
+) {
+  if (
+    typeof lat !== "number" ||
+    typeof lng !== "number" ||
+    !Number.isFinite(lat) ||
+    !Number.isFinite(lng)
+  ) {
+    alert("موقع البلاغ غير متوفر")
+    return
+  }
+
+  const url = `https://www.google.com/maps?q=${lat},${lng}`
+  const title = label?.trim() || "موقع البلاغ — Totimoto"
+
+  try {
+    if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+      await navigator.share({ title, text: title, url })
+      return
+    }
+  } catch (error: any) {
+    if (error?.name === "AbortError") return
+  }
+
+  try {
+    await navigator.clipboard.writeText(url)
+    alert("تم نسخ رابط الموقع")
+  } catch {
+    window.prompt("انسخ رابط الموقع:", url)
+  }
+}
+
+const riderActionBtnStyle = {
+  width: "100%",
+  padding: "10px 6px",
+  borderRadius: 12,
+  border: "none",
+  background: "#0f172a",
+  color: "white",
+  fontWeight: "bold" as const,
+  fontSize: 12,
+  cursor: "pointer",
+  lineHeight: 1.25,
+}
+
+function renderRiderActionBar(report: any) {
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "1fr 1fr 1fr",
+        gap: 6,
+        marginTop: 12,
+        marginBottom: 8,
+        direction: "rtl",
+        width: "100%",
+      }}
+    >
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation()
+          openReportNavigation(report.lat, report.lng)
+        }}
+        style={riderActionBtnStyle}
+      >
+        🧭 توجيه
+      </button>
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation()
+          centerMapOnReport(report.lat, report.lng)
+        }}
+        style={riderActionBtnStyle}
+      >
+        📍 توسيط
+      </button>
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation()
+          void shareReportLocation(report.lat, report.lng, report.type)
+        }}
+        style={riderActionBtnStyle}
+      >
+        📤 مشاركة
+      </button>
+    </div>
+  )
+}
+
 async function getAddressFromCoords(lat: number, lng: number) {
   try {
     const response = await fetch(
@@ -4126,6 +4252,8 @@ await submitAction()
 <div>📞 رقم التواصل: <b>{selectedReport.stolenBikePhone || "غير محدد"}</b></div>
         </div>
 
+        {renderRiderActionBar(selectedReport)}
+
         <div style={{ fontSize: 11, color: "red", marginTop: 8 }}>
  
 </div>
@@ -4215,6 +4343,8 @@ await submitAction()
     📝 {selectedReport.description}
   </div>
 )}   
+
+        {renderRiderActionBar(selectedReport)}
 
 {selectedReport.helperId === deviceId && selectedReport.helperComing && (
   <div
