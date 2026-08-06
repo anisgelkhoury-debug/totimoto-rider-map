@@ -6,6 +6,11 @@ import {
   formatDistanceKm,
   reportsMapFingerprint,
 } from "./utils/reportsRenderStability"
+import {
+  isReportExpired,
+  normalizeLiveReports,
+  reportRenderKey,
+} from "./utils/reportSnapshot"
 import { reportAgeColor, timeAgo } from "./utils/reportTimeLabels"
 
 const GoogleMapView = lazy(() => import("./components/GoogleMapView"))
@@ -274,10 +279,20 @@ function App() {
     const unsubscribe = onSnapshot(
       collection(db, "reports"),
       (snapshot) => {
-        const liveReports: any = snapshot.docs.map((docSnap) => ({
-          ...docSnap.data(),
-          id: docSnap.id,
-        }))
+        const liveReports: any = normalizeLiveReports(snapshot.docs)
+        if (import.meta.env.DEV) {
+          for (const r of liveReports) {
+            console.info("[TRN Report identity]", {
+              id: String(r.id ?? ""),
+              surface: "snapshot",
+              type: r.type ?? "",
+              label: r.label ?? "",
+              reportFamily: r.reportFamily ?? "",
+              createdAt: r.createdAt ?? null,
+              key: reportRenderKey(r),
+            })
+          }
+        }
         setReports((prev: any) => {
           if (reportsMapFingerprint(prev) === reportsMapFingerprint(liveReports)) {
             return prev
@@ -1114,12 +1129,9 @@ helperComing: false,
   useEffect(() => {
   const interval = setInterval(() => {
     setReports((currentReports: any) => {
-      const next = currentReports.filter((report: any) => {
-        const minutesPassed =
-          (Date.now() - report.createdAt) / 1000 / 60
-
-        return minutesPassed < report.expiry
-      })
+      const next = currentReports.filter(
+        (report: any) => !isReportExpired(report)
+      )
       return next.length === currentReports.length ? currentReports : next
     })
   }, 30000)
@@ -1326,6 +1338,7 @@ setReportImage(null)
 setReportImagePreview("")
 setShowReportModal(false)
 setReportDescription("")
+setPendingReportType(null)
 return true
 } catch (error: any) {
   if (import.meta.env.DEV) {
@@ -1880,7 +1893,7 @@ style={{
 
 
 <div
-  key={r.id || `${r.type}-${r.lat}-${r.lng}-${r.createdAt}`}
+  key={reportRenderKey(r, index)}
 
 onClick={() => {
   setSelectedReport(r)
