@@ -24,7 +24,7 @@ import {
   updateDoc,
   deleteDoc,
   deleteField,
- 
+
 } from "firebase/firestore"
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage"
 import { formatLebaneseLocationConcise, formatLebaneseLocationDetailed, parseNominatimToLocationInfo } from "./utils/formatLebaneseLocation"
@@ -46,6 +46,7 @@ import {
   filterAndSortReports,
 } from "./utils/reportListQuery"
 import { capMapReports } from "./utils/capMapReports"
+import { resolveCreateLocation } from "./utils/resolveCreateLocation"
 
 type ReportItem = {
   id?: string | number
@@ -186,7 +187,7 @@ const reportTypes = [
   {label: "محتاج دفشة", emoji: "🛵", color: "#16a34a", expiry: 30, priority: "medium", reportFamily: "assistance", reportCategory: "push" },
   { label: "ما معي بنزين", emoji: "⛽", color: "#eab308", expiry: 30, priority: "medium", reportFamily: "assistance", reportCategory: "fuel" },
   { label: "وصلني معك", emoji: "🤝", color: "#db2777", expiry: 10, priority: "medium", reportFamily: "sharedRide", reportCategory: "ride" },
-] 
+]
 
 /** Haversine km between [lat,lng] pairs. */
 function calculateDistance(from: any, to: any) {
@@ -377,7 +378,7 @@ function App() {
   }, [])
 
   const [showReportModal, setShowReportModal] = useState(false)
- const [showDescriptionModal, setShowDescriptionModal] = useState(false) 
+ const [showDescriptionModal, setShowDescriptionModal] = useState(false)
 const [mapZoom, setMapZoom] = useState(12)
   const [mapTarget, setMapTarget] = useState<any>(null)
   const [showStolenModal, setShowStolenModal] = useState(false)
@@ -621,7 +622,7 @@ async function submitStolenBikeReport() {
   setIsSubmittingStolenBike(true)
 
   try {
- ;(document.activeElement as HTMLElement)?.blur()   
+ ;(document.activeElement as HTMLElement)?.blur()
 
 let ownerUid: string
 try {
@@ -632,8 +633,12 @@ try {
   return
 }
 
-const reportLat = 33.8938
-const reportLng = 35.5018
+const located = await resolveCreateLocation({ existing: myLocation })
+if (located.coords) {
+  setMyLocation(located.coords)
+}
+const reportLat = located.coords ? located.coords[0] : 33.8938
+const reportLng = located.coords ? located.coords[1] : 35.5018
 
 const locationInfo = await getAddressFromCoords(reportLat, reportLng)
 
@@ -725,7 +730,7 @@ catch (error: any) {
   setIsSubmittingStolenBike(false)
 }
 }
-  
+
 async function helperRespond(report: any) {
 
 
@@ -766,7 +771,7 @@ helperAcceptedAt: Date.now()
   helperLat: myLocation ? myLocation[0] : null,
   helperLng: myLocation ? myLocation[1] : null
 })
-   
+
   } catch (error) {
     console.error(error)
     alert("❌ فشل تحديث المساعدة")
@@ -840,7 +845,7 @@ setSelectedReport({
   helperAcceptedAt: null,
 })
 
-  
+
   } catch (error) {
     console.error(error)
     alert("❌ فشل إلغاء المساعدة")
@@ -1055,7 +1060,7 @@ async function getAddressFromCoords(lat: number, lng: number) {
 
 
 async function addReport(type: any) {
- 
+
 
 if (type.label.includes("مسروقة")) {
   setShowReportModal(false)
@@ -1269,8 +1274,12 @@ try {
   return false
 }
 
-const lat = myLocation ? myLocation[0] : 33.8938
-const lng = myLocation ? myLocation[1] : 35.5018
+const located = await resolveCreateLocation({ existing: myLocation })
+if (located.coords) {
+  setMyLocation(located.coords)
+}
+const lat = located.coords ? located.coords[0] : 33.8938
+const lng = located.coords ? located.coords[1] : 35.5018
 const locationInfo = await getAddressFromCoords(lat, lng)
 
 let reportImageUrl = ""
@@ -1387,8 +1396,9 @@ const mapReports = useMemo(
       cap: MAP_MARKER_CAP,
       deviceId,
       selectedId: selectedReport?.id,
+      userLocation: myLocation,
     }),
-  [visibleReports, deviceId, selectedReport?.id]
+  [visibleReports, deviceId, selectedReport?.id, myLocation]
 )
 
 const handleGoogleReportSelect = useCallback(
@@ -1736,7 +1746,7 @@ transition: "all .2s ease",
         fontWeight: "bold",
         fontSize: 10,
         height: 38,
-        
+
       }}
     >
 <div
@@ -1882,7 +1892,7 @@ transition: "all .2s ease",
 
     {/* Reports List */}
     {/* TEMP NEW REPORT CARDS - WILL BE REPLACED BY OLD WORKING ENGINE */}
-    
+
     <div
 style={{
   maxHeight: "calc(100vh - 240px)",
@@ -1905,7 +1915,7 @@ onClick={() => {
   setSelectedReport(r)
   setMapTarget([r.lat, r.lng])
   setShowReportsPage(false)
-}} 
+}}
 
   style={{
     background: "#111827",
@@ -2128,7 +2138,7 @@ background: "transparent",
     style={{
 background: "#22c55e",
 color: "white",
-border: "none",      
+border: "none",
 width: "auto",
 minWidth: 110,
 borderRadius: 10,
@@ -2231,7 +2241,7 @@ onClick={(e) => {
   )
 }}
 
-          
+
           style={{
             width: "100%",
             background: "#16a34a",
@@ -2270,7 +2280,7 @@ onClick={(e) => {
 )}
 
 
-     </div>     
+     </div>
      ))}
      </div>
      </div>
@@ -2297,7 +2307,7 @@ height: isIphoneSafari ? 38 : 42,
   border: "none",
   borderRadius: 999,
   fontWeight: "bold",
- fontSize: isIphoneSafari ? 11 : 12, 
+ fontSize: isIphoneSafari ? 11 : 12,
   cursor: "pointer",
   boxShadow: "0 8px 22px rgba(0,0,0,.35)"
 }}
@@ -2336,7 +2346,7 @@ display: window.innerWidth <= 600 ? "block" : "none",
     return
   }
 
-  
+
 if (btn.reportFamily === "assistance" || btn.reportFamily === "sharedRide") {
   ensureContactInfo(() => {
     setPendingReportType(btn)
@@ -2413,14 +2423,14 @@ setShowMobileDashboard(false)
   >
     👁️ إظهار الأدوات
   </button>
-)}    
+)}
 
 {showReportModal && (
   <div style={{ position: "fixed", inset: 0, zIndex: 2500, background: "rgba(0,0,0,0.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
     <div style={{ background: "white", width: "100%", maxWidth: 420, maxHeight: "80vh", overflowY: "auto", borderRadius: 28, padding: 24, textAlign: "center", direction: "rtl" }}>
       <h2 style={{ marginTop: 0 }}>شو بدك تبلّغ؟</h2>
 
-  
+
 
 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 18 }}>
   {reportTypes.map((type) => (
@@ -2598,7 +2608,7 @@ if (
 }
 
 await submitAction()
- 
+
   }}
   disabled={isSubmittingReport}
   style={{
@@ -3297,7 +3307,7 @@ await submitAction()
         {renderRiderActionBar(selectedReport)}
 
         <div style={{ fontSize: 11, color: "red", marginTop: 8 }}>
- 
+
 </div>
 
         {selectedReport.stolenBikePhone && (
@@ -3384,7 +3394,7 @@ await submitAction()
   }}>
     📝 {selectedReport.description}
   </div>
-)}   
+)}
 
         {renderRiderActionBar(selectedReport)}
 
@@ -3491,7 +3501,7 @@ onClick={() => {
   >
     ✅ تم الحل
   </button>
-)}   
+)}
 
 {selectedReport.type?.includes("مسروقة") &&
  selectedReport.ownerId === deviceId && (
