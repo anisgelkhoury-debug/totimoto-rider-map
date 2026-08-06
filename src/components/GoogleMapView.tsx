@@ -126,7 +126,7 @@ function isValidLatLng(lat: unknown, lng: unknown): lat is number {
   )
 }
 
-/** Mirrors Leaflet makeIcon color/emoji choices for report markers. */
+/** Marker color/emoji choices for report markers. */
 function reportVisual(report: GoogleMapReport): { emoji: string; color: string } {
   const stolen = report.type?.includes("مسروقة")
   if (stolen) return { emoji: "🚨", color: "#dc2626" }
@@ -215,7 +215,7 @@ function GoogleMapCanvas({
     map.setMapTypeId(mapTypeId)
   }, [map, mapTypeId])
 
-  // Track zoom for high-priority circle visibility (Leaflet: mapZoom >= 14).
+  // Track zoom for high-priority circle visibility (show when zoom >= 14).
   // Only commit React state when the integer zoom changes to avoid pinch thrash.
   useEffect(() => {
     if (!map) return
@@ -256,7 +256,7 @@ function GoogleMapCanvas({
     map.setZoom(typeof zoom === "number" && zoom > 0 ? zoom : 15)
   }, [map, mapTarget])
 
-  // First GPS fix — match Leaflet MyLocation one-shot fly.
+  // First GPS fix — one-shot pan/zoom to user location.
   useEffect(() => {
     if (!map || !userLocation || hasCenteredOnUser.current) return
     const [lat, lng] = userLocation

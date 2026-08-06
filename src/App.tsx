@@ -6,15 +6,14 @@ import {
   formatDistanceKm,
   reportsMapFingerprint,
 } from "./utils/reportsRenderStability"
+import {
+  isReportExpired,
+  normalizeLiveReports,
+  reportRenderKey,
+} from "./utils/reportSnapshot"
 import { reportAgeColor, timeAgo } from "./utils/reportTimeLabels"
 
-const useLeaflet = import.meta.env.VITE_USE_LEAFLET === "true"
-const GoogleMapView = !useLeaflet
-  ? lazy(() => import("./components/GoogleMapView"))
-  : null
-const LeafletMapView = useLeaflet
-  ? lazy(() => import("./components/LeafletMapView"))
-  : null
+const GoogleMapView = lazy(() => import("./components/GoogleMapView"))
 import { onAuthStateChanged } from "firebase/auth"
 import {
   collection,
@@ -280,10 +279,20 @@ function App() {
     const unsubscribe = onSnapshot(
       collection(db, "reports"),
       (snapshot) => {
-        const liveReports: any = snapshot.docs.map((docSnap) => ({
-          ...docSnap.data(),
-          id: docSnap.id,
-        }))
+        const liveReports: any = normalizeLiveReports(snapshot.docs)
+        if (import.meta.env.DEV) {
+          for (const r of liveReports) {
+            console.info("[TRN Report identity]", {
+              id: String(r.id ?? ""),
+              surface: "snapshot",
+              type: r.type ?? "",
+              label: r.label ?? "",
+              reportFamily: r.reportFamily ?? "",
+              createdAt: r.createdAt ?? null,
+              key: reportRenderKey(r),
+            })
+          }
+        }
         setReports((prev: any) => {
           if (reportsMapFingerprint(prev) === reportsMapFingerprint(liveReports)) {
             return prev
@@ -1120,12 +1129,9 @@ helperComing: false,
   useEffect(() => {
   const interval = setInterval(() => {
     setReports((currentReports: any) => {
-      const next = currentReports.filter((report: any) => {
-        const minutesPassed =
-          (Date.now() - report.createdAt) / 1000 / 60
-
-        return minutesPassed < report.expiry
-      })
+      const next = currentReports.filter(
+        (report: any) => !isReportExpired(report)
+      )
       return next.length === currentReports.length ? currentReports : next
     })
   }, 30000)
@@ -1332,6 +1338,7 @@ setReportImage(null)
 setReportImagePreview("")
 setShowReportModal(false)
 setReportDescription("")
+setPendingReportType(null)
 return true
 } catch (error: any) {
   if (import.meta.env.DEV) {
@@ -1515,43 +1522,20 @@ const handleGoogleReportSelect = useCallback(
     </div>
   )
 
-  if (!useLeaflet && GoogleMapView) {
-    return (
-      <Suspense fallback={mapFallback}>
-        <div style={{ height: "100%", width: "100%" }}>
-          <GoogleMapView
-            userLocation={myLocation}
-            reports={mapReports}
-            selectedReportId={selectedReport?.id ?? null}
-            mapTarget={mapTarget}
-            mapZoom={mapZoom}
-            onReportSelect={handleGoogleReportSelect}
-          />
-        </div>
-      </Suspense>
-    )
-  }
-
-  if (useLeaflet && LeafletMapView) {
-    return (
-      <Suspense fallback={mapFallback}>
-        <div style={{ height: "100%", width: "100%" }}>
-          <LeafletMapView
-            userLocation={myLocation}
-            reports={mapReports}
-            mapTarget={mapTarget}
-            mapZoom={mapZoom}
-            deviceId={deviceId}
-            onReportSelect={handleGoogleReportSelect}
-            onMapZoomChange={setMapZoom}
-            canReceiveHelp={canReceiveHelp}
-          />
-        </div>
-      </Suspense>
-    )
-  }
-
-  return mapFallback
+  return (
+    <Suspense fallback={mapFallback}>
+      <div style={{ height: "100%", width: "100%" }}>
+        <GoogleMapView
+          userLocation={myLocation}
+          reports={mapReports}
+          selectedReportId={selectedReport?.id ?? null}
+          mapTarget={mapTarget}
+          mapZoom={mapZoom}
+          onReportSelect={handleGoogleReportSelect}
+        />
+      </div>
+    </Suspense>
+  )
 })()}
 
 {showBottomActionBar && (
@@ -1909,7 +1893,7 @@ style={{
 
 
 <div
-  key={r.id || `${r.type}-${r.lat}-${r.lng}-${r.createdAt}`}
+  key={reportRenderKey(r, index)}
 
 onClick={() => {
   setSelectedReport(r)
