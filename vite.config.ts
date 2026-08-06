@@ -9,9 +9,6 @@ export default defineConfig({
         manualChunks(id) {
           if (id.includes("node_modules/firebase")) return "firebase"
           if (id.includes("node_modules/@firebase")) return "firebase"
-          if (id.includes("node_modules/leaflet") || id.includes("node_modules/react-leaflet")) {
-            return "leaflet"
-          }
           if (id.includes("node_modules/@react-google-maps")) return "google-maps"
         },
       },

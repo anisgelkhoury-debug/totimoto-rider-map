@@ -8,13 +8,7 @@ import {
 } from "./utils/reportsRenderStability"
 import { reportAgeColor, timeAgo } from "./utils/reportTimeLabels"
 
-const useLeaflet = import.meta.env.VITE_USE_LEAFLET === "true"
-const GoogleMapView = !useLeaflet
-  ? lazy(() => import("./components/GoogleMapView"))
-  : null
-const LeafletMapView = useLeaflet
-  ? lazy(() => import("./components/LeafletMapView"))
-  : null
+const GoogleMapView = lazy(() => import("./components/GoogleMapView"))
 import { onAuthStateChanged } from "firebase/auth"
 import {
   collection,
@@ -1515,43 +1509,20 @@ const handleGoogleReportSelect = useCallback(
     </div>
   )
 
-  if (!useLeaflet && GoogleMapView) {
-    return (
-      <Suspense fallback={mapFallback}>
-        <div style={{ height: "100%", width: "100%" }}>
-          <GoogleMapView
-            userLocation={myLocation}
-            reports={mapReports}
-            selectedReportId={selectedReport?.id ?? null}
-            mapTarget={mapTarget}
-            mapZoom={mapZoom}
-            onReportSelect={handleGoogleReportSelect}
-          />
-        </div>
-      </Suspense>
-    )
-  }
-
-  if (useLeaflet && LeafletMapView) {
-    return (
-      <Suspense fallback={mapFallback}>
-        <div style={{ height: "100%", width: "100%" }}>
-          <LeafletMapView
-            userLocation={myLocation}
-            reports={mapReports}
-            mapTarget={mapTarget}
-            mapZoom={mapZoom}
-            deviceId={deviceId}
-            onReportSelect={handleGoogleReportSelect}
-            onMapZoomChange={setMapZoom}
-            canReceiveHelp={canReceiveHelp}
-          />
-        </div>
-      </Suspense>
-    )
-  }
-
-  return mapFallback
+  return (
+    <Suspense fallback={mapFallback}>
+      <div style={{ height: "100%", width: "100%" }}>
+        <GoogleMapView
+          userLocation={myLocation}
+          reports={mapReports}
+          selectedReportId={selectedReport?.id ?? null}
+          mapTarget={mapTarget}
+          mapZoom={mapZoom}
+          onReportSelect={handleGoogleReportSelect}
+        />
+      </div>
+    </Suspense>
+  )
 })()}
 
 {showBottomActionBar && (
