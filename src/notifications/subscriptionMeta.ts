@@ -6,7 +6,7 @@
 import type { NotificationSupportResult } from "./notificationSupport"
 
 /** Flip to true only after secure rules are live (or when targeting emulator). */
-export const ALLOW_PRODUCTION_SUBSCRIPTION_WRITE = false
+export const ALLOW_PRODUCTION_SUBSCRIPTION_WRITE = true
 
 export function detectPlatform(
   support: NotificationSupportResult

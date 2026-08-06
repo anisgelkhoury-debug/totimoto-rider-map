@@ -21,8 +21,8 @@ const supportedBase = {
 }
 
 describe("notification subscription guardrails", () => {
-  it("keeps production subscription writes disabled", () => {
-    assert.equal(ALLOW_PRODUCTION_SUBSCRIPTION_WRITE, false)
+  it("allows production subscription writes when enabled", () => {
+    assert.equal(ALLOW_PRODUCTION_SUBSCRIPTION_WRITE, true)
   })
 
   it("detectPlatform: ios from support flag", () => {
