@@ -20,6 +20,9 @@ import PrimaryActionSheet, {
   type ActionReportType,
 } from "./components/mapChrome/PrimaryActionSheet"
 import LayersSheet from "./components/mapChrome/LayersSheet"
+import WeatherChip from "./components/mapChrome/WeatherChip"
+import RiderConditionsSheet from "./components/mapChrome/RiderConditionsSheet"
+import { useRiderWeather } from "./weather/useRiderWeather"
 import { onAuthStateChanged } from "firebase/auth"
 import {
   collection,
@@ -410,6 +413,7 @@ function App() {
   const [showStolenModal, setShowStolenModal] = useState(false)
   const [showReportsPage, setShowReportsPage] = useState(false)
   const [showLayersSheet, setShowLayersSheet] = useState(false)
+  const [showWeatherSheet, setShowWeatherSheet] = useState(false)
   const [mapTypeId, setMapTypeId] = useState<MapTypeMode>("roadmap")
   const [trafficOn, setTrafficOn] = useState(false)
   const [reportsSearch, setReportsSearch] = useState("")
@@ -917,6 +921,7 @@ const showMapChrome =
   !showReportsPage &&
   !showReportModal &&
   !showLayersSheet &&
+  !showWeatherSheet &&
   !showStolenModal &&
   !showDescriptionModal &&
   !showContactModal &&
@@ -1178,6 +1183,12 @@ helperComing: false,
 }
 
   const [myLocation, setMyLocation] = useState<[number, number] | null>(null)
+  const {
+    weather: riderWeather,
+    errorMessage: weatherErrorMessage,
+    refresh: refreshRiderWeather,
+    status: weatherStatus,
+  } = useRiderWeather(myLocation)
 
   const isActivelyHelping = useMemo(
     () =>
@@ -1616,6 +1627,12 @@ const handleGoogleReportSelect = useCallback(
   onOpenSettings={() => setShowCommunityCenter(true)}
 />
 
+<WeatherChip
+  visible={showMapChrome}
+  weather={riderWeather}
+  onOpen={() => setShowWeatherSheet(true)}
+/>
+
 <LayersSheet
   open={showLayersSheet}
   mapTypeId={mapTypeId}
@@ -1623,6 +1640,15 @@ const handleGoogleReportSelect = useCallback(
   onMapTypeIdChange={setMapTypeId}
   onTrafficOnChange={setTrafficOn}
   onClose={() => setShowLayersSheet(false)}
+/>
+
+<RiderConditionsSheet
+  open={showWeatherSheet}
+  weather={riderWeather}
+  errorMessage={weatherErrorMessage}
+  refreshing={weatherStatus === "loading"}
+  onRefresh={refreshRiderWeather}
+  onClose={() => setShowWeatherSheet(false)}
 />
 
 <PrimaryActionSheet
