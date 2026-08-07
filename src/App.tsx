@@ -23,6 +23,7 @@ import LayersSheet from "./components/mapChrome/LayersSheet"
 import WeatherChip from "./components/mapChrome/WeatherChip"
 import RiderConditionsSheet from "./components/mapChrome/RiderConditionsSheet"
 import MarketplaceBridgeSheet from "./components/mapChrome/MarketplaceBridgeSheet"
+import ReportConfirmationPanel from "./components/mapChrome/ReportConfirmationPanel"
 import { useRiderWeather } from "./weather/useRiderWeather"
 import { onAuthStateChanged } from "firebase/auth"
 import {
@@ -247,7 +248,7 @@ function App() {
   }, [])
 
   // Silent Firebase Anonymous Auth — does not replace deviceId ownership.
-  const [, setFirebaseUid] = useState<string | null>(null)
+  const [firebaseUid, setFirebaseUid] = useState<string | null>(null)
   const [authStatus, setAuthStatus] = useState<"checking" | "ready" | "error">(
     "checking"
   )
@@ -3220,12 +3221,32 @@ await submitAction()
 
         {isRoadIntelligenceReport(selectedReport) ||
         isIncidentReport(selectedReport) ? (
-          <div style={{ color: "#64748b", marginTop: 6, fontSize: 13, fontWeight: 600 }}>
-            بلاغ من دراج
-            {usesApproximateIncidentArea(selectedReport)
-              ? " · الموقع تقريبي"
-              : ""}
-          </div>
+          <>
+            {usesApproximateIncidentArea(selectedReport) ? (
+              <div
+                style={{
+                  color: "#94a3b8",
+                  marginTop: 6,
+                  fontSize: 12,
+                  fontWeight: 600,
+                }}
+              >
+                الموقع تقريبي
+              </div>
+            ) : null}
+            {selectedReport.id ? (
+              <ReportConfirmationPanel
+                key={String(selectedReport.id)}
+                db={db}
+                report={{
+                  ...selectedReport,
+                  id: String(selectedReport.id),
+                }}
+                currentUid={firebaseUid}
+                authReady={authStatus === "ready"}
+              />
+            ) : null}
+          </>
         ) : null}
 
         <div style={{ color: "#94a3b8", marginTop: 8, fontSize: 15 }}>

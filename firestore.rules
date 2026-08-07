@@ -176,6 +176,46 @@ service cloud.firestore {
             ]);
     }
 
+    function confirmationReportPath(reportId) {
+      return /databases/$(database)/documents/reports/$(reportId);
+    }
+
+    function confirmationNotByReportOwner(reportId) {
+      let report = get(confirmationReportPath(reportId)).data;
+      return !('ownerUid' in report)
+        || !(report.ownerUid is string)
+        || report.ownerUid.size() == 0
+        || report.ownerUid != request.auth.uid;
+    }
+
+    function validConfirmationShape(data) {
+      return data.keys().hasOnly(['status', 'createdAt', 'updatedAt'])
+        && data.status in ['present', 'gone']
+        && data.createdAt is number
+        && data.updatedAt is number;
+    }
+
+    function validConfirmationCreate(reportId, confirmationId) {
+      let data = request.resource.data;
+      return signedIn()
+        && confirmationId == request.auth.uid
+        && exists(confirmationReportPath(reportId))
+        && confirmationNotByReportOwner(reportId)
+        && validConfirmationShape(data)
+        && data.createdAt == data.updatedAt;
+    }
+
+    function validConfirmationUpdate(confirmationId) {
+      let data = request.resource.data;
+      let affected = data.diff(resource.data).affectedKeys();
+      return signedIn()
+        && confirmationId == request.auth.uid
+        && validConfirmationShape(data)
+        && data.createdAt == resource.data.createdAt
+        && data.status in ['present', 'gone']
+        && affected.hasOnly(['status', 'updatedAt']);
+    }
+
     match /reports/{reportId} {
       // Temporary: authenticated collection reads required by current onSnapshot map load.
       allow read: if signedIn();
@@ -189,6 +229,22 @@ service cloud.firestore {
 
       // Legacy docs without ownerUid cannot be securely deleted by clients.
       allow delete: if isOwner();
+
+      // ---------------------------------------------------------------------
+      // Task 052 — community confirmations (لسا موجود / مش موجود).
+      // Doc ID must equal auth.uid. Owner cannot cast community confirmation
+      // when ownerUid is present. Parent report rules unchanged.
+      // ---------------------------------------------------------------------
+      match /confirmations/{confirmationId} {
+        allow read: if signedIn();
+
+        allow create: if validConfirmationCreate(reportId, confirmationId);
+
+        allow update: if validConfirmationUpdate(confirmationId);
+
+        allow delete: if signedIn()
+          && confirmationId == request.auth.uid;
+      }
     }
 
     match /feedback/{feedbackId} {

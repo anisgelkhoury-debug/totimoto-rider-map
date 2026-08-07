@@ -1266,3 +1266,185 @@ describe("Firestore notificationEvents — client deny", () => {
     })
   })
 })
+
+describe("Firestore report confirmations — Task 052", () => {
+  const reportId = "conf-report-1"
+  const ownerUid = "owner-uid"
+  const riderA = "rider-a"
+  const riderB = "rider-b"
+
+  function confirmationPayload(status, now = Date.now()) {
+    return {
+      status,
+      createdAt: now,
+      updatedAt: now,
+    }
+  }
+
+  beforeEach(async () => {
+    await testEnv.clearFirestore()
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(
+        doc(ctx.firestore(), "reports", reportId),
+        baseReport(ownerUid, "device-owner", {
+          type: "زحمة",
+          reportFamily: "intelligence",
+          reportCategory: "traffic",
+        })
+      )
+    })
+  })
+
+  it("authenticated rider can create present confirmation for own uid", async () => {
+    const db = testEnv.authenticatedContext(riderA).firestore()
+    const now = 1_700_000_000_000
+    await assertSucceeds(
+      setDoc(
+        doc(db, "reports", reportId, "confirmations", riderA),
+        confirmationPayload("present", now)
+      )
+    )
+    const snap = await getDoc(
+      doc(db, "reports", reportId, "confirmations", riderA)
+    )
+    assert.equal(snap.exists(), true)
+    assert.equal(snap.data()?.status, "present")
+  })
+
+  it("authenticated rider can create gone confirmation", async () => {
+    const db = testEnv.authenticatedContext(riderA).firestore()
+    await assertSucceeds(
+      setDoc(
+        doc(db, "reports", reportId, "confirmations", riderA),
+        confirmationPayload("gone")
+      )
+    )
+  })
+
+  it("invalid confirmation status is rejected", async () => {
+    const db = testEnv.authenticatedContext(riderA).firestore()
+    await assertFails(
+      setDoc(doc(db, "reports", reportId, "confirmations", riderA), {
+        status: "like",
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      })
+    )
+  })
+
+  it("confirmation doc id must equal auth uid", async () => {
+    const db = testEnv.authenticatedContext(riderA).firestore()
+    await assertFails(
+      setDoc(
+        doc(db, "reports", reportId, "confirmations", riderB),
+        confirmationPayload("present")
+      )
+    )
+  })
+
+  it("user may update own vote", async () => {
+    const now = 1_700_000_000_000
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(
+        doc(ctx.firestore(), "reports", reportId, "confirmations", riderA),
+        confirmationPayload("present", now)
+      )
+    })
+    const db = testEnv.authenticatedContext(riderA).firestore()
+    await assertSucceeds(
+      updateDoc(doc(db, "reports", reportId, "confirmations", riderA), {
+        status: "gone",
+        updatedAt: now + 1000,
+      })
+    )
+    const snap = await getDoc(
+      doc(db, "reports", reportId, "confirmations", riderA)
+    )
+    assert.equal(snap.data()?.status, "gone")
+    assert.equal(snap.data()?.createdAt, now)
+  })
+
+  it("user cannot update another UID vote", async () => {
+    const now = 1_700_000_000_000
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(
+        doc(ctx.firestore(), "reports", reportId, "confirmations", riderA),
+        confirmationPayload("present", now)
+      )
+    })
+    const db = testEnv.authenticatedContext(riderB).firestore()
+    await assertFails(
+      updateDoc(doc(db, "reports", reportId, "confirmations", riderA), {
+        status: "gone",
+        updatedAt: now + 1,
+      })
+    )
+  })
+
+  it("report owner cannot create community confirmation", async () => {
+    const db = testEnv.authenticatedContext(ownerUid).firestore()
+    await assertFails(
+      setDoc(
+        doc(db, "reports", reportId, "confirmations", ownerUid),
+        confirmationPayload("present")
+      )
+    )
+  })
+
+  it("extra sensitive fields on confirmation are rejected", async () => {
+    const db = testEnv.authenticatedContext(riderA).firestore()
+    await assertFails(
+      setDoc(doc(db, "reports", reportId, "confirmations", riderA), {
+        status: "present",
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        deviceId: "device-spy",
+        phone: "03123456",
+      })
+    )
+  })
+
+  it("authenticated rider can list confirmations (counts only in UI)", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(
+        doc(ctx.firestore(), "reports", reportId, "confirmations", riderA),
+        confirmationPayload("present")
+      )
+      await setDoc(
+        doc(ctx.firestore(), "reports", reportId, "confirmations", riderB),
+        confirmationPayload("gone")
+      )
+    })
+    const db = testEnv.authenticatedContext(riderA).firestore()
+    const snap = await assertSucceeds(
+      getDocs(collection(db, "reports", reportId, "confirmations"))
+    )
+    assert.equal(snap.size, 2)
+  })
+
+  it("confirmation create does not allow mutating parent report", async () => {
+    const db = testEnv.authenticatedContext(riderA).firestore()
+    await assertSucceeds(
+      setDoc(
+        doc(db, "reports", reportId, "confirmations", riderA),
+        confirmationPayload("present")
+      )
+    )
+    await assertFails(
+      updateDoc(doc(db, "reports", reportId), { expiry: 9999 })
+    )
+    const parent = await getDoc(doc(db, "reports", reportId))
+    assert.equal(parent.data()?.ownerUid, ownerUid)
+    assert.notEqual(parent.data()?.expiry, 9999)
+  })
+
+  it("unauthenticated cannot write confirmations", async () => {
+    const db = testEnv.unauthenticatedContext().firestore()
+    await assertFails(
+      setDoc(
+        doc(db, "reports", reportId, "confirmations", "anyone"),
+        confirmationPayload("present")
+      )
+    )
+  })
+})
