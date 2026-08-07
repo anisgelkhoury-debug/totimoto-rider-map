@@ -254,7 +254,17 @@ function GoogleMapCanvas({
 
   const warningReports = useMemo(() => {
     if (currentZoom < CIRCLE_MIN_ZOOM) return []
-    return validReports.filter((r) => r.priority === "high")
+    return validReports.filter((r) => r.priority === "high" || r.priority === "critical")
+  }, [validReports, currentZoom])
+
+  const approximateAreaReports = useMemo(() => {
+    if (currentZoom < CIRCLE_MIN_ZOOM) return []
+    return validReports.filter(
+      (r) =>
+        r.reportFamily === "incident" &&
+        (r.reportCategory === "gunfire" ||
+          r.reportCategory === "explosionStrike")
+    )
   }, [validReports, currentZoom])
 
   const userIcon = useMemo(() => {
@@ -314,6 +324,26 @@ function GoogleMapCanvas({
     })
   }, [warningReports])
 
+  const approximateCircleModels = useMemo(() => {
+    return approximateAreaReports.map((report, index) => {
+      const color = report.color || "#7f1d1d"
+      const center = { lat: report.lat as number, lng: report.lng as number }
+      return {
+        keyBase: `approx-${reportMarkerKey(report, index)}`,
+        center,
+        options: {
+          strokeColor: color,
+          strokeOpacity: 0.45,
+          strokeWeight: 2,
+          fillColor: color,
+          fillOpacity: 0.12,
+          clickable: false,
+          zIndex: 2,
+        },
+      }
+    })
+  }, [approximateAreaReports])
+
   if (loadError) {
     return (
       <MapFallback message="تعذّر تحميل خريطة Google. تحقق من الاتصال أو إعدادات المفتاح ثم أعد المحاولة." />
@@ -354,6 +384,15 @@ function GoogleMapCanvas({
               options={model.outerOptions}
             />
           </Fragment>
+        ))}
+
+        {approximateCircleModels.map((model) => (
+          <CircleF
+            key={model.keyBase}
+            center={model.center}
+            radius={180}
+            options={model.options}
+          />
         ))}
 
         {validReports.map((report, index) => {

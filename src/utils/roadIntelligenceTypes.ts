@@ -72,6 +72,9 @@ export function matchesReportTypeSearch(
   const q = (search || "").trim()
   if (!q || q === "الكل") return true
   if (q === "حاجز") return isCheckpointReport(report)
+  if (q === "حدث") {
+    return report.reportFamily === "incident"
+  }
   if (q === "مسروقة") {
     return (
       report.reportFamily === "stolen" ||

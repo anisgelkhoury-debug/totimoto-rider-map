@@ -250,6 +250,25 @@ describe("Firestore reports — positive", () => {
     )
   })
 
+  it("production incident (حدث) create payload is accepted without rules change", async () => {
+    const db = testEnv.authenticatedContext("owner-a").firestore()
+    await assertSucceeds(
+      setDoc(
+        doc(db, "reports", "r-prod-incident-fire"),
+        productionCreateUserReportPayload("owner-a", "device-owner-a", {
+          label: "حريق",
+          emoji: "🔥",
+          color: "#b91c1c",
+          expiry: 90,
+          priority: "high",
+          reportFamily: "incident",
+          reportCategory: "fire",
+          description: "دخان قرب الجسر",
+        })
+      )
+    )
+  })
+
   it("production stolen-bike create payload is accepted", async () => {
     const db = testEnv.authenticatedContext("owner-a").firestore()
     await assertSucceeds(

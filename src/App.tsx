@@ -56,6 +56,11 @@ import {
   isRoadIntelligenceReport,
   matchesReportTypeSearch,
 } from "./utils/roadIntelligenceTypes"
+import {
+  INCIDENT_REPORT_TYPES,
+  isIncidentReport,
+  usesApproximateIncidentArea,
+} from "./utils/incidentTypes"
 import { resolveCreateLocation } from "./utils/resolveCreateLocation"
 
 type ReportItem = {
@@ -924,6 +929,15 @@ const roadActionTypes = reportTypes.filter(
 const helpActionTypes = reportTypes.filter(
   (t) => t.reportFamily === "assistance" || t.reportFamily === "sharedRide"
 ) as ActionReportType[]
+const incidentActionTypes = INCIDENT_REPORT_TYPES.map((t) => ({
+  label: t.label,
+  emoji: t.emoji,
+  color: t.color,
+  expiry: t.expiry,
+  priority: t.priority,
+  reportFamily: t.reportFamily,
+  reportCategory: t.reportCategory,
+})) as ActionReportType[]
 const stolenActionType =
   (reportTypes.find((t) => t.reportFamily === "stolen") as
     | ActionReportType
@@ -1414,6 +1428,7 @@ const intelligenceCount = familyCounts.intelligence
 const assistanceCount = familyCounts.assistance
 const sharedRideCount = familyCounts.sharedRide
 const stolenCount = familyCounts.stolen
+const incidentCount = familyCounts.incident
 
 const visibleReports = useMemo(
   () =>
@@ -1460,8 +1475,8 @@ const handleGoogleReportSelect = useCallback(
   (r: any) => {
     const family = r.reportFamily
 
-    // Road intelligence is viewable on the map (no helper claim loop).
-    if (isRoadIntelligenceReport(r)) {
+    // Road intelligence & incidents are viewable on the map (no helper claim loop).
+    if (isRoadIntelligenceReport(r) || isIncidentReport(r)) {
       setSelectedReport(r)
       return
     }
@@ -1614,6 +1629,7 @@ const handleGoogleReportSelect = useCallback(
   open={showReportModal}
   roadTypes={roadActionTypes}
   helpTypes={helpActionTypes}
+  incidentTypes={incidentActionTypes}
   stolenType={stolenActionType}
   onSelectType={handlePrimaryActionSelect}
   onClose={() => setShowReportModal(false)}
@@ -1675,6 +1691,7 @@ const handleGoogleReportSelect = useCallback(
   {[
     ["🌍", "الكل", reports.length],
     ["🚨", "مسروقة", stolenCount],
+    ["⚠️", "حدث", incidentCount],
     ["⚠️", "حادث", reports.filter((r:any) => r.type === "حادث").length],
     ["🚗", "زحمة", reports.filter((r:any) => r.type === "زحمة").length],
     ["⛔", "مسكر", reports.filter((r:any) => r.type === "طريق مسكر").length],
@@ -2272,13 +2289,27 @@ onClick={(e) => {
     }}>
 
       <h3 style={{ marginTop: 0 }}>
-        إضافة ملاحظة (اختياري)
+        {pendingReportType?.reportCategory === "otherIncident"
+          ? "وصف مختصر (مطلوب)"
+          : pendingReportType?.reportFamily === "incident"
+            ? "ملاحظة اختيارية"
+            : "إضافة ملاحظة (اختياري)"}
       </h3>
+
+      {pendingReportType?.reportFamily === "incident" && (
+        <p style={{ color: "#64748b", fontSize: 13, marginTop: 0, lineHeight: 1.5 }}>
+          بلّغ عما تشوفه أو تسمعه — بدون تخمين أو اتهامات.
+        </p>
+      )}
 
       <textarea
         value={reportDescription}
         onChange={(e) => setReportDescription(e.target.value)}
-        placeholder="مثال: زحمة قوية بسبب حادث"
+        placeholder={
+          pendingReportType?.reportFamily === "incident"
+            ? "مثال: دخان كثيف قرب الجسر"
+            : "مثال: زحمة قوية بسبب حادث"
+        }
         maxLength={120}
         style={{
           width: "100%",
@@ -2337,6 +2368,14 @@ setReportImagePreview(URL.createObjectURL(compressedFile))
   onClick={async () => {
     if (isSubmittingReport) return
     if (!pendingReportType) return
+
+    if (
+      pendingReportType.reportCategory === "otherIncident" &&
+      !reportDescription.trim()
+    ) {
+      alert("للنوع «أخرى» اكتب ملاحظة قصيرة عما تشوفه.")
+      return
+    }
 
     const finalDescription = reportDescription
 
@@ -3141,11 +3180,15 @@ await submitAction()
           {selectedReport.type}
         </h2>
 
-        {isRoadIntelligenceReport(selectedReport) && (
+        {isRoadIntelligenceReport(selectedReport) ||
+        isIncidentReport(selectedReport) ? (
           <div style={{ color: "#64748b", marginTop: 6, fontSize: 13, fontWeight: 600 }}>
             بلاغ من دراج
+            {usesApproximateIncidentArea(selectedReport)
+              ? " · الموقع تقريبي"
+              : ""}
           </div>
-        )}
+        ) : null}
 
         <div style={{ color: "#94a3b8", marginTop: 8, fontSize: 15 }}>
           {formatLebaneseLocationDetailed(selectedReport)}

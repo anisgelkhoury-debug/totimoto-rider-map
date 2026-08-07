@@ -141,17 +141,20 @@ export function countUnresolvedByFamily(reports: ListReport[]): {
   assistance: number
   sharedRide: number
   stolen: number
+  incident: number
 } {
   let intelligence = 0
   let assistance = 0
   let sharedRide = 0
   let stolen = 0
+  let incident = 0
   for (const r of reports) {
     if (r.resolved) continue
     if (r.reportFamily === "intelligence") intelligence++
     else if (r.reportFamily === "assistance") assistance++
     else if (r.reportFamily === "sharedRide") sharedRide++
     else if (r.reportFamily === "stolen") stolen++
+    else if (r.reportFamily === "incident") incident++
   }
-  return { intelligence, assistance, sharedRide, stolen }
+  return { intelligence, assistance, sharedRide, stolen, incident }
 }
