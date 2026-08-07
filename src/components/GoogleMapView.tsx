@@ -1,17 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState, Fragment, memo, type CSSProperties } from "react"
 import { CircleF, GoogleMap, MarkerF, TrafficLayer, useJsApiLoader } from "@react-google-maps/api"
+import type { MapTypeMode } from "./mapChrome/mapTypes"
+
+export type { MapTypeMode }
 
 const DEFAULT_CENTER = { lat: 33.8938, lng: 35.5018 }
 const DEFAULT_ZOOM = 12
 const CIRCLE_MIN_ZOOM = 14
-
-type MapTypeMode = "roadmap" | "satellite" | "terrain"
-
-const MAP_TYPE_OPTIONS: { id: MapTypeMode; label: string }[] = [
-  { id: "roadmap", label: "خريطة" },
-  { id: "satellite", label: "قمر صناعي" },
-  { id: "terrain", label: "تضاريس" },
-]
 
 const mapContainerStyle: CSSProperties = {
   width: "100%",
@@ -48,36 +43,6 @@ const fallbackStyle: CSSProperties = {
   lineHeight: 1.6,
 }
 
-/** Left stack under TRN eye toggle; away from Google zoom (right) and bottom sheet. */
-const layerControlsStyle: CSSProperties = {
-  position: "absolute",
-  top: 58,
-  left: 10,
-  zIndex: 5,
-  display: "flex",
-  flexDirection: "column",
-  gap: 6,
-  direction: "rtl",
-  maxWidth: 118,
-  pointerEvents: "auto",
-}
-
-const layerButtonBase: CSSProperties = {
-  border: "1px solid rgba(255,255,255,0.18)",
-  borderRadius: 12,
-  padding: "8px 10px",
-  fontSize: 12,
-  fontWeight: 700,
-  fontFamily: "Arial, sans-serif",
-  cursor: "pointer",
-  textAlign: "center",
-  lineHeight: 1.2,
-  boxShadow: "0 4px 14px rgba(0,0,0,0.35)",
-  WebkitTapHighlightColor: "transparent",
-  touchAction: "manipulation",
-  userSelect: "none",
-}
-
 /** Minimal report shape needed for map markers (from App visibleReports). */
 export type GoogleMapReport = {
   id?: string | number
@@ -105,6 +70,9 @@ export type GoogleMapViewProps = {
   mapTarget: [number, number] | null
   mapZoom: number
   onReportSelect: (report: GoogleMapReport) => void
+  /** Controlled map type — layers UI lives in App chrome sheets. */
+  mapTypeId?: MapTypeMode
+  trafficOn?: boolean
 }
 
 function MapFallback({ message }: { message: string }) {
@@ -184,6 +152,8 @@ function GoogleMapCanvas({
   mapTarget,
   mapZoom,
   onReportSelect,
+  mapTypeId = "roadmap",
+  trafficOn = false,
 }: GoogleMapViewProps & { apiKey: string }) {
   const { isLoaded, loadError } = useJsApiLoader({
     id: "trn-google-maps-script",
@@ -192,17 +162,20 @@ function GoogleMapCanvas({
 
   const [map, setMap] = useState<google.maps.Map | null>(null)
   const [currentZoom, setCurrentZoom] = useState(DEFAULT_ZOOM)
-  const [mapTypeId, setMapTypeId] = useState<MapTypeMode>("roadmap")
-  const [trafficOn, setTrafficOn] = useState(false)
   const hasCenteredOnUser = useRef(false)
   const mapZoomRef = useRef(mapZoom)
-  mapZoomRef.current = mapZoom
+  useEffect(() => {
+    mapZoomRef.current = mapZoom
+  }, [mapZoom])
 
-  const onLoad = useCallback((nextMap: google.maps.Map) => {
-    setMap(nextMap)
-    setCurrentZoom(nextMap.getZoom() ?? DEFAULT_ZOOM)
-    nextMap.setMapTypeId("roadmap")
-  }, [])
+  const onLoad = useCallback(
+    (nextMap: google.maps.Map) => {
+      setMap(nextMap)
+      setCurrentZoom(nextMap.getZoom() ?? DEFAULT_ZOOM)
+      nextMap.setMapTypeId(mapTypeId)
+    },
+    [mapTypeId]
+  )
 
   const onUnmount = useCallback(() => {
     setMap(null)
@@ -356,12 +329,6 @@ function GoogleMapCanvas({
       ? { lat: userLocation[0], lng: userLocation[1] }
       : null
 
-  const stopMapGesture = (
-    event: { stopPropagation: () => void }
-  ) => {
-    event.stopPropagation()
-  }
-
   return (
     <div style={{ position: "relative", width: "100%", height: "100%" }}>
       <GoogleMap
@@ -434,59 +401,13 @@ function GoogleMapCanvas({
           />
         )}
       </GoogleMap>
-
-      <div
-        style={layerControlsStyle}
-        onMouseDown={stopMapGesture}
-        onTouchStart={stopMapGesture}
-        onClick={stopMapGesture}
-      >
-        {MAP_TYPE_OPTIONS.map((option) => {
-          const active = mapTypeId === option.id
-          return (
-            <button
-              key={option.id}
-              type="button"
-              aria-pressed={active}
-              onClick={(event) => {
-                event.stopPropagation()
-                setMapTypeId(option.id)
-              }}
-              style={{
-                ...layerButtonBase,
-                background: active ? "#1d4ed8" : "rgba(15,23,42,0.92)",
-                color: "#f8fafc",
-              }}
-            >
-              {option.label}
-            </button>
-          )
-        })}
-
-        <button
-          type="button"
-          aria-pressed={trafficOn}
-          onClick={(event) => {
-            event.stopPropagation()
-            setTrafficOn((prev) => !prev)
-          }}
-          style={{
-            ...layerButtonBase,
-            marginTop: 2,
-            background: trafficOn ? "#b45309" : "rgba(15,23,42,0.92)",
-            color: "#f8fafc",
-          }}
-        >
-          حركة السير
-        </button>
-      </div>
     </div>
   )
 }
 
 /**
- * Google Maps view for TRN Phase 2 — markers, helper live updates,
- * warning circles, map-type selector, and traffic toggle.
+ * Google Maps view for TRN — markers, helper live updates,
+ * warning circles; map type / traffic controlled by App chrome.
  * Memoized so App UI state (sheets/modals) does not re-reconcile markers.
  */
 function GoogleMapView(props: GoogleMapViewProps) {
