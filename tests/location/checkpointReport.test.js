@@ -121,7 +121,7 @@ describe("checkpoint road intelligence", () => {
     assert.equal(matchesReportTypeSearch(report, "زحمة"), false)
   })
 
-  it("map cap treats checkpoint as highIntel above ordinary traffic", () => {
+  it("map cap treats checkpoint as seriousRoadIntel above ordinary traffic", () => {
     const opts = { deviceId: "me", selectedId: null }
     const checkpoint = {
       id: "cp",
@@ -145,7 +145,7 @@ describe("checkpoint road intelligence", () => {
       lng: 35.5,
       createdAt: 2,
     }
-    assert.equal(reportCapTier(checkpoint, opts), CAP_TIER.highIntel)
+    assert.equal(reportCapTier(checkpoint, opts), CAP_TIER.seriousRoadIntel)
     assert.equal(reportCapTier(traffic, opts), CAP_TIER.ordinary)
 
     const far = { lat: 34.5, lng: 36.2 }

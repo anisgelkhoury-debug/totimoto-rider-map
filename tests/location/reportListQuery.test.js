@@ -74,6 +74,7 @@ describe("reportListQuery", () => {
       assistance: 1,
       sharedRide: 1,
       stolen: 1,
+      incident: 0,
     })
   })
 })

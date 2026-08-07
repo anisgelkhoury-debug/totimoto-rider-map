@@ -36,11 +36,18 @@ export const CAP_TIER = {
   selected: 1,
   owned: 2,
   currentHelper: 3,
-  stolen: 4,
-  claimedAssistance: 5,
-  unclaimedAssistance: 6,
-  highIntel: 7,
-  ordinary: 8,
+  claimedAssistance: 4,
+  unclaimedAssistance: 5,
+  /** gunfire / explosionStrike */
+  severeIncident: 6,
+  stolen: 7,
+  /** accident + checkpoint (high road intel) */
+  seriousRoadIntel: 8,
+  /** fire / collapseDanger */
+  seriousIncident: 9,
+  highIntel: 10,
+  ordinaryIncident: 11,
+  ordinary: 12,
 } as const
 
 export function isValidMapCoordinate(
@@ -71,6 +78,35 @@ function isAssistanceOrRide(report: CapMapReport): boolean {
   )
 }
 
+function isIncidentFamily(report: CapMapReport): boolean {
+  return report.reportFamily === "incident"
+}
+
+function isSevereIncidentCategory(report: CapMapReport): boolean {
+  return (
+    report.reportCategory === "gunfire" ||
+    report.reportCategory === "explosionStrike"
+  )
+}
+
+function isSeriousIncidentCategory(report: CapMapReport): boolean {
+  return (
+    report.reportCategory === "fire" ||
+    report.reportCategory === "collapseDanger"
+  )
+}
+
+function isSeriousRoadIntel(report: CapMapReport): boolean {
+  if (report.reportFamily !== "intelligence") return false
+  return (
+    report.reportCategory === "accident" ||
+    report.reportCategory === "checkpoint" ||
+    report.type === "حادث" ||
+    report.type === "حاجز" ||
+    report.priority === "high"
+  )
+}
+
 export function reportCapTier(
   report: CapMapReport,
   options: Pick<CapMapOptions, "deviceId" | "selectedId">
@@ -89,14 +125,23 @@ export function reportCapTier(
   ) {
     return CAP_TIER.currentHelper
   }
-  if (isStolen(report)) {
-    return CAP_TIER.stolen
-  }
   if (isAssistanceOrRide(report) && report.helperComing === true) {
     return CAP_TIER.claimedAssistance
   }
   if (isAssistanceOrRide(report)) {
     return CAP_TIER.unclaimedAssistance
+  }
+  if (isIncidentFamily(report) && isSevereIncidentCategory(report)) {
+    return CAP_TIER.severeIncident
+  }
+  if (isStolen(report)) {
+    return CAP_TIER.stolen
+  }
+  if (isSeriousRoadIntel(report)) {
+    return CAP_TIER.seriousRoadIntel
+  }
+  if (isIncidentFamily(report) && isSeriousIncidentCategory(report)) {
+    return CAP_TIER.seriousIncident
   }
   if (
     report.reportFamily === "intelligence" &&
@@ -105,6 +150,9 @@ export function reportCapTier(
       report.type === "حاجز")
   ) {
     return CAP_TIER.highIntel
+  }
+  if (isIncidentFamily(report)) {
+    return CAP_TIER.ordinaryIncident
   }
   return CAP_TIER.ordinary
 }
