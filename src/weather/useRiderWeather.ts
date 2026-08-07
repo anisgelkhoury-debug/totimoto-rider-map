@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react"
-import { fetchOpenMeteoWeather } from "./fetchOpenMeteo.ts"
+import { fetchWeatherApiWeather } from "./fetchWeatherApi.ts"
 import type { RiderWeather, WeatherFetchStatus } from "./types.ts"
 import { shouldRefreshWeather } from "./weatherCache.ts"
 
@@ -67,7 +67,7 @@ export function useRiderWeather(
       setStatus((prev) => (prev === "ready" && current ? "ready" : "loading"))
       setErrorMessage(null)
 
-      void fetchOpenMeteoWeather(lat, lng, { force })
+      void fetchWeatherApiWeather(lat, lng, { force })
         .then((next) => {
           if (cancelled) return
           setWeather(next)

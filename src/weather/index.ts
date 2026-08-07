@@ -2,7 +2,11 @@ export type { RiderWeather, RiderWarning, WeatherFetchStatus } from "./types.ts"
 export { windDirectionArabic } from "./windDirection.ts"
 export { mapWeatherCode } from "./conditionLabels.ts"
 export { deriveRiderWarnings, RIDER_THRESHOLDS } from "./riderWarnings.ts"
-export { normalizeOpenMeteoResponse, formatLocalClock } from "./normalizeOpenMeteo.ts"
+export {
+  normalizeWeatherApiResponse,
+  formatLocalClock,
+  formatWeatherApiClock,
+} from "./normalizeWeatherApi.ts"
 export {
   WEATHER_CACHE_TTL_MS,
   WEATHER_SIGNIFICANT_DISTANCE_M,
@@ -15,5 +19,9 @@ export {
   haversineMeters,
   roundCoord,
 } from "./weatherCache.ts"
-export { fetchOpenMeteoWeather, buildOpenMeteoUrl } from "./fetchOpenMeteo.ts"
+export {
+  fetchWeatherApiWeather,
+  buildWeatherApiUrl,
+  getWeatherApiKey,
+} from "./fetchWeatherApi.ts"
 export { useRiderWeather } from "./useRiderWeather.ts"
