@@ -16,6 +16,7 @@ export type CapMapReport = {
   helperComing?: boolean
   resolved?: boolean
   reportFamily?: string
+  reportCategory?: string
   type?: string
   priority?: string
   lat?: number
@@ -99,7 +100,9 @@ export function reportCapTier(
   }
   if (
     report.reportFamily === "intelligence" &&
-    report.priority === "high"
+    (report.priority === "high" ||
+      report.reportCategory === "checkpoint" ||
+      report.type === "حاجز")
   ) {
     return CAP_TIER.highIntel
   }
