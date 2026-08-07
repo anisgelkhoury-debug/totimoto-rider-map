@@ -51,6 +51,11 @@ import {
   filterAndSortReports,
 } from "./utils/reportListQuery"
 import { capMapReports } from "./utils/capMapReports"
+import {
+  CHECKPOINT_REPORT_TYPE,
+  isRoadIntelligenceReport,
+  matchesReportTypeSearch,
+} from "./utils/roadIntelligenceTypes"
 import { resolveCreateLocation } from "./utils/resolveCreateLocation"
 
 type ReportItem = {
@@ -188,6 +193,7 @@ const reportTypes = [
   { label: "حادث", emoji: "⚠️", color: "#f97316", expiry: 45, priority: "high", reportFamily: "intelligence", reportCategory: "accident" },
   { label: "طريق مسكر", emoji: "⛔", color: "#1d4ed8", expiry: 45, priority: "medium", reportFamily: "intelligence", reportCategory: "road_closed" },
   { label: "طريق زلق", emoji: "🌊", color: "#06b6d4", expiry: 45, priority: "high", reportFamily: "intelligence", reportCategory: "slippery_road" },
+  { ...CHECKPOINT_REPORT_TYPE },
   { label: "عطل بالدراجة", emoji: "🔧", color: "#7c3aed", expiry: 45, priority: "medium", reportFamily: "assistance", reportCategory: "bike_broken" },
   {label: "محتاج دفشة", emoji: "🛵", color: "#16a34a", expiry: 30, priority: "medium", reportFamily: "assistance", reportCategory: "push" },
   { label: "ما معي بنزين", emoji: "⛽", color: "#eab308", expiry: 30, priority: "medium", reportFamily: "assistance", reportCategory: "fuel" },
@@ -1433,8 +1439,8 @@ const listedReports = useMemo(
       geoFilter,
       sortFilter,
       myLocation,
-    }),
-  [visibleReports, geoFilter, sortFilter, myLocation]
+    }).filter((r) => matchesReportTypeSearch(r, reportsSearch)),
+  [visibleReports, geoFilter, sortFilter, myLocation, reportsSearch]
 )
 
 /** Cap map markers for large datasets; list view stays uncapped. */
@@ -1452,16 +1458,20 @@ const mapReports = useMemo(
 
 const handleGoogleReportSelect = useCallback(
   (r: any) => {
-    if (
-      r.type === "زحمة" ||
-      r.type === "حادث" ||
-      r.type === "طريق مسكر" ||
-      r.type === "طريق زلق"
-    ) {
+    const family = r.reportFamily
+
+    // Road intelligence is viewable on the map (no helper claim loop).
+    if (isRoadIntelligenceReport(r)) {
+      setSelectedReport(r)
       return
     }
 
-    if (r.ownerId === deviceId && !r.helperComing) {
+    // Own open assistance/ride stays list-managed until claimed.
+    if (
+      r.ownerId === deviceId &&
+      !r.helperComing &&
+      (family === "assistance" || family === "sharedRide" || isAssistanceReport(r))
+    ) {
       return
     }
 
@@ -1669,6 +1679,7 @@ const handleGoogleReportSelect = useCallback(
     ["🚗", "زحمة", reports.filter((r:any) => r.type === "زحمة").length],
     ["⛔", "مسكر", reports.filter((r:any) => r.type === "طريق مسكر").length],
     ["🌊", "زلق", reports.filter((r:any) => r.type === "طريق زلق").length],
+    ["🛂", "حاجز", reports.filter((r:any) => r.type === "حاجز" || r.reportCategory === "checkpoint").length],
     ["🔧", "عطل", reports.filter((r:any) => r.type === "عطل بالدراجة").length],
     ["⛽", "بنزين", reports.filter((r:any) => r.type === "ما معي بنزين").length],
     ["🤝", "وصلني معك", reports.filter((r:any) => r.type === "وصلني معك").length],
@@ -3129,6 +3140,12 @@ await submitAction()
         <h2 style={{ margin: 0, fontSize: 32, fontWeight: "bold" }}>
           {selectedReport.type}
         </h2>
+
+        {isRoadIntelligenceReport(selectedReport) && (
+          <div style={{ color: "#64748b", marginTop: 6, fontSize: 13, fontWeight: 600 }}>
+            بلاغ من دراج
+          </div>
+        )}
 
         <div style={{ color: "#94a3b8", marginTop: 8, fontSize: 15 }}>
           {formatLebaneseLocationDetailed(selectedReport)}
