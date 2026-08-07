@@ -1,6 +1,6 @@
 /**
- * TRN Cloud Functions — owner↔helper lifecycle notifications.
- * 2nd gen Firestore triggers. No client sends. No production deploy in this task.
+ * TRN Cloud Functions — owner↔helper lifecycle notifications + rider weather proxy.
+ * 2nd gen. No production deploy in this task.
  */
 import { initializeApp } from "firebase-admin/app"
 import { FieldValue, getFirestore, type DocumentData } from "firebase-admin/firestore"
@@ -21,6 +21,8 @@ import type { LifecycleNotifyOutcome } from "./shared/processLifecycle"
 import type { SubscriptionDoc } from "./shared/subscriptions"
 
 initializeApp()
+
+export { getRiderWeather } from "./weather/getRiderWeather"
 
 const db = getFirestore()
 const messaging = getMessaging()
