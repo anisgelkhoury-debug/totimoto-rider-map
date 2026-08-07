@@ -20,8 +20,9 @@ export {
   roundCoord,
 } from "./weatherCache.ts"
 export {
-  fetchWeatherApiWeather,
-  buildWeatherApiUrl,
-  getWeatherApiKey,
-} from "./fetchWeatherApi.ts"
+  fetchRiderWeather,
+  buildRiderWeatherProxyUrl,
+  resolveRiderWeatherEndpoint,
+  hydrateProxyWeather,
+} from "./fetchRiderWeather.ts"
 export { useRiderWeather } from "./useRiderWeather.ts"

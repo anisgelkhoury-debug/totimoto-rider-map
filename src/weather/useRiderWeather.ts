@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react"
-import { fetchWeatherApiWeather } from "./fetchWeatherApi.ts"
+import { fetchRiderWeather } from "./fetchRiderWeather.ts"
 import type { RiderWeather, WeatherFetchStatus } from "./types.ts"
 import { shouldRefreshWeather } from "./weatherCache.ts"
 
@@ -12,7 +12,7 @@ export type UseRiderWeatherResult = {
 
 /**
  * Weather follows rider GPS with cache/throttle.
- * Does not write Firestore or alter GPS watch frequency.
+ * Fetches via secure getRiderWeather proxy (no client WeatherAPI key).
  */
 export function useRiderWeather(
   location: [number, number] | null
@@ -67,7 +67,7 @@ export function useRiderWeather(
       setStatus((prev) => (prev === "ready" && current ? "ready" : "loading"))
       setErrorMessage(null)
 
-      void fetchWeatherApiWeather(lat, lng, { force })
+      void fetchRiderWeather(lat, lng, { force })
         .then((next) => {
           if (cancelled) return
           setWeather(next)

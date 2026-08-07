@@ -6,6 +6,8 @@ interface ImportMetaEnv {
   readonly VITE_FIREBASE_VAPID_KEY?: string
   /** Optional build label for subscription metadata. */
   readonly VITE_APP_VERSION?: string
+  /** Optional local Functions emulator URL for getRiderWeather. */
+  readonly VITE_WEATHER_PROXY_URL?: string
 }
 
 interface ImportMeta {
