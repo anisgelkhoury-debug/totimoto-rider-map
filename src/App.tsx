@@ -14,6 +14,12 @@ import {
 import { reportAgeColor, timeAgo } from "./utils/reportTimeLabels"
 
 const GoogleMapView = lazy(() => import("./components/GoogleMapView"))
+import type { MapTypeMode } from "./components/mapChrome/mapTypes"
+import MapChromeControls from "./components/mapChrome/MapChromeControls"
+import PrimaryActionSheet, {
+  type ActionReportType,
+} from "./components/mapChrome/PrimaryActionSheet"
+import LayersSheet from "./components/mapChrome/LayersSheet"
 import { onAuthStateChanged } from "firebase/auth"
 import {
   collection,
@@ -387,17 +393,17 @@ function App() {
   }, [])
 
   const [showReportModal, setShowReportModal] = useState(false)
- const [showDescriptionModal, setShowDescriptionModal] = useState(false)
-const [mapZoom, setMapZoom] = useState(12)
+  const [showDescriptionModal, setShowDescriptionModal] = useState(false)
+  const [mapZoom, setMapZoom] = useState(12)
   const [mapTarget, setMapTarget] = useState<any>(null)
   const [showStolenModal, setShowStolenModal] = useState(false)
-const [showMobileDashboard, setShowMobileDashboard] = useState(false)
-const [showTopInfo, setShowTopInfo] = useState(true)
-const [reportsSheetMode, setReportsSheetMode] = useState<"collapsed" | "half" | "full">("collapsed")
-const [showReportsPage, setShowReportsPage] = useState(false)
-const [reportsSearch, setReportsSearch] = useState("")
-const [reportDescription, setReportDescription] = useState("")
-const [pendingReportType, setPendingReportType] = useState<any>(null)
+  const [showReportsPage, setShowReportsPage] = useState(false)
+  const [showLayersSheet, setShowLayersSheet] = useState(false)
+  const [mapTypeId, setMapTypeId] = useState<MapTypeMode>("roadmap")
+  const [trafficOn, setTrafficOn] = useState(false)
+  const [reportsSearch, setReportsSearch] = useState("")
+  const [reportDescription, setReportDescription] = useState("")
+  const [pendingReportType, setPendingReportType] = useState<any>(null)
 const [stolenBikeType, setStolenBikeType] = useState("")
 const [stolenBikeColor, setStolenBikeColor] = useState("")
 const [stolenBikePlate, setStolenBikePlate] = useState("")
@@ -448,11 +454,6 @@ const lastHelperGpsWriteAtRef = useRef(0)
 const lastHelperGpsLocationRef = useRef<[number, number] | null>(null)
 const lastUiGpsAtRef = useRef(0)
 const lastUiGpsLocationRef = useRef<[number, number] | null>(null)
-
-const isIphoneSafari =
-  /iPhone|iPad|iPod/i.test(navigator.userAgent) &&
-  /Safari/i.test(navigator.userAgent) &&
-  !/CriOS|FxiOS|EdgiOS/i.test(navigator.userAgent)
 
 function ensureContactInfo(action: any) {
   if (contactName.trim() && contactPhone.trim()) {
@@ -901,12 +902,53 @@ function canReceiveHelp(report: any) {
 
 const needsHelper = selectedReport ? isAssistanceReport(selectedReport) : false
 
-const showBottomActionBar =
-  !showMobileDashboard &&
+const showMapChrome =
   !showReportsPage &&
   !showReportModal &&
+  !showLayersSheet &&
   !showStolenModal &&
-  !selectedReport;
+  !showDescriptionModal &&
+  !showContactModal &&
+  !showCommunityCenter &&
+  !selectedReport
+
+const roadActionTypes = reportTypes.filter(
+  (t) => t.reportFamily === "intelligence"
+) as ActionReportType[]
+const helpActionTypes = reportTypes.filter(
+  (t) => t.reportFamily === "assistance" || t.reportFamily === "sharedRide"
+) as ActionReportType[]
+const stolenActionType =
+  (reportTypes.find((t) => t.reportFamily === "stolen") as
+    | ActionReportType
+    | undefined) ?? null
+
+function handlePrimaryActionSelect(type: ActionReportType) {
+  if (type.reportFamily === "stolen" || type.label.includes("مسروقة")) {
+    setShowReportModal(false)
+    setShowStolenModal(true)
+    return
+  }
+  if (type.reportFamily === "assistance" || type.reportFamily === "sharedRide") {
+    ensureContactInfo(() => {
+      setShowReportModal(false)
+      setPendingReportType(type)
+      setShowDescriptionModal(true)
+    })
+    return
+  }
+  setShowReportModal(false)
+  setPendingReportType(type)
+  setShowDescriptionModal(true)
+}
+
+function handleLocateMe() {
+  refreshGps()
+  if (myLocation) {
+    setMapTarget([myLocation[0], myLocation[1]])
+    setMapZoom(16)
+  }
+}
 
 /** Open Google Maps turn-by-turn navigation to report coords (no Directions API). */
 function openReportNavigation(
@@ -1532,115 +1574,40 @@ const handleGoogleReportSelect = useCallback(
           mapTarget={mapTarget}
           mapZoom={mapZoom}
           onReportSelect={handleGoogleReportSelect}
+          mapTypeId={mapTypeId}
+          trafficOn={trafficOn}
         />
       </div>
     </Suspense>
   )
 })()}
 
-{showBottomActionBar && (
-        <button
-  onClick={() => setShowReportModal(true)}
-style={{
-  position: "fixed",
-  bottom: 10,
-  left: 15,
-  zIndex: 3000,
-  width: isIphoneSafari ? 105 : 105,
-  height: isIphoneSafari ? 38 : 42,
-  background: "#dc2626",
-  color: "white",
-  border: "none",
-  borderRadius: 999,
-  fontWeight: "bold",
-  fontSize: isIphoneSafari ? 11 : 12,
-  cursor: "pointer",
-  boxShadow: "0 8px 22px rgba(0,0,0,.35)"
-}}
->
-  🚨 تبليغ مباشر
-</button>
-)}
+<MapChromeControls
+  visible={showMapChrome}
+  onOpenLayers={() => setShowLayersSheet(true)}
+  onLocate={handleLocateMe}
+  onOpenList={() => setShowReportsPage(true)}
+  onOpenAction={() => setShowReportModal(true)}
+  onOpenSettings={() => setShowCommunityCenter(true)}
+/>
 
-<button
-  onClick={() => setShowTopInfo(!showTopInfo)}
-  style={{
-    position: "absolute",
-    top: 18,
-    left: 45,
-    zIndex: 1001,
-    background: "white",
-    border: "none",
-    borderRadius: 12,
-    padding: "8px 12px",
-    fontWeight: "bold"
-  }}
->
-  {showTopInfo ? "👁️" : "📊"}
-</button>
+<LayersSheet
+  open={showLayersSheet}
+  mapTypeId={mapTypeId}
+  trafficOn={trafficOn}
+  onMapTypeIdChange={setMapTypeId}
+  onTrafficOnChange={setTrafficOn}
+  onClose={() => setShowLayersSheet(false)}
+/>
 
-{showTopInfo && (
-  <div style={{ position: "fixed", top: 15, right: 18, left: 85, zIndex: 1000, display: "flex", justifyContent: "space-between" }}>
-    <div style={{ color: "#020617", fontWeight: "bold", fontSize: 24, textAlign: "center", textShadow: "0 1px 4px rgba(255,255,255,0.95)", lineHeight: 1.1 }}>
-      🔴 {visibleReports.length}
-      <div style={{ fontSize: 16, marginTop: 4 }}>بلاغات</div>
-    </div>
-
-    <button
-      onClick={(e) => {
-        e.stopPropagation()
-        refreshGps()
-        if (myLocation) {
-          setMapTarget([myLocation[0], myLocation[1]])
-          setMapZoom(16)
-        }
-      }}
-      style={{
-        background: "transparent",
-        color: "#020617",
-        padding: "4px 6px",
-        borderRadius: 0,
-        textShadow: "0 1px 4px rgba(255,255,255,0.95)",
-        border: "none",
-        fontWeight: "bold",
-        cursor: "pointer",
-      }}
-    >
-      📍 موقعي GPS ✅
-    </button>
-  </div>
-)}
-
-<button
-  onClick={() => setShowCommunityCenter(true)}
-  style={{
-display:
-!showReportModal &&
-!showReportsPage &&
-!selectedReport &&
-!showCommunityCenter &&
-!showStolenModal
-    ? "block"
-    : "none",
-    position: "fixed",
-    top: 80,
-    left: 10,
-    zIndex: 999999,
-    width: 32,
-    height: 32,
-    border: "none",
-    background: "transparent",
-    boxShadow: "none",
-    padding: 0,
-    cursor: "pointer",
-    fontSize: 22,
-color: "white",
-textShadow: "0 0 6px rgba(0,0,0,0.8)",
-  }}
->
-  ⚙️
-</button>
-
+<PrimaryActionSheet
+  open={showReportModal}
+  roadTypes={roadActionTypes}
+  helpTypes={helpActionTypes}
+  stolenType={stolenActionType}
+  onSelectType={handlePrimaryActionSelect}
+  onClose={() => setShowReportModal(false)}
+/>
 
 {showReportsPage && (
   <div
@@ -2273,204 +2240,6 @@ onClick={(e) => {
 
 
 
-{showBottomActionBar && (
-<button
-  onClick={() => {
-    setShowReportsPage(true)
-  }}
-style={{
-  position: "fixed",
-  bottom: 10,
-  left: "50%",
-  transform: "translateX(-50%)",
-  zIndex: 3000,
-width: isIphoneSafari ? 105 : 115,
-height: isIphoneSafari ? 38 : 42,
-  background: "#020617",
-  color: "white",
-  border: "none",
-  borderRadius: 999,
-  fontWeight: "bold",
- fontSize: isIphoneSafari ? 11 : 12,
-  cursor: "pointer",
-  boxShadow: "0 8px 22px rgba(0,0,0,.35)"
-}}
-  >
-
-
-    👁️ إظهار البلاغات
-  </button>
-)}
-
-      {showMobileDashboard && (
-<div style={{ position: window.innerWidth <= 600 ? "fixed" : "absolute", bottom: 0, right: 0, left: 0, zIndex: 1500, background: "rgba(2,6,23,.96)", padding: window.innerWidth <= 600 ? 8 : 12, display: window.innerWidth <= 600 ? "grid" : "flex", gridTemplateColumns: window.innerWidth <= 600 ? "repeat(3, 1fr)" : undefined, gap: 10, overflowX: window.innerWidth <= 600 ? "hidden" : "auto" }}>
-        <button
-  onClick={() => setShowMobileDashboard(false)}
-  style={{
-position: "fixed",
-bottom: 185,
-right: 12,
-display: window.innerWidth <= 600 ? "block" : "none",
-    background: "#111827",
-    color: "white",
-    border: "none",
-    borderRadius: 999,
-    padding: "10px 14px",
-    fontWeight: "bold",
-    zIndex: 2001
-  }}
->
-  👁️ إخفاء
-</button>
-        {reportTypes.map((btn) => (
-          <button key={btn.label} onClick={() => {
-
-  if (btn.label.includes("مسروقة")) {
-    setShowStolenModal(true)
-    return
-  }
-
-
-if (btn.reportFamily === "assistance" || btn.reportFamily === "sharedRide") {
-  ensureContactInfo(() => {
-    setPendingReportType(btn)
-    setShowDescriptionModal(true)
-    setShowMobileDashboard(false)
-  })
-  return
-}
-
-setPendingReportType(btn)
-setShowDescriptionModal(true)
-setShowMobileDashboard(false)
-
-}} style={{ minWidth: window.innerWidth <= 600 ? 0 : 108, border: "none", borderRadius: 1, padding: "1px 1px", background: btn.color, color: "white", fontWeight: "bold", fontSize: 12 }}>
-            <div style={{ fontSize: 23 }}>{btn.emoji}</div>
-            {btn.label}
-          </button>
-        ))}
-      </div>
-)}
-
-
-  </div>
-
-
-
-
-
-
-
-
-
-      {selectedType && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 2000, background: "rgba(0,0,0,.35)", display: "flex", alignItems: "end", justifyContent: "center", padding: 20 }}>
-          <div style={{
-  background: "linear-gradient(180deg,#071226,#0b1d3a)",
-  width: "100%",
-  maxWidth: 430,
-  borderRadius: 32,
-  padding: 26,
-  boxShadow: "0 0 40px rgba(0,0,0,.45)",
-  border: "1px solid rgba(255,255,255,.08)",
-  color: "white",
-  animation: "popupShow .25s ease"
-}}>
-            <h2>إرسال البلاغ؟</h2>
-
-            <button onClick={sendReport} style={{ width: "100%", padding: 16, borderRadius: 18, border: "none", background: "#16a34a", color: "white", fontWeight: "bold", fontSize: 18 }}>
-              إرسال
-            </button>
-
-            <button onClick={() => setSelectedType(null)} style={{ width: "100%", padding: 14, borderRadius: 18, border: "none", marginTop: 10, background: "#e5e7eb", fontWeight: "bold" }}>
-              إلغاء
-            </button>
-          </div>
-        </div>
-      )}
-
-{!showMobileDashboard && window.innerWidth <= 600 && (
-  <button
-    onClick={() => setShowMobileDashboard(true)}
-    style={{
-      position: "fixed",
-      bottom: 10,
-      right: 12,
-      zIndex: 2000,
-      background: "#dc2626",
-      color: "white",
-      border: "none",
-      borderRadius: 999,
-      padding: "10px 10px",
-      fontWeight: "bold"
-    }}
-  >
-    👁️ إظهار الأدوات
-  </button>
-)}
-
-{showReportModal && (
-  <div style={{ position: "fixed", inset: 0, zIndex: 2500, background: "rgba(0,0,0,0.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-    <div style={{ background: "white", width: "100%", maxWidth: 420, maxHeight: "80vh", overflowY: "auto", borderRadius: 28, padding: 24, textAlign: "center", direction: "rtl" }}>
-      <h2 style={{ marginTop: 0 }}>شو بدك تبلّغ؟</h2>
-
-
-
-<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 18 }}>
-  {reportTypes.map((type) => (
-    <button
-      key={type.label}
-
-
-
-      onClick={() => {
-  if (type.label.includes("مسروقة")) {
-    setShowReportModal(false)
-    setShowStolenModal(true)
-    return
-  }
-if (type.reportFamily === "assistance" || type.reportFamily === "sharedRide") {
-  ensureContactInfo(() => {
-    setShowReportModal(false)
-    setPendingReportType(type)
-    setShowDescriptionModal(true)
-    setShowMobileDashboard(false)
-  })
-  return
-}
-
-setShowReportModal(false)
-setPendingReportType(type)
-setShowDescriptionModal(true)
-setShowMobileDashboard(false)
-}}
-      style={{
-        padding: "14px 8px",
-        borderRadius: 18,
-        border: "none",
-        background: type.color,
-        color: "white",
-        fontWeight: "bold",
-        fontSize: 18,
-        cursor: "pointer"
-      }}
-    >
-      <div style={{ fontSize: 22 }}>{type.emoji}</div>
-      {type.label}
-    </button>
-  ))}
-</div>
-
-<button
-  onClick={() => setShowReportModal(false)}
-  style={{ width: "100%", padding: 14, borderRadius: 18, border: "none", marginTop: 12 }}
->
-  إغلاق
-</button>
-    </div>
-  </div>
-)}
-
 {showDescriptionModal && (
   <div style={{
     position: "fixed",
@@ -2896,7 +2665,7 @@ await submitAction()
         textAlign: "center",
       }}
     >
-      <h2>⚙️ توتيموتو</h2>
+      <h2>الإعدادات</h2>
 
       {(() => {
         void notifSettingsTick
@@ -3603,6 +3372,7 @@ onClick={() => {
     )}
   </div>
 )}
+    </div>
 </>
 )
 }
