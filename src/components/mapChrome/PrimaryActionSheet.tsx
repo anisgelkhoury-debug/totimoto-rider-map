@@ -7,6 +7,7 @@ import {
   sheetPanelStyle,
   sheetTitleStyle,
 } from "./chromeStyles"
+import { MARKETPLACE_COPY } from "../../marketplace/marketplaceBridge"
 
 export type ActionReportType = {
   label: string
@@ -25,6 +26,7 @@ type PrimaryActionSheetProps = {
   incidentTypes: ActionReportType[]
   stolenType: ActionReportType | null
   onSelectType: (type: ActionReportType) => void
+  onOpenMarketplace: () => void
   onClose: () => void
 }
 
@@ -88,6 +90,7 @@ export default function PrimaryActionSheet({
   incidentTypes,
   stolenType,
   onSelectType,
+  onOpenMarketplace,
   onClose,
 }: PrimaryActionSheetProps) {
   const [view, setView] = useState<"main" | "incident">("main")
@@ -181,6 +184,36 @@ export default function PrimaryActionSheet({
                 <TypeButton key={type.label} type={type} onSelect={handleSelectType} />
               ))}
             </div>
+
+            <p style={sectionLabelStyle}>{MARKETPLACE_COPY.sectionLabel}</p>
+            <button
+              type="button"
+              onClick={() => {
+                setView("main")
+                onOpenMarketplace()
+              }}
+              style={{
+                width: "100%",
+                minHeight: 56,
+                marginBottom: 18,
+                padding: "12px 14px",
+                borderRadius: 18,
+                border: "1px solid #99f6e4",
+                background: "#134e4a",
+                color: "#ecfdf5",
+                fontWeight: 800,
+                fontSize: 16,
+                cursor: "pointer",
+                fontFamily: "inherit",
+                textAlign: "right",
+                WebkitTapHighlightColor: "transparent",
+              }}
+            >
+              <div>🏍️ {MARKETPLACE_COPY.entryLabel}</div>
+              <div style={{ fontSize: 12, fontWeight: 600, opacity: 0.9, marginTop: 4 }}>
+                {MARKETPLACE_COPY.entryHint}
+              </div>
+            </button>
 
             {stolenType && (
               <>

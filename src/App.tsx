@@ -22,6 +22,7 @@ import PrimaryActionSheet, {
 import LayersSheet from "./components/mapChrome/LayersSheet"
 import WeatherChip from "./components/mapChrome/WeatherChip"
 import RiderConditionsSheet from "./components/mapChrome/RiderConditionsSheet"
+import MarketplaceBridgeSheet from "./components/mapChrome/MarketplaceBridgeSheet"
 import { useRiderWeather } from "./weather/useRiderWeather"
 import { onAuthStateChanged } from "firebase/auth"
 import {
@@ -414,6 +415,7 @@ function App() {
   const [showReportsPage, setShowReportsPage] = useState(false)
   const [showLayersSheet, setShowLayersSheet] = useState(false)
   const [showWeatherSheet, setShowWeatherSheet] = useState(false)
+  const [showMarketplaceSheet, setShowMarketplaceSheet] = useState(false)
   const [mapTypeId, setMapTypeId] = useState<MapTypeMode>("roadmap")
   const [trafficOn, setTrafficOn] = useState(false)
   const [reportsSearch, setReportsSearch] = useState("")
@@ -922,6 +924,7 @@ const showMapChrome =
   !showReportModal &&
   !showLayersSheet &&
   !showWeatherSheet &&
+  !showMarketplaceSheet &&
   !showStolenModal &&
   !showDescriptionModal &&
   !showContactModal &&
@@ -1658,7 +1661,16 @@ const handleGoogleReportSelect = useCallback(
   incidentTypes={incidentActionTypes}
   stolenType={stolenActionType}
   onSelectType={handlePrimaryActionSelect}
+  onOpenMarketplace={() => {
+    setShowReportModal(false)
+    setShowMarketplaceSheet(true)
+  }}
   onClose={() => setShowReportModal(false)}
+/>
+
+<MarketplaceBridgeSheet
+  open={showMarketplaceSheet}
+  onClose={() => setShowMarketplaceSheet(false)}
 />
 
 {showReportsPage && (
