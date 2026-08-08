@@ -1199,6 +1199,25 @@ helperComing: false,
     status: weatherStatus,
   } = useRiderWeather(myLocation)
 
+  // DEV-only visibility diagnostics (no coords/secrets).
+  useEffect(() => {
+    if (!import.meta.env.DEV) return
+    const secure =
+      typeof window !== "undefined" ? window.isSecureContext : false
+    console.info(
+      `[TRN DEV] location: ${myLocation ? "available" : "unavailable"} | secureContext: ${secure}`
+    )
+  }, [myLocation])
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) return
+    console.info(
+      `[TRN DEV] weather: ${weatherStatus}${
+        weatherErrorMessage ? " | error" : ""
+      }`
+    )
+  }, [weatherStatus, weatherErrorMessage])
+
   const isActivelyHelping = useMemo(
     () =>
       reports.some(
@@ -1300,7 +1319,15 @@ useEffect(() => {
       }
     },
 (error) => {
-  console.log("GPS error:", error)
+  if (import.meta.env.DEV) {
+    const secure =
+      typeof window !== "undefined" ? window.isSecureContext : false
+    console.info(
+      `[TRN DEV] GPS error code=${(error as GeolocationPositionError)?.code ?? "?"} secureContext=${secure}`
+    )
+  } else {
+    console.log("GPS error:", error)
+  }
 },
     {
       enableHighAccuracy: isActivelyHelping,
@@ -1498,6 +1525,11 @@ const nearbyCandidates = useMemo(() => {
     rider: { lat: myLocation[0], lng: myLocation[1] },
   })
 }, [visibleReports, myLocation])
+
+useEffect(() => {
+  if (!import.meta.env.DEV) return
+  console.info(`[TRN DEV] nearby candidates: ${nearbyCandidates.length}`)
+}, [nearbyCandidates.length])
 
 const handleNearbySelect = useCallback(
   (candidate: { id: string; report: any }) => {
