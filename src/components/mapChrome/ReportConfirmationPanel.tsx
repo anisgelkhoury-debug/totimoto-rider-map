@@ -6,10 +6,16 @@ import {
   countConfirmations,
   formatConfirmationSummary,
   isReportOwnerForConfirmation,
-  trustLabelForCounts,
   type ConfirmationStatus,
   type ConfirmationishReport,
 } from "../../reportConfirmations/reportConfirmations"
+import {
+  freshnessLabelForState,
+  resolveFreshnessState,
+  resolveTrustState,
+  trustLabelForState,
+  trustStateColor,
+} from "../../reportConfirmations/reportTrust"
 import {
   loadReportConfirmations,
   upsertReportConfirmation,
@@ -18,7 +24,11 @@ import {
 
 type ReportConfirmationPanelProps = {
   db: Firestore
-  report: ConfirmationishReport & { id: string }
+  report: ConfirmationishReport & {
+    id: string
+    createdAt?: number
+    expiry?: number
+  }
   currentUid: string | null
   authReady: boolean
 }
@@ -84,7 +94,13 @@ export default function ReportConfirmationPanel({
   }, [db, report.id, currentUid])
 
   const counts = countConfirmations(docs)
-  const trustLabel = trustLabelForCounts(counts)
+  const trustState = resolveTrustState(counts)
+  const trustLabel = trustLabelForState(trustState)
+  const freshness = resolveFreshnessState({
+    createdAt: report.createdAt,
+    expiry: report.expiry,
+  })
+  const freshnessLabel = freshnessLabelForState(freshness)
 
   const castVote = async (status: ConfirmationStatus) => {
     if (!canVote || saving) return
@@ -120,18 +136,42 @@ export default function ReportConfirmationPanel({
         direction: "rtl",
       }}
     >
-      <div
-        style={{
-          color:
-            trustLabel === CONFIRMATION_COPY.trustCommunity
-              ? "#0f766e"
-              : "#64748b",
-          fontSize: 13,
-          fontWeight: 700,
-          marginBottom: 10,
-        }}
-      >
-        {trustLabel}
+      {/* Compact trust + freshness block */}
+      <div style={{ marginBottom: 10 }}>
+        <div
+          style={{
+            color: trustStateColor(trustState),
+            fontSize: 13,
+            fontWeight: 800,
+            lineHeight: 1.35,
+          }}
+        >
+          {trustLabel}
+        </div>
+        {!loading && counts.total > 0 ? (
+          <div
+            style={{
+              marginTop: 4,
+              fontSize: 12,
+              fontWeight: 700,
+              color: "#475569",
+            }}
+          >
+            {formatConfirmationSummary(counts)}
+          </div>
+        ) : null}
+        {freshnessLabel ? (
+          <div
+            style={{
+              marginTop: 4,
+              fontSize: 12,
+              fontWeight: 700,
+              color: "#64748b",
+            }}
+          >
+            {freshnessLabel}
+          </div>
+        ) : null}
       </div>
 
       {isOwner ? (
@@ -195,19 +235,6 @@ export default function ReportConfirmationPanel({
             </button>
           </div>
         </>
-      ) : null}
-
-      {!loading && counts.total > 0 ? (
-        <div
-          style={{
-            marginTop: 10,
-            fontSize: 13,
-            fontWeight: 700,
-            color: "#475569",
-          }}
-        >
-          {formatConfirmationSummary(counts)}
-        </div>
       ) : null}
 
       {errorMessage ? (
