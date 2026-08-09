@@ -37,7 +37,8 @@ describe("firestore.indexes.json geo preparation", () => {
     const notif = indexesJson.indexes.filter(
       (i) => i.collectionGroup === "notificationSubscriptions"
     )
-    assert.equal(notif.length, 2)
+    // Lifecycle prefs (2) + 058D enabled+locationGeohash (1)
+    assert.equal(notif.length, 3)
     assert.ok(
       notif.some((i) =>
         i.fields.some(
@@ -50,6 +51,14 @@ describe("firestore.indexes.json geo preparation", () => {
         i.fields.some(
           (f) => f.fieldPath === "notificationPreferences.ownerLifecycle"
         )
+      )
+    )
+    assert.ok(
+      notif.some(
+        (i) =>
+          i.fields?.length === 2 &&
+          i.fields[0].fieldPath === "enabled" &&
+          i.fields[1].fieldPath === "locationGeohash"
       )
     )
   })

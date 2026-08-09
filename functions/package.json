@@ -8,12 +8,13 @@
   "scripts": {
     "build": "tsc",
     "lint": "eslint src --ext .ts --max-warnings 0",
-    "test": "npm run build && node --test lib/test/helperAccepted.test.js lib/test/lifecycle.test.js lib/test/riderWeather.test.js lib/test/confirmationAggregates.test.js lib/test/notificationPreferences.test.js",
+    "test": "npm run build && node --test lib/test/helperAccepted.test.js lib/test/lifecycle.test.js lib/test/riderWeather.test.js lib/test/confirmationAggregates.test.js lib/test/notificationPreferences.test.js lib/test/recipientTargeting.test.js",
     "serve": "npm run build && firebase emulators:start --only functions,firestore"
   },
   "dependencies": {
     "firebase-admin": "^13.4.0",
-    "firebase-functions": "^6.3.2"
+    "firebase-functions": "^6.3.2",
+    "geofire-common": "^6.0.0"
   },
   "devDependencies": {
     "@types/node": "^22.15.29",
