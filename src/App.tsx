@@ -26,8 +26,19 @@ import MarketplaceBridgeSheet from "./components/mapChrome/MarketplaceBridgeShee
 import ReportConfirmationPanel from "./components/mapChrome/ReportConfirmationPanel"
 import NearbyChip from "./components/mapChrome/NearbyChip"
 import NearbyIntelligenceSheet from "./components/mapChrome/NearbyIntelligenceSheet"
+import DuplicateReportSheet from "./components/mapChrome/DuplicateReportSheet"
 import { useRiderWeather } from "./weather/useRiderWeather"
 import { getNearbyReportCandidates } from "./nearby/nearbyIntelligence"
+import {
+  findLikelyDuplicateReport,
+  isDuplicateEligibleCreateType,
+  isReportOwnerForDuplicate,
+  type DuplicateMatch,
+} from "./duplicateReports/duplicateReportIntelligence"
+import { DUPLICATE_COPY } from "./duplicateReports/duplicateConfig"
+import { upsertReportConfirmation } from "./reportConfirmations/firestoreConfirmations"
+import { canUserCastConfirmation } from "./reportConfirmations/reportConfirmations"
+import { resolveCreateLocation } from "./utils/resolveCreateLocation"
 import { onAuthStateChanged } from "firebase/auth"
 import {
   collection,
@@ -69,7 +80,6 @@ import {
   isIncidentReport,
   usesApproximateIncidentArea,
 } from "./utils/incidentTypes"
-import { resolveCreateLocation } from "./utils/resolveCreateLocation"
 
 type ReportItem = {
   id?: string | number
@@ -421,6 +431,16 @@ function App() {
   const [showWeatherSheet, setShowWeatherSheet] = useState(false)
   const [showMarketplaceSheet, setShowMarketplaceSheet] = useState(false)
   const [showNearbySheet, setShowNearbySheet] = useState(false)
+  const [showDuplicateSheet, setShowDuplicateSheet] = useState(false)
+  const [duplicateMatch, setDuplicateMatch] = useState<DuplicateMatch | null>(
+    null
+  )
+  const [pendingDuplicateCreate, setPendingDuplicateCreate] = useState<{
+    typePayload: any
+    coords: [number, number]
+  } | null>(null)
+  const [duplicateBusy, setDuplicateBusy] = useState(false)
+  const [duplicateError, setDuplicateError] = useState<string | null>(null)
   const [mapTypeId, setMapTypeId] = useState<MapTypeMode>("roadmap")
   const [trafficOn, setTrafficOn] = useState(false)
   const [reportsSearch, setReportsSearch] = useState("")
@@ -931,6 +951,7 @@ const showMapChrome =
   !showWeatherSheet &&
   !showMarketplaceSheet &&
   !showNearbySheet &&
+  !showDuplicateSheet &&
   !showStolenModal &&
   !showDescriptionModal &&
   !showContactModal &&
@@ -1378,7 +1399,10 @@ const refreshGps = () => {
     setSelectedType(null)
   }
 
-async function createUserReport(type: any): Promise<boolean> {
+async function createUserReport(
+  type: any,
+  options?: { preResolvedCoords?: [number, number] }
+): Promise<boolean> {
 try {
 let ownerUid: string
 try {
@@ -1389,12 +1413,24 @@ try {
   return false
 }
 
-const located = await resolveCreateLocation({ existing: myLocation })
-if (located.coords) {
-  setMyLocation(located.coords)
+let lat: number
+let lng: number
+if (
+  options?.preResolvedCoords &&
+  Number.isFinite(options.preResolvedCoords[0]) &&
+  Number.isFinite(options.preResolvedCoords[1])
+) {
+  lat = options.preResolvedCoords[0]
+  lng = options.preResolvedCoords[1]
+  setMyLocation([lat, lng])
+} else {
+  const located = await resolveCreateLocation({ existing: myLocation })
+  if (located.coords) {
+    setMyLocation(located.coords)
+  }
+  lat = located.coords ? located.coords[0] : 33.8938
+  lng = located.coords ? located.coords[1] : 35.5018
 }
-const lat = located.coords ? located.coords[0] : 33.8938
-const lng = located.coords ? located.coords[1] : 35.5018
 const locationInfo = await getAddressFromCoords(lat, lng)
 
 let reportImageUrl = ""
@@ -1542,6 +1578,122 @@ const handleNearbySelect = useCallback(
   },
   [visibleReports]
 )
+
+const duplicateIsOwn = useMemo(() => {
+  if (!duplicateMatch) return false
+  return isReportOwnerForDuplicate(duplicateMatch.report, {
+    currentUid: firebaseUid,
+    deviceId,
+  })
+}, [duplicateMatch, firebaseUid, deviceId])
+
+const clearDuplicateFlow = useCallback(() => {
+  setShowDuplicateSheet(false)
+  setDuplicateMatch(null)
+  setPendingDuplicateCreate(null)
+  setDuplicateError(null)
+  setDuplicateBusy(false)
+}, [])
+
+const handleDuplicateView = useCallback(() => {
+  if (!duplicateMatch) return
+  const report =
+    visibleReports.find((r: any) => String(r.id) === duplicateMatch.id) ??
+    duplicateMatch.report
+  clearDuplicateFlow()
+  setShowReportModal(false)
+  setShowDescriptionModal(false)
+  setSelectedReport(report)
+  centerMapOnReport(report.lat, report.lng)
+}, [duplicateMatch, visibleReports, clearDuplicateFlow])
+
+const handleDuplicateConfirmPresent = useCallback(async () => {
+  if (!duplicateMatch || duplicateBusy) return
+  if (duplicateIsOwn) return
+
+  setDuplicateBusy(true)
+  setDuplicateError(null)
+  try {
+    let uid: string
+    try {
+      uid = await requireAuthUid()
+    } catch {
+      setDuplicateError(DUPLICATE_COPY.authNotReady)
+      return
+    }
+
+    const live =
+      visibleReports.find((r: any) => String(r.id) === duplicateMatch.id) ??
+      null
+    if (!live || isReportExpired(live)) {
+      setDuplicateError(DUPLICATE_COPY.candidateGone)
+      return
+    }
+
+    if (
+      !canUserCastConfirmation({
+        report: live,
+        currentUid: uid,
+      })
+    ) {
+      setDuplicateError(DUPLICATE_COPY.confirmFailed)
+      return
+    }
+
+    await upsertReportConfirmation({
+      db,
+      reportId: String(live.id),
+      uid,
+      status: "present",
+    })
+
+    clearDuplicateFlow()
+    setShowReportModal(false)
+    setShowDescriptionModal(false)
+    setSelectedReport(live)
+    centerMapOnReport(live.lat, live.lng)
+  } catch {
+    setDuplicateError(DUPLICATE_COPY.confirmFailed)
+  } finally {
+    setDuplicateBusy(false)
+  }
+}, [
+  duplicateMatch,
+  duplicateBusy,
+  duplicateIsOwn,
+  visibleReports,
+  clearDuplicateFlow,
+])
+
+const handleDuplicateCreateAnyway = useCallback(async () => {
+  if (!pendingDuplicateCreate || isSubmittingReport || duplicateBusy) return
+  setDuplicateBusy(true)
+  setDuplicateError(null)
+  setIsSubmittingReport(true)
+  try {
+    const { typePayload, coords } = pendingDuplicateCreate
+    // Same cached coords — no second GPS request.
+    const ok = await createUserReport(typePayload, {
+      preResolvedCoords: coords,
+    })
+    if (ok) {
+      clearDuplicateFlow()
+      setReportDescription("")
+      setShowDescriptionModal(false)
+      setShowReportModal(false)
+      if (
+        shouldOfferNotificationPromptAfterCreate({
+          reportFamily: typePayload?.reportFamily,
+        })
+      ) {
+        openNotificationPrompt()
+      }
+    }
+  } finally {
+    setDuplicateBusy(false)
+    setIsSubmittingReport(false)
+  }
+}, [pendingDuplicateCreate, isSubmittingReport, duplicateBusy, clearDuplicateFlow])
 
 const handleGoogleReportSelect = useCallback(
   (r: any) => {
@@ -1708,6 +1860,22 @@ const handleGoogleReportSelect = useCallback(
   candidates={nearbyCandidates}
   onClose={() => setShowNearbySheet(false)}
   onSelect={handleNearbySelect}
+/>
+
+<DuplicateReportSheet
+  open={showDuplicateSheet}
+  match={duplicateMatch}
+  isOwnReport={duplicateIsOwn}
+  busy={duplicateBusy}
+  errorMessage={duplicateError}
+  onConfirmPresent={() => {
+    void handleDuplicateConfirmPresent()
+  }}
+  onViewReport={handleDuplicateView}
+  onCreateAnyway={() => {
+    void handleDuplicateCreateAnyway()
+  }}
+  onClose={clearDuplicateFlow}
 />
 
 <LayersSheet
@@ -2490,40 +2658,85 @@ setReportImagePreview(URL.createObjectURL(compressedFile))
     }
 
     const finalDescription = reportDescription
-
-const submitAction = async () => {
-  if (isSubmittingReport) return
-  setIsSubmittingReport(true)
-
-  const ok = await createUserReport({
-    ...pendingReportType,
-    description: finalDescription
-  })
-
-  if (ok) {
-    setReportDescription("")
-    setShowDescriptionModal(false)
-    setShowReportModal(false)
-    if (
-      shouldOfferNotificationPromptAfterCreate({
-        reportFamily: pendingReportType?.reportFamily,
-      })
-    ) {
-      openNotificationPrompt()
+    const typePayload = {
+      ...pendingReportType,
+      description: finalDescription,
     }
-  }
-}
 
-if (
-  pendingReportType?.reportFamily === "assistance" ||
-  pendingReportType?.reportFamily === "sharedRide"
-) {
-  ensureContactInfo(submitAction)
-  return
-}
+    const finishSuccessfulCreate = () => {
+      setReportDescription("")
+      setShowDescriptionModal(false)
+      setShowReportModal(false)
+      setShowDuplicateSheet(false)
+      setDuplicateMatch(null)
+      setPendingDuplicateCreate(null)
+      if (
+        shouldOfferNotificationPromptAfterCreate({
+          reportFamily: pendingReportType?.reportFamily,
+        })
+      ) {
+        openNotificationPrompt()
+      }
+    }
 
-await submitAction()
+    const runCreate = async (preResolvedCoords?: [number, number]) => {
+      setIsSubmittingReport(true)
+      const ok = await createUserReport(typePayload, { preResolvedCoords })
+      if (ok) finishSuccessfulCreate()
+    }
 
+    if (
+      pendingReportType?.reportFamily === "assistance" ||
+      pendingReportType?.reportFamily === "sharedRide"
+    ) {
+      ensureContactInfo(() => {
+        void runCreate()
+      })
+      return
+    }
+
+    // Road / incident: one fresh GPS, then duplicate nudge before addDoc.
+    if (isDuplicateEligibleCreateType(pendingReportType)) {
+      setIsSubmittingReport(true)
+      try {
+        const located = await resolveCreateLocation({ existing: myLocation })
+        const coords: [number, number] = located.coords
+          ? located.coords
+          : [33.8938, 35.5018]
+        if (located.coords) setMyLocation(located.coords)
+
+        const category =
+          typeof pendingReportType.reportCategory === "string"
+            ? pendingReportType.reportCategory
+            : ""
+        const match = findLikelyDuplicateReport({
+          reports: visibleReports,
+          createCategory: category,
+          createLat: coords[0],
+          createLng: coords[1],
+        })
+
+        if (match) {
+          setPendingDuplicateCreate({ typePayload, coords })
+          setDuplicateMatch(match)
+          setDuplicateError(null)
+          setShowDescriptionModal(false)
+          setShowDuplicateSheet(true)
+          return
+        }
+
+        // Reuse same coords — no second GPS request.
+        const ok = await createUserReport(typePayload, {
+          preResolvedCoords: coords,
+        })
+        if (ok) finishSuccessfulCreate()
+      } finally {
+        setIsSubmittingReport(false)
+      }
+      return
+    }
+
+    await runCreate()
   }}
   disabled={isSubmittingReport}
   style={{
