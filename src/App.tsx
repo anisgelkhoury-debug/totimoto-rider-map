@@ -48,6 +48,11 @@ import {
   useBoundedReports,
   createDebouncedViewportEmitter,
   countMissingGeohash,
+  auditGeoMetadataCoverage,
+  compareFullVsBoundedReportIds,
+  compareExpectedFilteredVsBounded,
+  classifyComparisonDiffs,
+  estimateBoundedReadCost,
   type ViewportBounds,
 } from "./geo/index"
 import { resolveCreateLocation } from "./utils/resolveCreateLocation"
@@ -320,6 +325,10 @@ function App() {
   // Full-collection path remains DEFAULT when bounded flag is off.
   const useBoundedQueries = useBoundedReportQueriesEnabled()
   const compareBoundedQueries = useCompareBoundedReportQueriesEnabled()
+  // DEV-only dual observe: full remains App state; bounded runs for ID comparison.
+  const compareDevMode =
+    import.meta.env.DEV === true && compareBoundedQueries === true
+  const geoObserveEnabled = useBoundedQueries || compareDevMode
   const [viewportBounds, setViewportBounds] = useState<ViewportBounds | null>(
     null
   )
@@ -332,9 +341,9 @@ function App() {
   }, [])
 
   const handleViewportIdle = useCallback((bounds: ViewportBounds) => {
-    if (!useBoundedQueries) return
+    if (!geoObserveEnabled) return
     viewportEmitterRef.current.push(bounds)
-  }, [useBoundedQueries])
+  }, [geoObserveEnabled])
 
   const pendingDeepLinkReportId = useRef<string | null>(
     typeof window !== "undefined"
@@ -344,12 +353,12 @@ function App() {
 
   const bounded = useBoundedReports({
     db,
-    enabled: useBoundedQueries && authStatus === "ready",
+    enabled: geoObserveEnabled && authStatus === "ready",
     authReady: authStatus === "ready",
     ownerUid: firebaseUid,
     riderLat: myLocation ? myLocation[0] : null,
     riderLng: myLocation ? myLocation[1] : null,
-    viewportBounds: useBoundedQueries ? viewportBounds : null,
+    viewportBounds: geoObserveEnabled ? viewportBounds : null,
     selectedReportId:
       selectedReport?.id != null ? String(selectedReport.id) : null,
     viewerDeviceId: deviceId,
@@ -381,10 +390,19 @@ function App() {
               key: reportRenderKey(r),
             })
           }
-          if (compareBoundedQueries) {
-            console.info(
-              `[TRN DEV] full-listener missing geohash: ${countMissingGeohash(liveReports)}`
-            )
+          if (compareDevMode) {
+            const coverage = auditGeoMetadataCoverage(liveReports)
+            console.info("[TRN DEV] geo coverage", {
+              total: coverage.total,
+              withGeohash: coverage.withGeohash,
+              withoutGeohash: coverage.withoutGeohash,
+              withExpiresAt: coverage.withExpiresAt,
+              withoutExpiresAt: coverage.withoutExpiresAt,
+              withBoth: coverage.withBoth,
+              bothPct: coverage.bothPct,
+              shortLivedBothPct: coverage.shortLivedBothPct,
+              missingGeohash: countMissingGeohash(liveReports),
+            })
           }
         }
         setReports((prev: any) => {
@@ -402,9 +420,10 @@ function App() {
     )
 
     return () => unsubscribe()
-  }, [authStatus, useBoundedQueries, compareBoundedQueries])
+  }, [authStatus, useBoundedQueries, compareDevMode])
 
   useEffect(() => {
+    // Production-facing state only switches when bounded flag is explicitly on.
     if (!useBoundedQueries || authStatus !== "ready") return
     setReports((prev: any) => {
       if (reportsMapFingerprint(prev) === reportsMapFingerprint(bounded.reports)) {
@@ -421,6 +440,65 @@ function App() {
       )
     }
   }, [useBoundedQueries, authStatus, bounded.reports, bounded.indexError, bounded.stolenDeferred])
+
+  // DEV compare: full App state vs bounded observe — counts only, no production switch.
+  useEffect(() => {
+    if (!compareDevMode || useBoundedQueries || authStatus !== "ready") return
+    if (!myLocation) return
+    const fullIds = reports.map((r: any) => String(r.id)).filter(Boolean)
+    const boundedIds = bounded.reports.map((r) => String(r.id)).filter(Boolean)
+    const cmp = compareFullVsBoundedReportIds({
+      fullIds,
+      boundedIds,
+      fullMissingGeohashCount: countMissingGeohash(reports as any),
+    })
+    const { summary } = classifyComparisonDiffs({
+      fullReports: reports as any,
+      comparison: cmp,
+      riderLat: myLocation[0],
+      riderLng: myLocation[1],
+      viewport: viewportBounds,
+      deferStolen: true,
+    })
+    const expected = compareExpectedFilteredVsBounded({
+      fullReports: reports as any,
+      boundedReports: bounded.riderReports as any,
+      centerLat: myLocation[0],
+      centerLng: myLocation[1],
+      excludeStolen: true,
+    })
+    const cost = estimateBoundedReadCost({
+      fullInitialDocs: reports.length,
+      viewportDocs: bounded.reports.length,
+      riderDocs: bounded.riderReports.length,
+    })
+    console.info("[TRN DEV] full vs bounded comparison", {
+      fullCount: summary.fullCount,
+      boundedCount: summary.boundedCount,
+      intersectionCount: summary.intersectionCount,
+      fullOnlyCount: summary.fullOnlyCount,
+      boundedOnlyCount: summary.boundedOnlyCount,
+      fullOnlyByReason: summary.fullOnlyByReason,
+      boundedOnlyByReason: summary.boundedOnlyByReason,
+      sampleFullOnlyIds: summary.sampleFullOnlyIds,
+      sampleBoundedOnlyIds: summary.sampleBoundedOnlyIds,
+      riderExpectedEqual: expected.equal,
+      riderExpectedCount: expected.expectedCount,
+      riderBoundedCount: expected.boundedCount,
+      readCostReductionPct: cost.reductionPct,
+      indexError: bounded.indexError,
+    })
+  }, [
+    compareDevMode,
+    useBoundedQueries,
+    authStatus,
+    reports,
+    bounded.reports,
+    bounded.riderReports,
+    bounded.indexError,
+    myLocation,
+    viewportBounds,
+  ])
 
   const [selectedType, setSelectedType] = useState<any>(null)
   useEffect(() => {
@@ -1959,7 +2037,7 @@ const handleGoogleReportSelect = useCallback(
           mapTypeId={mapTypeId}
           trafficOn={trafficOn}
           onViewportIdle={
-            useBoundedQueries ? handleViewportIdle : undefined
+            geoObserveEnabled ? handleViewportIdle : undefined
           }
         />
       </div>

@@ -124,3 +124,24 @@ export {
   compareFullVsBoundedReportIds,
   type ReportIdSetComparison,
 } from "./compareReportIds.ts"
+
+export {
+  auditGeoMetadataCoverage,
+  meetsShortLivedGeoCoverageGate,
+  SHORT_LIVED_GEO_COVERAGE_CANARY_PCT,
+  type GeoMetadataCoverageReport,
+  type FamilyCoverage,
+} from "./geoCoverageAudit.ts"
+
+export {
+  summarizeIdComparison,
+  classifyComparisonDiffs,
+  compareExpectedFilteredVsBounded,
+  expectedOwnerEscapeIds,
+  estimateBoundedReadCost,
+  STOLEN_BOUNDED_CANARY_RECOMMENDATION,
+  type ComparisonSummary,
+  type ExpectedVsBoundedResult,
+  type ReadCostEstimate,
+  type DiffReason,
+} from "./geoComparison.ts"
