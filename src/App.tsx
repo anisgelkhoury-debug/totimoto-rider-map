@@ -71,12 +71,13 @@ import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage
 import { formatLebaneseLocationConcise, formatLebaneseLocationDetailed, parseNominatimToLocationInfo } from "./utils/formatLebaneseLocation"
 import { storagePathFromUrlOrPath } from "./utils/storagePath"
 import { NotificationPermissionSheet } from "./notifications/NotificationPermissionSheet"
+import { NotificationSettingsPanel } from "./notifications/NotificationSettingsPanel"
+import { enableNotificationsFromUserGesture } from "./notifications/notificationSubscription"
+import { maybeUpdateNotificationLocationHeartbeat } from "./notifications/notificationLocationWrite"
 import {
   evaluateNotificationSupport,
   markPromptAskedThisSession,
-  resolveSettingsNotificationState,
   setSoftDismiss,
-  settingsStateLabelAr,
   shouldOfferNotificationPromptAfterCreate,
   wasPromptAskedThisSession,
 } from "./notifications/notificationSupport"
@@ -630,6 +631,43 @@ const [showNotifPrompt, setShowNotifPrompt] = useState(false)
 const [notifPromptBusy, setNotifPromptBusy] = useState(false)
 const [notifPromptError, setNotifPromptError] = useState("")
 const [notifSettingsTick, setNotifSettingsTick] = useState(0)
+const [notifMessaging, setNotifMessaging] = useState<Awaited<
+  ReturnType<typeof getFirebaseMessagingIfSupported>
+>>(null)
+
+useEffect(() => {
+  let cancelled = false
+  void getFirebaseMessagingIfSupported().then((m) => {
+    if (!cancelled) setNotifMessaging(m)
+  })
+  return () => {
+    cancelled = true
+  }
+}, [])
+
+// 058C: coarse location heartbeat — reuses myLocation only (no second GPS watcher).
+useEffect(() => {
+  if (!myLocation) return
+  void maybeUpdateNotificationLocationHeartbeat({
+    messaging: notifMessaging,
+    lat: myLocation[0],
+    lng: myLocation[1],
+  })
+}, [myLocation, notifMessaging, notifSettingsTick])
+
+useEffect(() => {
+  const onVisibility = () => {
+    if (document.visibilityState !== "visible" || !myLocation) return
+    void maybeUpdateNotificationLocationHeartbeat({
+      messaging: notifMessaging,
+      lat: myLocation[0],
+      lng: myLocation[1],
+      documentVisible: true,
+    })
+  }
+  document.addEventListener("visibilitychange", onVisibility)
+  return () => document.removeEventListener("visibilitychange", onVisibility)
+}, [myLocation, notifMessaging])
 
 const [fullImageUrl, setFullImageUrl] = useState<string | null>(null)
 
@@ -737,10 +775,7 @@ async function confirmEnableNotifications() {
       return
     }
 
-    const messaging = await getFirebaseMessagingIfSupported()
-    const { enableNotificationsFromUserGesture } = await import(
-      "./notifications/notificationSubscription"
-    )
+    const messaging = (await getFirebaseMessagingIfSupported()) ?? notifMessaging
     const result = await enableNotificationsFromUserGesture({
       messaging,
       deviceId,
@@ -759,13 +794,6 @@ async function confirmEnableNotifications() {
 
     setShowNotifPrompt(false)
     setNotifSettingsTick((n) => n + 1)
-    if (result.mode === "local_pending_rules") {
-      alert(
-        "تم السماح بالإشعارات على هذا الجهاز. اكتمال الربط مع الخادم سيتم في التحديث القادم."
-      )
-    } else {
-      alert("تم تفعيل الإشعارات ✅")
-    }
   } finally {
     setNotifPromptBusy(false)
   }
@@ -3256,107 +3284,23 @@ setReportImagePreview(URL.createObjectURL(compressedFile))
     >
       <h2>الإعدادات</h2>
 
-      {(() => {
-        void notifSettingsTick
-        const notifState = resolveSettingsNotificationState()
-        const label = settingsStateLabelAr(notifState)
-        return (
-          <div
-            style={{
-              ...communityBtnStyle,
-              textAlign: "right",
-              cursor: "default",
-              display: "block",
-              paddingTop: 14,
-              paddingBottom: 14,
-            }}
-          >
-            <div style={{ fontWeight: "bold", marginBottom: 4 }}>الإشعارات</div>
-            <div style={{ fontSize: 13, color: "#64748b", marginBottom: 10 }}>
-              الحالة: {label}
-            </div>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {(notifState === "inactive" || notifState === "needs_setup") && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowCommunityCenter(false)
-                    openNotificationPrompt({ force: true })
-                  }}
-                  style={{
-                    flex: 1,
-                    minWidth: 110,
-                    padding: "10px 8px",
-                    borderRadius: 12,
-                    border: "none",
-                    background: "#0f172a",
-                    color: "white",
-                    fontWeight: "bold",
-                    fontSize: 13,
-                  }}
-                >
-                  {notifState === "needs_setup" ? "إعادة المحاولة" : "تفعيل"}
-                </button>
-              )}
-              {notifState === "needs_install" && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowCommunityCenter(false)
-                    setShowInstallGuide(true)
-                  }}
-                  style={{
-                    flex: 1,
-                    minWidth: 110,
-                    padding: "10px 8px",
-                    borderRadius: 12,
-                    border: "none",
-                    background: "#0f172a",
-                    color: "white",
-                    fontWeight: "bold",
-                    fontSize: 13,
-                  }}
-                >
-                  فتح تعليمات التثبيت
-                </button>
-              )}
-              {notifState === "active" && (
-                <button
-                  type="button"
-                  onClick={async () => {
-                    const { disableNotificationsLocally } = await import(
-                      "./notifications/notificationSubscription"
-                    )
-                    disableNotificationsLocally()
-                    setNotifSettingsTick((n) => n + 1)
-                    alert(
-                      "تم إيقاف تفضيل الإشعارات على هذا الجهاز. إلغاء الاشتراك الكامل من الخادم يأتي لاحقاً."
-                    )
-                  }}
-                  style={{
-                    flex: 1,
-                    minWidth: 110,
-                    padding: "10px 8px",
-                    borderRadius: 12,
-                    border: "none",
-                    background: "#e5e7eb",
-                    color: "#0f172a",
-                    fontWeight: "bold",
-                    fontSize: 13,
-                  }}
-                >
-                  إيقاف محلي
-                </button>
-              )}
-              {notifState === "denied" && (
-                <div style={{ fontSize: 12, color: "#b91c1c", lineHeight: 1.5 }}>
-                  فعّل الإشعارات من إعدادات المتصفح أو الجهاز ثم أعد المحاولة.
-                </div>
-              )}
-            </div>
-          </div>
-        )
-      })()}
+      <div style={{ ...communityBtnStyle, paddingTop: 4, paddingBottom: 4 }}>
+        <NotificationSettingsPanel
+          messaging={notifMessaging}
+          hasMyLocation={Boolean(myLocation)}
+          refreshTick={notifSettingsTick}
+          containerStyle={{ paddingTop: 10, paddingBottom: 10 }}
+          onRequestEnable={() => {
+            setShowCommunityCenter(false)
+            openNotificationPrompt({ force: true })
+          }}
+          onOpenInstallGuide={() => {
+            setShowCommunityCenter(false)
+            setShowInstallGuide(true)
+          }}
+          onStatusChange={() => setNotifSettingsTick((n) => n + 1)}
+        />
+      </div>
 
       <button
   onClick={() => {

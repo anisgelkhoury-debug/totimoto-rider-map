@@ -1,12 +1,14 @@
 /**
  * TRN Cloud Functions — owner↔helper lifecycle notifications + rider weather proxy
- * + confirmation aggregate sync for Smart Report Lifecycle (Task 056).
+ * + confirmation aggregate sync for Smart Report Lifecycle (Task 056)
+ * + nearby report notification evaluation (Task 058E; send gate default OFF).
  * 2nd gen. No production deploy in this task.
  */
 import { initializeApp } from "firebase-admin/app"
 import { FieldValue, getFirestore, type DocumentData } from "firebase-admin/firestore"
 import { getMessaging } from "firebase-admin/messaging"
 import {
+  onDocumentCreated,
   onDocumentDeleted,
   onDocumentUpdated,
   onDocumentWritten,
@@ -19,9 +21,18 @@ import {
   processOwnerResolvedUpdate,
 } from "./lifecycle/handlers"
 import { safeError, safeInfo } from "./lib/safeLog"
+import {
+  processNearbyReportCreated,
+  type NearbyNotifyOutcome,
+} from "./nearby/processNearbyReport"
+import { ALLOW_PRODUCTION_NEARBY_NOTIFICATION_SEND } from "./nearby/sendGate"
 import type { PreferenceKey, ReportSnapshot } from "./shared/report"
 import type { LifecycleNotifyOutcome } from "./shared/processLifecycle"
+import type { NearbyRecipientSubscriptionDoc } from "./shared/recipientTargeting"
 import type { SubscriptionDoc } from "./shared/subscriptions"
+
+/** Re-export for tests / ops visibility. Default false. */
+export { ALLOW_PRODUCTION_NEARBY_NOTIFICATION_SEND }
 
 initializeApp()
 
@@ -160,11 +171,50 @@ async function disableSubscription(subscriptionId: string): Promise<void> {
   )
 }
 
+/**
+ * 058E geo recipient query — matches prepared index:
+ * enabled ASC + locationGeohash ASC
+ */
+async function listSubscriptionsByGeohashRange(
+  start: string,
+  end: string
+): Promise<NearbyRecipientSubscriptionDoc[]> {
+  const snap = await db
+    .collection("notificationSubscriptions")
+    .where("enabled", "==", true)
+    .where("locationGeohash", ">=", start)
+    .where("locationGeohash", "<=", end)
+    .get()
+
+  return snap.docs.map((doc) => {
+    const data = doc.data()
+    return {
+      id: doc.id,
+      uid: data.uid,
+      enabled: data.enabled,
+      permissionState: data.permissionState,
+      token: data.token,
+      locationGeohash: data.locationGeohash,
+      locationUpdatedAt: data.locationUpdatedAt,
+      notificationPreferences: data.notificationPreferences ?? null,
+    }
+  })
+}
+
 const sharedDeps = {
   claimEventOnce,
   releaseEventClaim,
   markEventComplete,
   listSubscriptions,
+  sendDataMessage,
+  disableSubscription,
+}
+
+const nearbyDeps = {
+  claimEventOnce,
+  releaseEventClaim,
+  markEventComplete,
+  listSubscriptionsByGeohashRange,
   sendDataMessage,
   disableSubscription,
 }
@@ -185,6 +235,42 @@ function throwIfRetryable(outcome: LifecycleNotifyOutcome, message: string): voi
     throw new Error(message)
   }
 }
+
+function logNearbyOutcome(outcome: NearbyNotifyOutcome): void {
+  safeInfo("nearby_report_outcome", {
+    status: outcome.status,
+    reason: outcome.reason || "",
+    category: outcome.category || "",
+    candidateCount: outcome.candidateCount,
+    eligibleCount: outcome.eligibleCount,
+    attempted: outcome.attempted,
+    success: outcome.success,
+    failed: outcome.failed,
+    disabledTokens: outcome.disabledTokens,
+    sendGate: outcome.sendGate,
+  })
+}
+
+/**
+ * Task 058E — evaluate nearby alerts on report CREATE only.
+ * Does not share handlers with assistance lifecycle update/delete triggers.
+ * FCM send requires ALLOW_PRODUCTION_NEARBY_NOTIFICATION_SEND === true.
+ */
+export const onReportCreatedNearbyNotify = onDocumentCreated(
+  {
+    document: "reports/{reportId}",
+    region: "us-central1",
+  },
+  async (event) => {
+    const reportId = event.params.reportId
+    const data = event.data?.data() as Record<string, unknown> | undefined
+    const outcome = await processNearbyReportCreated(reportId, data, nearbyDeps)
+    logNearbyOutcome(outcome)
+    if (outcome.reason === "transient_all_failed_retryable") {
+      throw new Error("nearby_report_transient_fcm_failure")
+    }
+  }
+)
 
 /**
  * Single update trigger for mutually exclusive lifecycle transitions

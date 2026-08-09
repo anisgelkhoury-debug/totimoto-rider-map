@@ -326,9 +326,10 @@ service cloud.firestore {
       return value in ['android', 'ios', 'desktop', 'unknown'];
     }
 
-    function validNotificationPreferences(prefs) {
-      return prefs is map
-        && prefs.keys().hasOnly([
+    // 058B: accept legacy exact-8 OR extended (legacy + nearby) preference maps.
+    // New nearby keys are optional for old clients; never required alone.
+    function validLegacyNotificationPreferences(prefs) {
+      return prefs.keys().hasOnly([
           'helperLifecycle',
           'ownerLifecycle',
           'stolenNearby',
@@ -349,8 +350,65 @@ service cloud.firestore {
         && prefs.marketing is bool;
     }
 
+    function validExtendedNotificationPreferences(prefs) {
+      return prefs.keys().hasOnly([
+          'helperLifecycle',
+          'ownerLifecycle',
+          'stolenNearby',
+          'criticalRoads',
+          'sharedRides',
+          'communityRides',
+          'announcements',
+          'marketing',
+          'nearbyAlerts',
+          'checkpoint',
+          'accident',
+          'roadClosed',
+          'slippery',
+          'importantIncidents'
+        ])
+        && prefs.keys().size() == 14
+        && prefs.helperLifecycle is bool
+        && prefs.ownerLifecycle is bool
+        && prefs.stolenNearby is bool
+        && prefs.criticalRoads is bool
+        && prefs.sharedRides is bool
+        && prefs.communityRides is bool
+        && prefs.announcements is bool
+        && prefs.marketing is bool
+        && prefs.nearbyAlerts is bool
+        && prefs.checkpoint is bool
+        && prefs.accident is bool
+        && prefs.roadClosed is bool
+        && prefs.slippery is bool
+        && prefs.importantIncidents is bool;
+    }
+
+    function validNotificationPreferences(prefs) {
+      return prefs is map
+        && (
+          validLegacyNotificationPreferences(prefs)
+          || validExtendedNotificationPreferences(prefs)
+        );
+    }
+
     function validSubscriptionTimestamp(value) {
       return value is timestamp || value is number;
+    }
+
+    // 058C: coarse notification location (precision 6). Optional pair; no lat/lng.
+    function validNotificationLocationGeohash(value) {
+      return value is string
+        && value.size() == 6
+        && value.matches('^[0123456789bcdefghjkmnpqrstuvwxyz]+$');
+    }
+
+    function validOptionalNotificationLocation(data) {
+      let hasHash = 'locationGeohash' in data;
+      let hasAt = 'locationUpdatedAt' in data;
+      return hasHash == hasAt
+        && (!hasHash || validNotificationLocationGeohash(data.locationGeohash))
+        && (!hasAt || validSubscriptionTimestamp(data.locationUpdatedAt));
     }
 
     function subscriptionFieldKeysOnly(data) {
@@ -369,7 +427,9 @@ service cloud.firestore {
         'createdAt',
         'updatedAt',
         'lastSeenAt',
-        'appVersion'
+        'appVersion',
+        'locationGeohash',
+        'locationUpdatedAt'
       ]);
     }
 
@@ -389,7 +449,12 @@ service cloud.firestore {
         && stringLen(data.appVersion, 64)
         && validSubscriptionTimestamp(data.createdAt)
         && validSubscriptionTimestamp(data.updatedAt)
-        && validSubscriptionTimestamp(data.lastSeenAt);
+        && validSubscriptionTimestamp(data.lastSeenAt)
+        && validOptionalNotificationLocation(data)
+        && !('lat' in data)
+        && !('lng' in data)
+        && !('latitude' in data)
+        && !('longitude' in data);
     }
 
     function isSubscriptionOwner() {
@@ -425,7 +490,9 @@ service cloud.firestore {
           'notificationPreferences',
           'updatedAt',
           'lastSeenAt',
-          'appVersion'
+          'appVersion',
+          'locationGeohash',
+          'locationUpdatedAt'
         ]);
     }
 

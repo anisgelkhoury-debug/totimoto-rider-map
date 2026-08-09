@@ -55,13 +55,15 @@ function report(overrides = {}) {
 }
 
 describe("057E index file audit", () => {
-  it("firestore.indexes.json has exactly 4 indexes (2 notif + 2 geo)", () => {
+  it("firestore.indexes.json has 5 indexes (3 notif + 2 geo)", () => {
     const indexes = JSON.parse(
       fs.readFileSync(path.join(ROOT, "firestore.indexes.json"), "utf8")
     )
-    assert.equal(indexes.indexes.length, 4)
+    // 058D adds enabled+locationGeohash for nearby recipient targeting.
+    assert.equal(indexes.indexes.length, 5)
     const groups = indexes.indexes.map((i) => i.collectionGroup).sort()
     assert.deepEqual(groups, [
+      "notificationSubscriptions",
       "notificationSubscriptions",
       "notificationSubscriptions",
       "reports",
