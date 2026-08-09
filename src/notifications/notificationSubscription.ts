@@ -5,6 +5,7 @@
 
 import {
   collection,
+  deleteField,
   doc,
   getDoc,
   serverTimestamp,
@@ -15,6 +16,7 @@ import { getToken, type Messaging } from "firebase/messaging"
 import { db, requireAuthUid } from "../firebase"
 import { subscriptionIdFromToken } from "./notificationCrypto"
 import {
+  defaultNotificationPreferences,
   mergePreferencesForReenable,
   normalizeNotificationPreferences,
   subscriptionDisableUpdateFields,
@@ -25,6 +27,10 @@ export {
   mergePreferencesForReenable,
   subscriptionDisableUpdateFields,
 } from "./notificationPreferences"
+import {
+  resetHeartbeatMemoryState,
+  setCachedNearbyAlertsPref,
+} from "./locationHeartbeatState"
 import {
   evaluateNotificationSupport,
   getStoredSubscriptionId,
@@ -347,6 +353,7 @@ export async function enableNotificationsFromUserGesture(options: {
     setLocalEnabledFlag(true)
     setServerRegisteredFlag(true)
     setStoredSubscriptionId(id)
+    setCachedNearbyAlertsPref(prefs.nearbyAlerts === true)
     return { ok: true, mode: "firestore", subscriptionId: id }
   } catch {
     setLocalEnabledFlag(true)
@@ -356,6 +363,17 @@ export async function enableNotificationsFromUserGesture(options: {
       reason: "write_failed",
       messageAr: "تم السماح بالإشعارات لكن تعذّر حفظ الإعداد. سنكمّل التفعيل قريباً.",
     }
+  }
+}
+
+/** Location clear fields for disable / nearby-off (no lat/lng ever written). */
+export function subscriptionLocationClearFields(): {
+  locationGeohash: ReturnType<typeof deleteField>
+  locationUpdatedAt: ReturnType<typeof deleteField>
+} {
+  return {
+    locationGeohash: deleteField(),
+    locationUpdatedAt: deleteField(),
   }
 }
 
@@ -378,6 +396,8 @@ export async function disableNotificationsOnServer(options: {
 
   if (!ALLOW_PRODUCTION_SUBSCRIPTION_WRITE) {
     setLocalEnabledFlag(false)
+    setCachedNearbyAlertsPref(false)
+    resetHeartbeatMemoryState()
     return { ok: true }
   }
 
@@ -385,6 +405,8 @@ export async function disableNotificationsOnServer(options: {
   if (!resolved) {
     setLocalEnabledFlag(false)
     setServerRegisteredFlag(false)
+    setCachedNearbyAlertsPref(false)
+    resetHeartbeatMemoryState()
     return {
       ok: false,
       reason: "no_subscription",
@@ -395,12 +417,15 @@ export async function disableNotificationsOnServer(options: {
   try {
     await updateDoc(resolved.ref, {
       ...subscriptionDisableUpdateFields(),
+      ...subscriptionLocationClearFields(),
       updatedAt: serverTimestamp(),
       lastSeenAt: serverTimestamp(),
     })
     setLocalEnabledFlag(false)
     setServerRegisteredFlag(true)
     setStoredSubscriptionId(resolved.id)
+    setCachedNearbyAlertsPref(false)
+    resetHeartbeatMemoryState()
     return { ok: true }
   } catch {
     // Fallback: merge write if update fails (doc missing fields edge cases).
@@ -414,9 +439,19 @@ export async function disableNotificationsOnServer(options: {
         },
         { merge: true }
       )
+      // Best-effort clear after merge fallback (deleteField needs updateDoc).
+      try {
+        await updateDoc(resolved.ref, {
+          ...subscriptionLocationClearFields(),
+        })
+      } catch {
+        /* ignore */
+      }
       setLocalEnabledFlag(false)
       setServerRegisteredFlag(true)
       setStoredSubscriptionId(resolved.id)
+      setCachedNearbyAlertsPref(false)
+      resetHeartbeatMemoryState()
       return { ok: true }
     } catch {
       return {
@@ -453,7 +488,11 @@ export async function loadNotificationPreferences(options: {
   try {
     const snap = await getDoc(resolved.ref)
     if (!snap.exists()) return defaults
-    return normalizeNotificationPreferences(snap.data().notificationPreferences)
+    const prefs = normalizeNotificationPreferences(
+      snap.data().notificationPreferences
+    )
+    setCachedNearbyAlertsPref(prefs.nearbyAlerts === true)
+    return prefs
   } catch {
     return defaults
   }
@@ -477,6 +516,8 @@ export async function updateNotificationPreferencesOnServer(options: {
   }
 
   if (!ALLOW_PRODUCTION_SUBSCRIPTION_WRITE) {
+    setCachedNearbyAlertsPref(prefs.nearbyAlerts === true)
+    if (!prefs.nearbyAlerts) resetHeartbeatMemoryState()
     return { ok: true, preferences: prefs }
   }
 
@@ -490,12 +531,18 @@ export async function updateNotificationPreferencesOnServer(options: {
   }
 
   try {
-    await updateDoc(resolved.ref, {
+    const patch: Record<string, unknown> = {
       notificationPreferences: prefs,
       updatedAt: serverTimestamp(),
       lastSeenAt: serverTimestamp(),
-    })
+    }
+    if (prefs.nearbyAlerts !== true) {
+      Object.assign(patch, subscriptionLocationClearFields())
+      resetHeartbeatMemoryState()
+    }
+    await updateDoc(resolved.ref, patch)
     setStoredSubscriptionId(resolved.id)
+    setCachedNearbyAlertsPref(prefs.nearbyAlerts === true)
     return { ok: true, preferences: prefs }
   } catch {
     return {

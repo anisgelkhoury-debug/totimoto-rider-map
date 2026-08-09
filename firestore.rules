@@ -396,6 +396,21 @@ service cloud.firestore {
       return value is timestamp || value is number;
     }
 
+    // 058C: coarse notification location (precision 6). Optional pair; no lat/lng.
+    function validNotificationLocationGeohash(value) {
+      return value is string
+        && value.size() == 6
+        && value.matches('^[0123456789bcdefghjkmnpqrstuvwxyz]+$');
+    }
+
+    function validOptionalNotificationLocation(data) {
+      let hasHash = 'locationGeohash' in data;
+      let hasAt = 'locationUpdatedAt' in data;
+      return hasHash == hasAt
+        && (!hasHash || validNotificationLocationGeohash(data.locationGeohash))
+        && (!hasAt || validSubscriptionTimestamp(data.locationUpdatedAt));
+    }
+
     function subscriptionFieldKeysOnly(data) {
       return data.keys().hasOnly([
         'uid',
@@ -412,7 +427,9 @@ service cloud.firestore {
         'createdAt',
         'updatedAt',
         'lastSeenAt',
-        'appVersion'
+        'appVersion',
+        'locationGeohash',
+        'locationUpdatedAt'
       ]);
     }
 
@@ -432,7 +449,12 @@ service cloud.firestore {
         && stringLen(data.appVersion, 64)
         && validSubscriptionTimestamp(data.createdAt)
         && validSubscriptionTimestamp(data.updatedAt)
-        && validSubscriptionTimestamp(data.lastSeenAt);
+        && validSubscriptionTimestamp(data.lastSeenAt)
+        && validOptionalNotificationLocation(data)
+        && !('lat' in data)
+        && !('lng' in data)
+        && !('latitude' in data)
+        && !('longitude' in data);
     }
 
     function isSubscriptionOwner() {
@@ -468,7 +490,9 @@ service cloud.firestore {
           'notificationPreferences',
           'updatedAt',
           'lastSeenAt',
-          'appVersion'
+          'appVersion',
+          'locationGeohash',
+          'locationUpdatedAt'
         ]);
     }
 

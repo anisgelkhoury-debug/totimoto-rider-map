@@ -203,7 +203,9 @@ describe("Arabic settings labels", () => {
     assert.equal(NOTIFICATION_SETTINGS_COPY_AR.categorySlippery, "الطرق الزلقة")
     assert.equal(NOTIFICATION_SETTINGS_COPY_AR.categoryImportantIncidents, "الأحداث المهمة")
     assert.match(NOTIFICATION_SETTINGS_COPY_AR.privacyBody, /ما منحتفظ بسجل/)
-    assert.match(NOTIFICATION_SETTINGS_COPY_AR.nearbyNotLiveYet, /المرحلة القادمة/)
+    assert.match(NOTIFICATION_SETTINGS_COPY_AR.nearbyNotLiveYet, /المرحلة الجاية/)
+    assert.equal(NOTIFICATION_SETTINGS_COPY_AR.needLocation, "فعّل الموقع حتى توصلك التنبيهات القريبة")
+    assert.equal(NOTIFICATION_SETTINGS_COPY_AR.locationReady, "الموقع جاهز للتنبيهات")
   })
 })
 
@@ -214,28 +216,25 @@ describe("058B scope guardrails", () => {
     }
   })
 
-  it("23–25. no GPS / nearby Function / notification send in 058B modules", () => {
+  it("23–25. no GPS / nearby Function / notification send in preference model", () => {
+    // Preference model must stay GPS-free; subscription may clear location fields (058C).
     const prefsSrc = readFileSync(
       join(root, "src/notifications/notificationPreferences.ts"),
       "utf8"
     )
+    assert.equal(prefsSrc.includes("navigator.geolocation"), false)
+    assert.equal(prefsSrc.includes("getCurrentPosition"), false)
+    assert.equal(prefsSrc.includes("watchPosition"), false)
+    assert.equal(prefsSrc.includes("onReportCreated"), false)
+    assert.equal(prefsSrc.includes("sendEachForMulticast"), false)
     const subSrc = readFileSync(
       join(root, "src/notifications/notificationSubscription.ts"),
       "utf8"
     )
-    const panelSrc = readFileSync(
-      join(root, "src/notifications/NotificationSettingsPanel.tsx"),
-      "utf8"
-    )
-    const combined = prefsSrc + subSrc + panelSrc
-    assert.equal(combined.includes("navigator.geolocation"), false)
-    assert.equal(combined.includes("getCurrentPosition"), false)
-    assert.equal(combined.includes("watchPosition"), false)
-    assert.equal(combined.includes("locationGeohash"), false)
-    assert.equal(combined.includes("locationUpdatedAt"), false)
-    assert.equal(combined.includes("onReportCreated"), false)
-    assert.equal(combined.includes("sendEachForMulticast"), false)
-    assert.equal(combined.includes("messaging.send"), false)
+    assert.equal(subSrc.includes("navigator.geolocation"), false)
+    assert.equal(subSrc.includes("watchPosition"), false)
+    assert.equal(subSrc.includes("onReportCreated"), false)
+    assert.equal(subSrc.includes("sendEachForMulticast"), false)
   })
 
   it("preference key set is exact expected size", () => {

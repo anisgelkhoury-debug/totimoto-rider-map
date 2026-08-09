@@ -1287,6 +1287,112 @@ describe("Firestore notificationSubscriptions — negative", () => {
       )
     )
   })
+
+  it("058C: rules allow valid geohash/timestamp", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(
+        doc(ctx.firestore(), "notificationSubscriptions", "sub-hb-ok"),
+        baseSubscription("rider-a", {
+          notificationPreferences: extendedNotificationPreferences(),
+        })
+      )
+    })
+    const db = testEnv.authenticatedContext("rider-a").firestore()
+    await assertSucceeds(
+      updateDoc(doc(db, "notificationSubscriptions", "sub-hb-ok"), {
+        locationGeohash: "sydr0u",
+        locationUpdatedAt: Date.now(),
+        updatedAt: Date.now(),
+        lastSeenAt: Date.now(),
+      })
+    )
+  })
+
+  it("058C: rules reject bad geohash", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(
+        doc(ctx.firestore(), "notificationSubscriptions", "sub-hb-bad"),
+        baseSubscription("rider-a", {
+          notificationPreferences: extendedNotificationPreferences(),
+        })
+      )
+    })
+    const db = testEnv.authenticatedContext("rider-a").firestore()
+    await assertFails(
+      updateDoc(doc(db, "notificationSubscriptions", "sub-hb-bad"), {
+        locationGeohash: "short",
+        locationUpdatedAt: Date.now(),
+        updatedAt: Date.now(),
+        lastSeenAt: Date.now(),
+      })
+    )
+    await assertFails(
+      updateDoc(doc(db, "notificationSubscriptions", "sub-hb-bad"), {
+        locationGeohash: "SYDR0U",
+        locationUpdatedAt: Date.now(),
+        updatedAt: Date.now(),
+        lastSeenAt: Date.now(),
+      })
+    )
+  })
+
+  it("058C: rules reject raw lat/lng", async () => {
+    const db = testEnv.authenticatedContext("rider-a").firestore()
+    await assertFails(
+      setDoc(doc(db, "notificationSubscriptions", "sub-hb-ll"), {
+        ...baseSubscription("rider-a", {
+          notificationPreferences: extendedNotificationPreferences(),
+        }),
+        lat: 33.8,
+        lng: 35.5,
+      })
+    )
+  })
+
+  it("058C: rules reject unauthorized location update", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(
+        doc(ctx.firestore(), "notificationSubscriptions", "sub-hb-auth"),
+        baseSubscription("rider-a", {
+          notificationPreferences: extendedNotificationPreferences(),
+        })
+      )
+    })
+    const db = testEnv.authenticatedContext("rider-b").firestore()
+    await assertFails(
+      updateDoc(doc(db, "notificationSubscriptions", "sub-hb-auth"), {
+        locationGeohash: "sydr0u",
+        locationUpdatedAt: Date.now(),
+        updatedAt: Date.now(),
+        lastSeenAt: Date.now(),
+      })
+    )
+  })
+
+  it("058C: clear location fields allowed for owner", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(
+        doc(ctx.firestore(), "notificationSubscriptions", "sub-hb-clr"),
+        {
+          ...baseSubscription("rider-a", {
+            notificationPreferences: extendedNotificationPreferences(),
+          }),
+          locationGeohash: "sydr0u",
+          locationUpdatedAt: Date.now(),
+        }
+      )
+    })
+    const db = testEnv.authenticatedContext("rider-a").firestore()
+    const { deleteField } = await import("firebase/firestore")
+    await assertSucceeds(
+      updateDoc(doc(db, "notificationSubscriptions", "sub-hb-clr"), {
+        locationGeohash: deleteField(),
+        locationUpdatedAt: deleteField(),
+        updatedAt: Date.now(),
+        lastSeenAt: Date.now(),
+      })
+    )
+  })
 })
 
 describe("Firestore notificationEvents — client deny", () => {

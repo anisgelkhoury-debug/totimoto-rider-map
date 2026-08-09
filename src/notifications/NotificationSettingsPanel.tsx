@@ -15,6 +15,14 @@ import {
   type NearbyNotificationPreferenceKey,
 } from "./notificationPreferences"
 import {
+  getHeartbeatMemoryState,
+  setCachedNearbyAlertsPref,
+} from "./locationHeartbeatState"
+import {
+  nearbyLocationStatusLabelAr,
+  resolveNearbyLocationStatusAr,
+} from "./locationHeartbeat"
+import {
   disableNotificationsOnServer,
   loadNotificationPreferences,
   updateNotificationPreferencesOnServer,
@@ -27,6 +35,8 @@ import {
 
 type Props = {
   messaging: Messaging | null
+  /** Current map GPS from existing watcher (no second geolocation API). */
+  hasMyLocation?: boolean
   /** Bump from parent after enable/prompt flows. */
   refreshTick?: number
   onRequestEnable: () => void
@@ -113,6 +123,7 @@ function ToggleRow(props: {
 
 export function NotificationSettingsPanel({
   messaging,
+  hasMyLocation = false,
   refreshTick = 0,
   onRequestEnable,
   onOpenInstallGuide,
@@ -161,6 +172,7 @@ export function NotificationSettingsPanel({
     setInlineMsg("")
     const prev = prefs
     setPrefs(next)
+    setCachedNearbyAlertsPref(next.nearbyAlerts === true)
     const result = await updateNotificationPreferencesOnServer({
       messaging,
       preferences: next,
@@ -168,10 +180,13 @@ export function NotificationSettingsPanel({
     setBusyPrefs(false)
     if (!result.ok) {
       setPrefs(prev)
+      setCachedNearbyAlertsPref(prev.nearbyAlerts === true)
       setInlineErr(result.messageAr || C.prefsSaveFail)
       return false
     }
     setPrefs(result.preferences)
+    setCachedNearbyAlertsPref(result.preferences.nearbyAlerts === true)
+    onStatusChange?.()
     return true
   }
 
@@ -224,6 +239,13 @@ export function NotificationSettingsPanel({
   const label = settingsStateLabelAr(notifState)
   const active = notifState === "active"
   const nearbyOn = prefs.nearbyAlerts === true
+  const heartbeatMem = getHeartbeatMemoryState()
+  const locationStatus = resolveNearbyLocationStatusAr({
+    nearbyAlerts: nearbyOn,
+    hasMyLocation,
+    lastHeartbeatAtMs: heartbeatMem.lastWrittenAtMs,
+  })
+  const locationStatusAr = nearbyLocationStatusLabelAr(locationStatus)
 
   return (
     <div
@@ -348,6 +370,19 @@ export function NotificationSettingsPanel({
           >
             {C.nearbyNotLiveYet}
           </div>
+
+          {nearbyOn && locationStatusAr ? (
+            <div
+              style={{
+                fontSize: 12,
+                color: locationStatus === "ready" ? "#0f766e" : "#b45309",
+                margin: "6px 0 4px",
+                lineHeight: 1.5,
+              }}
+            >
+              {locationStatusAr}
+            </div>
+          ) : null}
 
           {nearbyOn ? (
             <div style={{ marginTop: 4 }}>

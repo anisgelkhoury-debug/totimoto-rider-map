@@ -224,8 +224,11 @@ export const NOTIFICATION_SETTINGS_COPY_AR = {
   nearbyHelp:
     "بنبلغك عن الأشياء المهمة القريبة من آخر موقع شاركته مع TRN.",
   nearbyNotLiveYet:
-    "لن تبدأ التنبيهات القريبة قبل تفعيل مشاركة الموقع في المرحلة القادمة. تفضيلك محفوظ الآن.",
+    "مشاركة آخر موقع تقريبي تصير لما التطبيق مفتوح. إرسال التنبيهات القريبة لسا بالمرحلة الجاية.",
   nearbyDefaultOffHint: "مطفأة افتراضياً — اختيارك.",
+  locationReady: "الموقع جاهز للتنبيهات",
+  needLocation: "فعّل الموقع حتى توصلك التنبيهات القريبة",
+  locationStale: "آخر موقع للتنبيهات قديم — افتح التطبيق بالموقع",
   categoryCheckpoint: "الحواجز",
   categoryAccident: "الحوادث",
   categoryRoadClosed: "الطرق المسكرة",

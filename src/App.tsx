@@ -73,6 +73,7 @@ import { storagePathFromUrlOrPath } from "./utils/storagePath"
 import { NotificationPermissionSheet } from "./notifications/NotificationPermissionSheet"
 import { NotificationSettingsPanel } from "./notifications/NotificationSettingsPanel"
 import { enableNotificationsFromUserGesture } from "./notifications/notificationSubscription"
+import { maybeUpdateNotificationLocationHeartbeat } from "./notifications/notificationLocationWrite"
 import {
   evaluateNotificationSupport,
   markPromptAskedThisSession,
@@ -643,6 +644,30 @@ useEffect(() => {
     cancelled = true
   }
 }, [])
+
+// 058C: coarse location heartbeat — reuses myLocation only (no second GPS watcher).
+useEffect(() => {
+  if (!myLocation) return
+  void maybeUpdateNotificationLocationHeartbeat({
+    messaging: notifMessaging,
+    lat: myLocation[0],
+    lng: myLocation[1],
+  })
+}, [myLocation, notifMessaging, notifSettingsTick])
+
+useEffect(() => {
+  const onVisibility = () => {
+    if (document.visibilityState !== "visible" || !myLocation) return
+    void maybeUpdateNotificationLocationHeartbeat({
+      messaging: notifMessaging,
+      lat: myLocation[0],
+      lng: myLocation[1],
+      documentVisible: true,
+    })
+  }
+  document.addEventListener("visibilitychange", onVisibility)
+  return () => document.removeEventListener("visibilitychange", onVisibility)
+}, [myLocation, notifMessaging])
 
 const [fullImageUrl, setFullImageUrl] = useState<string | null>(null)
 
@@ -3262,6 +3287,7 @@ setReportImagePreview(URL.createObjectURL(compressedFile))
       <div style={{ ...communityBtnStyle, paddingTop: 4, paddingBottom: 4 }}>
         <NotificationSettingsPanel
           messaging={notifMessaging}
+          hasMyLocation={Boolean(myLocation)}
           refreshTick={notifSettingsTick}
           containerStyle={{ paddingTop: 10, paddingBottom: 10 }}
           onRequestEnable={() => {

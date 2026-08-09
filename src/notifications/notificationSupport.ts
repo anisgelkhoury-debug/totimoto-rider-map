@@ -36,6 +36,8 @@ export const NOTIF_STORAGE = {
   promptSessionAsked: "trnNotifPromptSessionAsked",
   /** Deterministic subscription doc id (sha256 token prefix) after successful register. */
   subscriptionId: "trnNotifSubscriptionId",
+  /** Cached nearbyAlerts preference for heartbeat gate (no extra Firestore reads). */
+  nearbyAlertsPref: "trnNotifNearbyAlerts",
 } as const
 
 export function setStoredSubscriptionId(id: string | null): void {
