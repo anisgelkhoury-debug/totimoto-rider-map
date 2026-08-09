@@ -39,6 +39,22 @@ import { DUPLICATE_COPY } from "./duplicateReports/duplicateConfig"
 import { upsertReportConfirmation } from "./reportConfirmations/firestoreConfirmations"
 import { canUserCastConfirmation } from "./reportConfirmations/reportConfirmations"
 import { shouldShowReportByLifecycle } from "./reportLifecycle/reportLifecycle"
+import {
+  buildReportGeoWriteFields,
+} from "./geo/geoWriteFields"
+import {
+  useBoundedReportQueriesEnabled,
+  useCompareBoundedReportQueriesEnabled,
+  useBoundedReports,
+  createDebouncedViewportEmitter,
+  countMissingGeohash,
+  auditGeoMetadataCoverage,
+  compareFullVsBoundedReportIds,
+  compareExpectedFilteredVsBounded,
+  classifyComparisonDiffs,
+  estimateBoundedReadCost,
+  type ViewportBounds,
+} from "./geo/index"
 import { resolveCreateLocation } from "./utils/resolveCreateLocation"
 import { onAuthStateChanged } from "firebase/auth"
 import {
@@ -49,7 +65,7 @@ import {
   updateDoc,
   deleteDoc,
   deleteField,
-
+  Timestamp,
 } from "firebase/firestore"
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage"
 import { formatLebaneseLocationConcise, formatLebaneseLocationDetailed, parseNominatimToLocationInfo } from "./utils/formatLebaneseLocation"
@@ -245,6 +261,8 @@ function App() {
   // Empty until Auth is ready and the gated reports listener delivers live data.
   const [reports, setReports] = useState<ReportItem[]>([])
   const [activeReportFamily, setActiveReportFamily] = useState("all")
+  const [myLocation, setMyLocation] = useState<[number, number] | null>(null)
+  const [selectedReport, setSelectedReport] = useState<any>(null)
 
   const [deviceId] = useState(() => {
   let id = localStorage.getItem("deviceId")
@@ -304,7 +322,51 @@ function App() {
   }, [])
 
   // Attach reports listener only after Auth is ready (not on mount alone).
+  // Full-collection path remains DEFAULT when bounded flag is off.
+  const useBoundedQueries = useBoundedReportQueriesEnabled()
+  const compareBoundedQueries = useCompareBoundedReportQueriesEnabled()
+  // DEV-only dual observe: full remains App state; bounded runs for ID comparison.
+  const compareDevMode =
+    import.meta.env.DEV === true && compareBoundedQueries === true
+  const geoObserveEnabled = useBoundedQueries || compareDevMode
+  const [viewportBounds, setViewportBounds] = useState<ViewportBounds | null>(
+    null
+  )
+  const viewportEmitterRef = useRef(
+    createDebouncedViewportEmitter((bounds) => setViewportBounds(bounds))
+  )
   useEffect(() => {
+    const emitter = viewportEmitterRef.current
+    return () => emitter.cancel()
+  }, [])
+
+  const handleViewportIdle = useCallback((bounds: ViewportBounds) => {
+    if (!geoObserveEnabled) return
+    viewportEmitterRef.current.push(bounds)
+  }, [geoObserveEnabled])
+
+  const pendingDeepLinkReportId = useRef<string | null>(
+    typeof window !== "undefined"
+      ? parseTrnSearchParams(window.location.search).reportId
+      : null
+  )
+
+  const bounded = useBoundedReports({
+    db,
+    enabled: geoObserveEnabled && authStatus === "ready",
+    authReady: authStatus === "ready",
+    ownerUid: firebaseUid,
+    riderLat: myLocation ? myLocation[0] : null,
+    riderLng: myLocation ? myLocation[1] : null,
+    viewportBounds: geoObserveEnabled ? viewportBounds : null,
+    selectedReportId:
+      selectedReport?.id != null ? String(selectedReport.id) : null,
+    viewerDeviceId: deviceId,
+    pendingDeepLinkReportId: pendingDeepLinkReportId.current,
+  })
+
+  useEffect(() => {
+    if (useBoundedQueries) return
     if (authStatus !== "ready") {
       if (authStatus === "error") {
         setReports([])
@@ -328,6 +390,20 @@ function App() {
               key: reportRenderKey(r),
             })
           }
+          if (compareDevMode) {
+            const coverage = auditGeoMetadataCoverage(liveReports)
+            console.info("[TRN DEV] geo coverage", {
+              total: coverage.total,
+              withGeohash: coverage.withGeohash,
+              withoutGeohash: coverage.withoutGeohash,
+              withExpiresAt: coverage.withExpiresAt,
+              withoutExpiresAt: coverage.withoutExpiresAt,
+              withBoth: coverage.withBoth,
+              bothPct: coverage.bothPct,
+              shortLivedBothPct: coverage.shortLivedBothPct,
+              missingGeohash: countMissingGeohash(liveReports),
+            })
+          }
         }
         setReports((prev: any) => {
           if (reportsMapFingerprint(prev) === reportsMapFingerprint(liveReports)) {
@@ -344,10 +420,87 @@ function App() {
     )
 
     return () => unsubscribe()
-  }, [authStatus])
+  }, [authStatus, useBoundedQueries, compareDevMode])
+
+  useEffect(() => {
+    // Production-facing state only switches when bounded flag is explicitly on.
+    if (!useBoundedQueries || authStatus !== "ready") return
+    setReports((prev: any) => {
+      if (reportsMapFingerprint(prev) === reportsMapFingerprint(bounded.reports)) {
+        return prev
+      }
+      return bounded.reports as any
+    })
+    if (import.meta.env.DEV && bounded.indexError) {
+      console.error(`[TRN Geo] ${bounded.indexError}`)
+    }
+    if (import.meta.env.DEV && bounded.stolenDeferred) {
+      console.info(
+        "[TRN DEV] bounded mode: stolen Lebanon-wide layer deferred; geo-radius + owner only"
+      )
+    }
+  }, [useBoundedQueries, authStatus, bounded.reports, bounded.indexError, bounded.stolenDeferred])
+
+  // DEV compare: full App state vs bounded observe — counts only, no production switch.
+  useEffect(() => {
+    if (!compareDevMode || useBoundedQueries || authStatus !== "ready") return
+    if (!myLocation) return
+    const fullIds = reports.map((r: any) => String(r.id)).filter(Boolean)
+    const boundedIds = bounded.reports.map((r) => String(r.id)).filter(Boolean)
+    const cmp = compareFullVsBoundedReportIds({
+      fullIds,
+      boundedIds,
+      fullMissingGeohashCount: countMissingGeohash(reports as any),
+    })
+    const { summary } = classifyComparisonDiffs({
+      fullReports: reports as any,
+      comparison: cmp,
+      riderLat: myLocation[0],
+      riderLng: myLocation[1],
+      viewport: viewportBounds,
+      deferStolen: true,
+    })
+    const expected = compareExpectedFilteredVsBounded({
+      fullReports: reports as any,
+      boundedReports: bounded.riderReports as any,
+      centerLat: myLocation[0],
+      centerLng: myLocation[1],
+      excludeStolen: true,
+    })
+    const cost = estimateBoundedReadCost({
+      fullInitialDocs: reports.length,
+      viewportDocs: bounded.reports.length,
+      riderDocs: bounded.riderReports.length,
+    })
+    console.info("[TRN DEV] full vs bounded comparison", {
+      fullCount: summary.fullCount,
+      boundedCount: summary.boundedCount,
+      intersectionCount: summary.intersectionCount,
+      fullOnlyCount: summary.fullOnlyCount,
+      boundedOnlyCount: summary.boundedOnlyCount,
+      fullOnlyByReason: summary.fullOnlyByReason,
+      boundedOnlyByReason: summary.boundedOnlyByReason,
+      sampleFullOnlyIds: summary.sampleFullOnlyIds,
+      sampleBoundedOnlyIds: summary.sampleBoundedOnlyIds,
+      riderExpectedEqual: expected.equal,
+      riderExpectedCount: expected.expectedCount,
+      riderBoundedCount: expected.boundedCount,
+      readCostReductionPct: cost.reductionPct,
+      indexError: bounded.indexError,
+    })
+  }, [
+    compareDevMode,
+    useBoundedQueries,
+    authStatus,
+    reports,
+    bounded.reports,
+    bounded.riderReports,
+    bounded.indexError,
+    myLocation,
+    viewportBounds,
+  ])
 
   const [selectedType, setSelectedType] = useState<any>(null)
-  const [selectedReport, setSelectedReport] = useState<any>(null)
   useEffect(() => {
   if (!selectedReport) return
 
@@ -357,17 +510,15 @@ function App() {
 
  if (updatedReport && !updatedReport.resolved) {
   setSelectedReport(updatedReport)
-} else {
+} else if (!useBoundedQueries) {
   setSelectedReport(null)
 }
+// Bounded mode: keep selected if deep-link forced merge is still loading.
 
-}, [reports, selectedReport])
+}, [reports, selectedReport, useBoundedQueries])
 
-  const pendingDeepLinkReportId = useRef<string | null>(
-    typeof window !== "undefined"
-      ? parseTrnSearchParams(window.location.search).reportId
-      : null
-  )
+  // pendingDeepLinkReportId declared above for bounded hook
+  // (duplicate removed)
 
   const applyDeepLinkReportId = (reportId: string | null) => {
     if (!reportId) return false
@@ -751,12 +902,23 @@ stolenBikeImageUrls,
       createdAt: Date.now()
     }
 
+    const geo = buildReportGeoWriteFields({
+      lat: reportData.lat,
+      lng: reportData.lng,
+      createdAt: reportData.createdAt,
+      expiryMinutes: reportData.expiry,
+      reportFamily: reportData.reportFamily,
+    })
+    if (!geo.ok) {
+      alert("ما قدرنا نحدّد موقع البلاغ بشكل صحيح — حاول مرة تانية.")
+      return
+    }
 
-
-    await addDoc(
-      collection(db, "reports"),
-      reportData
-    )
+    await addDoc(collection(db, "reports"), {
+      ...reportData,
+      geohash: geo.fields.geohash,
+      expiresAt: Timestamp.fromMillis(geo.fields.expiresAtMs),
+    })
 
     setShowStolenModal(false)
 
@@ -1213,7 +1375,6 @@ helperComing: false,
  addDoc(collection(db, "reports"), newReport)
 }
 
-  const [myLocation, setMyLocation] = useState<[number, number] | null>(null)
   const {
     weather: riderWeather,
     errorMessage: weatherErrorMessage,
@@ -1478,7 +1639,26 @@ distance: "مباشر",
     createdAt: Date.now(),
   }
 
-await addDoc(collection(db, "reports"), newReport)
+  const geo = buildReportGeoWriteFields({
+    lat: newReport.lat,
+    lng: newReport.lng,
+    createdAt: newReport.createdAt,
+    expiryMinutes: newReport.expiry,
+    reportFamily:
+      typeof newReport.reportFamily === "string"
+        ? newReport.reportFamily
+        : null,
+  })
+  if (!geo.ok) {
+    alert("ما قدرنا نحدّد موقع البلاغ بشكل صحيح — حاول مرة تانية.")
+    return false
+  }
+
+await addDoc(collection(db, "reports"), {
+  ...newReport,
+  geohash: geo.fields.geohash,
+  expiresAt: Timestamp.fromMillis(geo.fields.expiresAtMs),
+})
 
 setReportImage(null)
 setReportImagePreview("")
@@ -1560,13 +1740,38 @@ const mapReports = useMemo(
   [visibleReports, deviceId, selectedReport?.id, myLocation]
 )
 
+/** Bounded mode: Nearby/Duplicate use rider-centered 15 km set; else production visibleReports. */
+const localIntelligenceReports = useMemo(() => {
+  if (!useBoundedQueries) return visibleReports
+  return bounded.riderReports
+    .filter((r: any) => {
+      if (r.resolved) return false
+      if (activeReportFamily !== "all" && r.reportFamily !== activeReportFamily) {
+        return false
+      }
+      return shouldShowReportByLifecycle(r, {
+        selectedReportId: selectedReport?.id,
+        viewerDeviceId: deviceId,
+        viewerUid: firebaseUid,
+      })
+    })
+}, [
+  useBoundedQueries,
+  visibleReports,
+  bounded.riderReports,
+  activeReportFamily,
+  deviceId,
+  firebaseUid,
+  selectedReport?.id,
+])
+
 const nearbyCandidates = useMemo(() => {
   if (!myLocation) return []
   return getNearbyReportCandidates({
-    reports: visibleReports,
+    reports: localIntelligenceReports,
     rider: { lat: myLocation[0], lng: myLocation[1] },
   })
-}, [visibleReports, myLocation])
+}, [localIntelligenceReports, myLocation])
 
 useEffect(() => {
   if (!import.meta.env.DEV) return
@@ -1831,6 +2036,9 @@ const handleGoogleReportSelect = useCallback(
           onReportSelect={handleGoogleReportSelect}
           mapTypeId={mapTypeId}
           trafficOn={trafficOn}
+          onViewportIdle={
+            geoObserveEnabled ? handleViewportIdle : undefined
+          }
         />
       </div>
     </Suspense>
@@ -2716,7 +2924,7 @@ setReportImagePreview(URL.createObjectURL(compressedFile))
             ? pendingReportType.reportCategory
             : ""
         const match = findLikelyDuplicateReport({
-          reports: visibleReports,
+          reports: localIntelligenceReports,
           createCategory: category,
           createLat: coords[0],
           createLng: coords[1],

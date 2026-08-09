@@ -73,6 +73,16 @@ export type GoogleMapViewProps = {
   /** Controlled map type — layers UI lives in App chrome sheets. */
   mapTypeId?: MapTypeMode
   trafficOn?: boolean
+  /**
+   * Fired on map idle with current bounds (debounced upstream).
+   * Used by bounded geo queries — not every pan frame.
+   */
+  onViewportIdle?: (bounds: {
+    north: number
+    south: number
+    east: number
+    west: number
+  }) => void
 }
 
 function MapFallback({ message }: { message: string }) {
@@ -154,6 +164,7 @@ function GoogleMapCanvas({
   onReportSelect,
   mapTypeId = "roadmap",
   trafficOn = false,
+  onViewportIdle,
 }: GoogleMapViewProps & { apiKey: string }) {
   const { isLoaded, loadError } = useJsApiLoader({
     id: "trn-google-maps-script",
@@ -238,6 +249,28 @@ function GoogleMapCanvas({
     map.setZoom(14)
     hasCenteredOnUser.current = true
   }, [map, userLocation])
+
+  // Idle viewport bounds for bounded geo subscriptions (no per-frame emits).
+  useEffect(() => {
+    if (!map || !onViewportIdle) return
+    const emit = () => {
+      const b = map.getBounds()
+      if (!b) return
+      const ne = b.getNorthEast()
+      const sw = b.getSouthWest()
+      onViewportIdle({
+        north: ne.lat(),
+        east: ne.lng(),
+        south: sw.lat(),
+        west: sw.lng(),
+      })
+    }
+    emit()
+    const listener = map.addListener("idle", emit)
+    return () => {
+      listener.remove()
+    }
+  }, [map, onViewportIdle])
 
   const validReports = useMemo(() => {
     return reports.filter((r) => !r.resolved && isValidLatLng(r.lat, r.lng))
