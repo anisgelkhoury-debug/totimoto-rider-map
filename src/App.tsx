@@ -38,6 +38,7 @@ import {
 import { DUPLICATE_COPY } from "./duplicateReports/duplicateConfig"
 import { upsertReportConfirmation } from "./reportConfirmations/firestoreConfirmations"
 import { canUserCastConfirmation } from "./reportConfirmations/reportConfirmations"
+import { shouldShowReportByLifecycle } from "./reportLifecycle/reportLifecycle"
 import { resolveCreateLocation } from "./utils/resolveCreateLocation"
 import { onAuthStateChanged } from "firebase/auth"
 import {
@@ -1521,14 +1522,19 @@ const visibleReports = useMemo(
         if (activeReportFamily !== "all" && r.reportFamily !== activeReportFamily) {
           return false
         }
-        return true
+        // Task 056 — soft-hide likely-gone after grace (aggregates only; no N+1).
+        return shouldShowReportByLifecycle(r, {
+          selectedReportId: selectedReport?.id,
+          viewerDeviceId: deviceId,
+          viewerUid: firebaseUid,
+        })
       })
       .sort((a: any, b: any) => {
         if (a.ownerId === deviceId && b.ownerId !== deviceId) return -1
         if (a.ownerId !== deviceId && b.ownerId === deviceId) return 1
         return 0
       }),
-  [reports, activeReportFamily, deviceId]
+  [reports, activeReportFamily, deviceId, firebaseUid, selectedReport?.id]
 )
 
 const listedReports = useMemo(

@@ -16,6 +16,8 @@ import {
   trustLabelForState,
   trustStateColor,
 } from "../../reportConfirmations/reportTrust"
+import { LIFECYCLE_COPY } from "../../reportLifecycle/lifecycleConfig"
+import { isReportSoftHiddenByLifecycle } from "../../reportLifecycle/reportLifecycle"
 import {
   loadReportConfirmations,
   upsertReportConfirmation,
@@ -28,6 +30,9 @@ type ReportConfirmationPanelProps = {
     id: string
     createdAt?: number
     expiry?: number
+    confirmationPresentCount?: unknown
+    confirmationGoneCount?: unknown
+    likelyGoneSince?: unknown
   }
   currentUid: string | null
   authReady: boolean
@@ -96,6 +101,7 @@ export default function ReportConfirmationPanel({
   const counts = countConfirmations(docs)
   const trustState = resolveTrustState(counts)
   const trustLabel = trustLabelForState(trustState)
+  const softHidden = isReportSoftHiddenByLifecycle(report)
   const freshness = resolveFreshnessState({
     createdAt: report.createdAt,
     expiry: report.expiry,
@@ -148,6 +154,18 @@ export default function ReportConfirmationPanel({
         >
           {trustLabel}
         </div>
+        {softHidden ? (
+          <div
+            style={{
+              marginTop: 4,
+              fontSize: 12,
+              fontWeight: 700,
+              color: "#64748b",
+            }}
+          >
+            {LIFECYCLE_COPY.softHiddenHint}
+          </div>
+        ) : null}
         {!loading && counts.total > 0 ? (
           <div
             style={{

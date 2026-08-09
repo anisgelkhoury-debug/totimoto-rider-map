@@ -1,5 +1,6 @@
 /**
- * TRN Cloud Functions — owner↔helper lifecycle notifications + rider weather proxy.
+ * TRN Cloud Functions — owner↔helper lifecycle notifications + rider weather proxy
+ * + confirmation aggregate sync for Smart Report Lifecycle (Task 056).
  * 2nd gen. No production deploy in this task.
  */
 import { initializeApp } from "firebase-admin/app"
@@ -8,7 +9,9 @@ import { getMessaging } from "firebase-admin/messaging"
 import {
   onDocumentDeleted,
   onDocumentUpdated,
+  onDocumentWritten,
 } from "firebase-functions/v2/firestore"
+import { syncConfirmationAggregatesForReport } from "./confirmationAggregates/handler"
 import { processHelperAcceptedUpdate } from "./helperAccepted/handler"
 import {
   processHelperCancelledUpdate,
@@ -239,5 +242,32 @@ export const onReportOwnerCancelled = onDocumentDeleted(
     const outcome = await processOwnerCancelledDelete(reportId, before, sharedDeps)
     logOutcome("owner_cancelled_outcome", outcome)
     throwIfRetryable(outcome, "owner_cancelled_transient_fcm_failure")
+  }
+)
+
+/**
+ * Task 056 — maintain parent confirmation aggregates after confirmation write.
+ * Recounts only this report's confirmations subcollection (no global scan).
+ * Admin write; no notifications; no TTL / resolved mutation.
+ */
+export const onReportConfirmationWritten = onDocumentWritten(
+  {
+    document: "reports/{reportId}/confirmations/{uid}",
+    region: "us-central1",
+  },
+  async (event) => {
+    const reportId = event.params.reportId
+    const result = await syncConfirmationAggregatesForReport(db, reportId)
+    if (result.status === "error") {
+      throw new Error(
+        `confirmation_aggregates_sync_failed:${result.reason || "unknown"}`
+      )
+    }
+    safeInfo("confirmation_aggregates_trigger", {
+      reportId,
+      status: result.status,
+      present: result.presentCount ?? 0,
+      gone: result.goneCount ?? 0,
+    })
   }
 )

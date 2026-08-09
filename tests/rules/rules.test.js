@@ -1448,3 +1448,70 @@ describe("Firestore report confirmations — Task 052", () => {
     )
   })
 })
+
+describe("Firestore confirmation aggregates — Task 056", () => {
+  const reportId = "agg-report-1"
+  const ownerUid = "owner-agg"
+  const riderA = "rider-agg-a"
+
+  beforeEach(async () => {
+    await testEnv.clearFirestore()
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(
+        doc(ctx.firestore(), "reports", reportId),
+        baseReport(ownerUid, "device-owner", {
+          type: "زحمة",
+          reportFamily: "intelligence",
+          reportCategory: "traffic",
+          confirmationPresentCount: 2,
+          confirmationGoneCount: 4,
+          confirmationUpdatedAt: Date.now(),
+          likelyGoneSince: Date.now() - 60_000,
+        })
+      )
+    })
+  })
+
+  it("client cannot create report with confirmation aggregates", async () => {
+    const db = testEnv.authenticatedContext(ownerUid).firestore()
+    await assertFails(
+      setDoc(doc(db, "reports", "new-with-agg"), {
+        ...baseReport(ownerUid, "device-owner", {
+          type: "زحمة",
+          reportFamily: "intelligence",
+          reportCategory: "traffic",
+        }),
+        confirmationPresentCount: 9,
+        confirmationGoneCount: 0,
+      })
+    )
+  })
+
+  it("client cannot update confirmationPresentCount", async () => {
+    const db = testEnv.authenticatedContext(ownerUid).firestore()
+    await assertFails(
+      updateDoc(doc(db, "reports", reportId), {
+        confirmationPresentCount: 99,
+      })
+    )
+  })
+
+  it("client cannot clear likelyGoneSince", async () => {
+    const db = testEnv.authenticatedContext(ownerUid).firestore()
+    await assertFails(
+      updateDoc(doc(db, "reports", reportId), {
+        likelyGoneSince: deleteField(),
+      })
+    )
+  })
+
+  it("client cannot update confirmationGoneCount via helper path", async () => {
+    const db = testEnv.authenticatedContext(riderA).firestore()
+    await assertFails(
+      updateDoc(doc(db, "reports", reportId), {
+        confirmationGoneCount: 0,
+        helperComing: true,
+      })
+    )
+  })
+})

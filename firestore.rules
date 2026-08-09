@@ -77,6 +77,14 @@ service cloud.firestore {
         && !('helperAcceptedAt' in data);
     }
 
+    // Task 056 — confirmation aggregates are server-maintained (Admin / Functions).
+    function confirmationAggregateFieldsAbsent(data) {
+      return !('confirmationPresentCount' in data)
+        && !('confirmationGoneCount' in data)
+        && !('confirmationUpdatedAt' in data)
+        && !('likelyGoneSince' in data);
+    }
+
     function validReportCreate() {
       let data = request.resource.data;
       return signedIn()
@@ -91,7 +99,8 @@ service cloud.firestore {
         && data.helperComing == false
         && data.get('helperArrived', false) == false
         && data.get('helpers', 0) == 0
-        && helperFieldsAbsentOnCreate(data);
+        && helperFieldsAbsentOnCreate(data)
+        && confirmationAggregateFieldsAbsent(data);
     }
 
     function isOwnerResolve() {
