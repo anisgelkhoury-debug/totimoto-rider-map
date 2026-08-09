@@ -15,6 +15,7 @@ import {
   resolveFreshnessState,
   type FreshnessState,
 } from "../reportConfirmations/reportTrust.ts"
+import { isExcludedFromDuplicateByLifecycle } from "../reportLifecycle/reportLifecycle.ts"
 import {
   DUPLICATE_MAX_AGE_RATIO,
   duplicateDistanceMetersForCategory,
@@ -34,6 +35,9 @@ export type DuplicateReportLike = {
   reportCategory?: string
   ownerUid?: string
   ownerId?: string
+  confirmationPresentCount?: unknown
+  confirmationGoneCount?: unknown
+  likelyGoneSince?: unknown
 }
 
 export type DuplicateMatch = {
@@ -185,6 +189,7 @@ export function findLikelyDuplicateReport(options: {
 
   for (const report of reports) {
     if (!isDuplicateEligibleLiveReport(report)) continue
+    if (isExcludedFromDuplicateByLifecycle(report, now)) continue
     if (!isWithinDuplicateFreshnessWindow(report, now)) continue
 
     const category = resolveCategory(report)

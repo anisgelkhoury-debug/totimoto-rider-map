@@ -4,7 +4,7 @@
  * V1:
  * - No extra Firestore reads
  * - No GPS writes
- * - No confirmation/trust queries (trust postponed — counts only load on select)
+ * - No confirmation/trust queries (soft-hide uses parent aggregates already on the report)
  * - Radius filter → severity → distance → freshness
  */
 
@@ -17,6 +17,7 @@ import {
   freshnessLabelForState,
   type FreshnessState,
 } from "../reportConfirmations/reportTrust.ts"
+import { isExcludedFromNearbyByLifecycle } from "../reportLifecycle/reportLifecycle.ts"
 import {
   NEARBY_COPY,
   NEARBY_MAX_RESULTS,
@@ -36,6 +37,9 @@ export type NearbyReportLike = {
   reportFamily?: string
   reportCategory?: string
   priority?: string
+  confirmationPresentCount?: unknown
+  confirmationGoneCount?: unknown
+  likelyGoneSince?: unknown
 }
 
 export type NearbyRiderLocation = {
@@ -140,6 +144,8 @@ export function getNearbyReportCandidates(options: {
     if (!isNearbyEligibleReport(report)) continue
     if (report.resolved === true) continue
     if (isReportExpired(report, now)) continue
+    // Task 056 — soft-hidden likely-gone excluded (aggregates on parent only).
+    if (isExcludedFromNearbyByLifecycle(report, now)) continue
 
     const lat = finiteCoord(report.lat)
     const lng = finiteCoord(report.lng)
@@ -187,7 +193,7 @@ export function getNearbyReportCandidates(options: {
  * 3. fresher first (lower age ratio via freshness ordinal)
  * 4. id ascending (stable)
  *
- * Trust does NOT participate in V1 (would require N+1 confirmation reads).
+ * Trust ranking still does NOT load confirmation subcollections (aggregates only).
  */
 export function rankNearbyReports(
   candidates: ReadonlyArray<NearbyCandidate>

@@ -169,7 +169,7 @@ export function trustStateForReport(
   return resolveTrustState(counts)
 }
 
-/** Documented: V1 does not auto-hide likely-gone reports. */
+/** Documented: trust layer alone does not auto-hide (lifecycle soft-hide is separate). */
 export function trustLayerAutoHidesReports(): boolean {
   return false
 }
