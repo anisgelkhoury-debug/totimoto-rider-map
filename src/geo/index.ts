@@ -72,3 +72,12 @@ export {
   type ReportGeoWriteFields,
   type BuildReportGeoWriteFieldsResult,
 } from "./geoWriteFields.ts"
+
+export {
+  PLANNED_GEO_RANGE_QUERY,
+  PLANNED_OWNER_UNRESOLVED_QUERY,
+  EXPIRES_AT_QUERY_DECISION,
+  STOLEN_INDEX_DECISION,
+  ASSISTANCE_GEO_INDEX_DECISION,
+  plannedGeoIndexDefinitions,
+} from "./plannedQueries.ts"
