@@ -81,3 +81,46 @@ export {
   ASSISTANCE_GEO_INDEX_DECISION,
   plannedGeoIndexDefinitions,
 } from "./plannedQueries.ts"
+
+export {
+  useBoundedReportQueriesEnabled,
+  useCompareBoundedReportQueriesEnabled,
+  boundedReportQueriesDefaultOff,
+  readEnvFlag,
+} from "./featureFlag.ts"
+
+export {
+  buildResolvedGeohashRangeQueryShape,
+  buildOwnerUnresolvedQueryShape,
+  isMissingIndexError,
+  BOUNDED_GEO_INDEX_REQUIRED,
+  OWNER_UNRESOLVED_LIMIT,
+} from "./queryBuilder.ts"
+
+export {
+  isReportExpiredForBounded,
+  filterBoundedLiveReports,
+  countMissingGeohash,
+} from "./filterBoundedReports.ts"
+
+export {
+  VIEWPORT_IDLE_DEBOUNCE_MS,
+  VIEWPORT_RESUBSCRIBE_MOVE_RATIO,
+  shouldResubscribeViewport,
+  createDebouncedViewportEmitter,
+  viewportCenter,
+  type ViewportBounds,
+} from "./viewportDebounce.ts"
+
+export {
+  subscribeReportsByGeoRanges,
+  mergeGeoRangeBuckets,
+  retainRangeOnError,
+} from "./subscribeGeoRanges.ts"
+export { subscribeOwnerUnresolvedReports } from "./subscribeOwnerReports.ts"
+export { fetchReportById } from "./fetchReportById.ts"
+export { useBoundedReports } from "./useBoundedReports.ts"
+export {
+  compareFullVsBoundedReportIds,
+  type ReportIdSetComparison,
+} from "./compareReportIds.ts"
