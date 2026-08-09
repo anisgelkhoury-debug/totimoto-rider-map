@@ -39,6 +39,9 @@ import { DUPLICATE_COPY } from "./duplicateReports/duplicateConfig"
 import { upsertReportConfirmation } from "./reportConfirmations/firestoreConfirmations"
 import { canUserCastConfirmation } from "./reportConfirmations/reportConfirmations"
 import { shouldShowReportByLifecycle } from "./reportLifecycle/reportLifecycle"
+import {
+  buildReportGeoWriteFields,
+} from "./geo/geoWriteFields"
 import { resolveCreateLocation } from "./utils/resolveCreateLocation"
 import { onAuthStateChanged } from "firebase/auth"
 import {
@@ -49,7 +52,7 @@ import {
   updateDoc,
   deleteDoc,
   deleteField,
-
+  Timestamp,
 } from "firebase/firestore"
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage"
 import { formatLebaneseLocationConcise, formatLebaneseLocationDetailed, parseNominatimToLocationInfo } from "./utils/formatLebaneseLocation"
@@ -751,12 +754,23 @@ stolenBikeImageUrls,
       createdAt: Date.now()
     }
 
+    const geo = buildReportGeoWriteFields({
+      lat: reportData.lat,
+      lng: reportData.lng,
+      createdAt: reportData.createdAt,
+      expiryMinutes: reportData.expiry,
+      reportFamily: reportData.reportFamily,
+    })
+    if (!geo.ok) {
+      alert("ما قدرنا نحدّد موقع البلاغ بشكل صحيح — حاول مرة تانية.")
+      return
+    }
 
-
-    await addDoc(
-      collection(db, "reports"),
-      reportData
-    )
+    await addDoc(collection(db, "reports"), {
+      ...reportData,
+      geohash: geo.fields.geohash,
+      expiresAt: Timestamp.fromMillis(geo.fields.expiresAtMs),
+    })
 
     setShowStolenModal(false)
 
@@ -1478,7 +1492,26 @@ distance: "مباشر",
     createdAt: Date.now(),
   }
 
-await addDoc(collection(db, "reports"), newReport)
+  const geo = buildReportGeoWriteFields({
+    lat: newReport.lat,
+    lng: newReport.lng,
+    createdAt: newReport.createdAt,
+    expiryMinutes: newReport.expiry,
+    reportFamily:
+      typeof newReport.reportFamily === "string"
+        ? newReport.reportFamily
+        : null,
+  })
+  if (!geo.ok) {
+    alert("ما قدرنا نحدّد موقع البلاغ بشكل صحيح — حاول مرة تانية.")
+    return false
+  }
+
+await addDoc(collection(db, "reports"), {
+  ...newReport,
+  geohash: geo.fields.geohash,
+  expiresAt: Timestamp.fromMillis(geo.fields.expiresAtMs),
+})
 
 setReportImage(null)
 setReportImagePreview("")

@@ -62,3 +62,13 @@ export {
   type BuildReportGeoMetadataInput,
   type BuildReportGeoMetadataResult,
 } from "./reportGeoMetadata.ts"
+
+export {
+  buildReportGeoWriteFields,
+  withGeoWriteFields,
+  isValidStoredGeohashShape,
+  geoDualWriteUsesFollowUpUpdate,
+  geoDualWriteRequestsGps,
+  type ReportGeoWriteFields,
+  type BuildReportGeoWriteFieldsResult,
+} from "./geoWriteFields.ts"

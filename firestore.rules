@@ -85,6 +85,21 @@ service cloud.firestore {
         && !('likelyGoneSince' in data);
     }
 
+    // Task 057B — optional geohash + expiresAt on create (PWA-safe; not required yet).
+    // When either field is present, both must be present and valid.
+    // Precision 9 store length. expiresAt is Timestamp after createdAt.
+    function validOptionalGeoCreateFields(data) {
+      let hasHash = 'geohash' in data;
+      let hasExp = 'expiresAt' in data;
+      return (!hasHash && !hasExp)
+        || (hasHash
+          && hasExp
+          && data.geohash is string
+          && data.geohash.size() == 9
+          && data.expiresAt is timestamp
+          && data.expiresAt > timestamp.value(int(data.createdAt / 1000)));
+    }
+
     function validReportCreate() {
       let data = request.resource.data;
       return signedIn()
@@ -100,7 +115,8 @@ service cloud.firestore {
         && data.get('helperArrived', false) == false
         && data.get('helpers', 0) == 0
         && helperFieldsAbsentOnCreate(data)
-        && confirmationAggregateFieldsAbsent(data);
+        && confirmationAggregateFieldsAbsent(data)
+        && validOptionalGeoCreateFields(data);
     }
 
     function isOwnerResolve() {

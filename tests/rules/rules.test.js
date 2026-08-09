@@ -23,6 +23,7 @@ import {
   addDoc,
   getDocs,
   deleteField,
+  Timestamp,
 } from "firebase/firestore"
 import {
   ref,
@@ -1511,6 +1512,134 @@ describe("Firestore confirmation aggregates — Task 056", () => {
       updateDoc(doc(db, "reports", reportId), {
         confirmationGoneCount: 0,
         helperComing: true,
+      })
+    )
+  })
+})
+
+describe("Firestore report geo dual-write — Task 057B", () => {
+  function withValidGeo(payload) {
+    const createdAt = payload.createdAt
+    const expiry = payload.expiry
+    return {
+      ...payload,
+      geohash: "s00000000", // length 9, valid charset
+      expiresAt: Timestamp.fromMillis(createdAt + expiry * 60_000),
+    }
+  }
+
+  it("valid create with geohash/expiresAt allowed", async () => {
+    const db = testEnv.authenticatedContext("owner-a").firestore()
+    const payload = withValidGeo(
+      productionCreateUserReportPayload("owner-a", "device-owner-a")
+    )
+    await assertSucceeds(setDoc(doc(db, "reports", "geo-ok-1"), payload))
+  })
+
+  it("create without geo fields still allowed (PWA staged migration)", async () => {
+    const db = testEnv.authenticatedContext("owner-a").firestore()
+    const payload = productionCreateUserReportPayload("owner-a", "device-owner-a")
+    assert.equal("geohash" in payload, false)
+    await assertSucceeds(setDoc(doc(db, "reports", "geo-optional-1"), payload))
+  })
+
+  it("invalid geohash type denied", async () => {
+    const db = testEnv.authenticatedContext("owner-a").firestore()
+    const base = productionCreateUserReportPayload("owner-a", "device-owner-a")
+    await assertFails(
+      setDoc(doc(db, "reports", "geo-bad-type"), {
+        ...base,
+        geohash: 123,
+        expiresAt: Timestamp.fromMillis(base.createdAt + base.expiry * 60_000),
+      })
+    )
+  })
+
+  it("invalid geohash length denied", async () => {
+    const db = testEnv.authenticatedContext("owner-a").firestore()
+    const base = productionCreateUserReportPayload("owner-a", "device-owner-a")
+    await assertFails(
+      setDoc(doc(db, "reports", "geo-bad-len"), {
+        ...base,
+        geohash: "short",
+        expiresAt: Timestamp.fromMillis(base.createdAt + base.expiry * 60_000),
+      })
+    )
+  })
+
+  it("invalid expiresAt type denied", async () => {
+    const db = testEnv.authenticatedContext("owner-a").firestore()
+    const base = productionCreateUserReportPayload("owner-a", "device-owner-a")
+    await assertFails(
+      setDoc(doc(db, "reports", "geo-bad-exp"), {
+        ...base,
+        geohash: "s00000000",
+        expiresAt: base.createdAt + base.expiry * 60_000,
+      })
+    )
+  })
+
+  it("geohash-only without expiresAt denied", async () => {
+    const db = testEnv.authenticatedContext("owner-a").firestore()
+    const base = productionCreateUserReportPayload("owner-a", "device-owner-a")
+    await assertFails(
+      setDoc(doc(db, "reports", "geo-half"), {
+        ...base,
+        geohash: "s00000000",
+      })
+    )
+  })
+
+  it("geohash update denied", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(
+        doc(ctx.firestore(), "reports", "geo-imm-1"),
+        withValidGeo(baseReport("owner-a", "device-owner-a"))
+      )
+    })
+    const db = testEnv.authenticatedContext("owner-a").firestore()
+    await assertFails(
+      updateDoc(doc(db, "reports", "geo-imm-1"), {
+        geohash: "s11111111",
+      })
+    )
+  })
+
+  it("expiresAt update denied", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(
+        doc(ctx.firestore(), "reports", "geo-imm-2"),
+        withValidGeo(baseReport("owner-a", "device-owner-a"))
+      )
+    })
+    const db = testEnv.authenticatedContext("owner-a").firestore()
+    await assertFails(
+      updateDoc(doc(db, "reports", "geo-imm-2"), {
+        expiresAt: Timestamp.fromMillis(Date.now() + 999_999_999),
+      })
+    )
+  })
+
+  it("stolen create with geo allowed", async () => {
+    const db = testEnv.authenticatedContext("owner-a").firestore()
+    const payload = withValidGeo(
+      productionStolenReportPayload("owner-a", "device-owner-a")
+    )
+    await assertSucceeds(setDoc(doc(db, "reports", "geo-stolen-1"), payload))
+  })
+
+  it("owner resolve still works with geo fields present", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(
+        doc(ctx.firestore(), "reports", "geo-resolve-1"),
+        withValidGeo(baseReport("owner-a", "device-owner-a"))
+      )
+    })
+    const db = testEnv.authenticatedContext("owner-a").firestore()
+    await assertSucceeds(
+      updateDoc(doc(db, "reports", "geo-resolve-1"), {
+        resolved: true,
+        solvedAt: Date.now(),
       })
     )
   })
