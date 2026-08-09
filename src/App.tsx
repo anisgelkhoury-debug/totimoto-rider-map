@@ -24,7 +24,10 @@ import WeatherChip from "./components/mapChrome/WeatherChip"
 import RiderConditionsSheet from "./components/mapChrome/RiderConditionsSheet"
 import MarketplaceBridgeSheet from "./components/mapChrome/MarketplaceBridgeSheet"
 import ReportConfirmationPanel from "./components/mapChrome/ReportConfirmationPanel"
+import NearbyChip from "./components/mapChrome/NearbyChip"
+import NearbyIntelligenceSheet from "./components/mapChrome/NearbyIntelligenceSheet"
 import { useRiderWeather } from "./weather/useRiderWeather"
+import { getNearbyReportCandidates } from "./nearby/nearbyIntelligence"
 import { onAuthStateChanged } from "firebase/auth"
 import {
   collection,
@@ -417,6 +420,7 @@ function App() {
   const [showLayersSheet, setShowLayersSheet] = useState(false)
   const [showWeatherSheet, setShowWeatherSheet] = useState(false)
   const [showMarketplaceSheet, setShowMarketplaceSheet] = useState(false)
+  const [showNearbySheet, setShowNearbySheet] = useState(false)
   const [mapTypeId, setMapTypeId] = useState<MapTypeMode>("roadmap")
   const [trafficOn, setTrafficOn] = useState(false)
   const [reportsSearch, setReportsSearch] = useState("")
@@ -926,6 +930,7 @@ const showMapChrome =
   !showLayersSheet &&
   !showWeatherSheet &&
   !showMarketplaceSheet &&
+  !showNearbySheet &&
   !showStolenModal &&
   !showDescriptionModal &&
   !showContactModal &&
@@ -1194,6 +1199,25 @@ helperComing: false,
     status: weatherStatus,
   } = useRiderWeather(myLocation)
 
+  // DEV-only visibility diagnostics (no coords/secrets).
+  useEffect(() => {
+    if (!import.meta.env.DEV) return
+    const secure =
+      typeof window !== "undefined" ? window.isSecureContext : false
+    console.info(
+      `[TRN DEV] location: ${myLocation ? "available" : "unavailable"} | secureContext: ${secure}`
+    )
+  }, [myLocation])
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) return
+    console.info(
+      `[TRN DEV] weather: ${weatherStatus}${
+        weatherErrorMessage ? " | error" : ""
+      }`
+    )
+  }, [weatherStatus, weatherErrorMessage])
+
   const isActivelyHelping = useMemo(
     () =>
       reports.some(
@@ -1295,7 +1319,15 @@ useEffect(() => {
       }
     },
 (error) => {
-  console.log("GPS error:", error)
+  if (import.meta.env.DEV) {
+    const secure =
+      typeof window !== "undefined" ? window.isSecureContext : false
+    console.info(
+      `[TRN DEV] GPS error code=${(error as GeolocationPositionError)?.code ?? "?"} secureContext=${secure}`
+    )
+  } else {
+    console.log("GPS error:", error)
+  }
 },
     {
       enableHighAccuracy: isActivelyHelping,
@@ -1486,6 +1518,31 @@ const mapReports = useMemo(
   [visibleReports, deviceId, selectedReport?.id, myLocation]
 )
 
+const nearbyCandidates = useMemo(() => {
+  if (!myLocation) return []
+  return getNearbyReportCandidates({
+    reports: visibleReports,
+    rider: { lat: myLocation[0], lng: myLocation[1] },
+  })
+}, [visibleReports, myLocation])
+
+useEffect(() => {
+  if (!import.meta.env.DEV) return
+  console.info(`[TRN DEV] nearby candidates: ${nearbyCandidates.length}`)
+}, [nearbyCandidates.length])
+
+const handleNearbySelect = useCallback(
+  (candidate: { id: string; report: any }) => {
+    setShowNearbySheet(false)
+    const report =
+      visibleReports.find((r: any) => String(r.id) === candidate.id) ??
+      candidate.report
+    setSelectedReport(report)
+    centerMapOnReport(report.lat, report.lng)
+  },
+  [visibleReports]
+)
+
 const handleGoogleReportSelect = useCallback(
   (r: any) => {
     const family = r.reportFamily
@@ -1635,6 +1692,22 @@ const handleGoogleReportSelect = useCallback(
   visible={showMapChrome}
   weather={riderWeather}
   onOpen={() => setShowWeatherSheet(true)}
+/>
+
+<NearbyChip
+  visible={showMapChrome}
+  count={nearbyCandidates.length}
+  stackBelowWeather={
+    !!(riderWeather && riderWeather.temperatureC != null)
+  }
+  onOpen={() => setShowNearbySheet(true)}
+/>
+
+<NearbyIntelligenceSheet
+  open={showNearbySheet}
+  candidates={nearbyCandidates}
+  onClose={() => setShowNearbySheet(false)}
+  onSelect={handleNearbySelect}
 />
 
 <LayersSheet
