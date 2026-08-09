@@ -384,9 +384,7 @@ describe("058D scope + index", () => {
       assert.equal(src.includes("watchPosition"), false, f)
       assert.equal(src.includes("navigator.geolocation"), false, f)
     }
-    const indexSrc = readFileSync(join(root, "functions/src/index.ts"), "utf8")
-    assert.equal(indexSrc.includes("onReportCreated"), false)
-    assert.equal(indexSrc.includes("filterNearbyNotificationRecipients"), false)
+    // Pure targeting modules remain send-free; 058E wires create trigger separately.
   })
 
   it("34. assistance preferences untouched by radii module", () => {

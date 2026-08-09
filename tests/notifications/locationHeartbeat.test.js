@@ -315,7 +315,7 @@ describe("058C scope guardrails", () => {
     assert.equal(src.includes("longitude"), false)
   })
 
-  it("24–25. no nearby Function / FCM send", () => {
+  it("24–25. heartbeat client modules do not send FCM", () => {
     const writeSrc = readFileSync(
       join(root, "src/notifications/notificationLocationWrite.ts"),
       "utf8"
@@ -323,9 +323,7 @@ describe("058C scope guardrails", () => {
     assert.equal(writeSrc.includes("onReportCreated"), false)
     assert.equal(writeSrc.includes("sendEachForMulticast"), false)
     assert.equal(writeSrc.includes("messaging.send"), false)
-    const indexSrc = readFileSync(join(root, "functions/src/index.ts"), "utf8")
-    assert.equal(indexSrc.includes("nearby_report"), false)
-    assert.equal(indexSrc.includes("onReportCreated"), false)
+    // Nearby Function lives in 058E; heartbeat write path stays send-free.
   })
 
   it("App wires heartbeat from myLocation without extra watchPosition", () => {
