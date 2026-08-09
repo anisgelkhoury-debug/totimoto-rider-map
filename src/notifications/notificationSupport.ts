@@ -34,7 +34,22 @@ export const NOTIF_STORAGE = {
   localEnabled: "trnNotifLocalEnabled",
   serverRegistered: "trnNotifServerRegistered",
   promptSessionAsked: "trnNotifPromptSessionAsked",
+  /** Deterministic subscription doc id (sha256 token prefix) after successful register. */
+  subscriptionId: "trnNotifSubscriptionId",
 } as const
+
+export function setStoredSubscriptionId(id: string | null): void {
+  if (!id) {
+    localStorage.removeItem(NOTIF_STORAGE.subscriptionId)
+    return
+  }
+  localStorage.setItem(NOTIF_STORAGE.subscriptionId, id)
+}
+
+export function getStoredSubscriptionId(): string | null {
+  const v = localStorage.getItem(NOTIF_STORAGE.subscriptionId)
+  return v && v.trim() ? v.trim() : null
+}
 
 export function readVapidKey(): string {
   const key = import.meta.env.VITE_FIREBASE_VAPID_KEY

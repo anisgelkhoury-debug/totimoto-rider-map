@@ -326,9 +326,10 @@ service cloud.firestore {
       return value in ['android', 'ios', 'desktop', 'unknown'];
     }
 
-    function validNotificationPreferences(prefs) {
-      return prefs is map
-        && prefs.keys().hasOnly([
+    // 058B: accept legacy exact-8 OR extended (legacy + nearby) preference maps.
+    // New nearby keys are optional for old clients; never required alone.
+    function validLegacyNotificationPreferences(prefs) {
+      return prefs.keys().hasOnly([
           'helperLifecycle',
           'ownerLifecycle',
           'stolenNearby',
@@ -347,6 +348,48 @@ service cloud.firestore {
         && prefs.communityRides is bool
         && prefs.announcements is bool
         && prefs.marketing is bool;
+    }
+
+    function validExtendedNotificationPreferences(prefs) {
+      return prefs.keys().hasOnly([
+          'helperLifecycle',
+          'ownerLifecycle',
+          'stolenNearby',
+          'criticalRoads',
+          'sharedRides',
+          'communityRides',
+          'announcements',
+          'marketing',
+          'nearbyAlerts',
+          'checkpoint',
+          'accident',
+          'roadClosed',
+          'slippery',
+          'importantIncidents'
+        ])
+        && prefs.keys().size() == 14
+        && prefs.helperLifecycle is bool
+        && prefs.ownerLifecycle is bool
+        && prefs.stolenNearby is bool
+        && prefs.criticalRoads is bool
+        && prefs.sharedRides is bool
+        && prefs.communityRides is bool
+        && prefs.announcements is bool
+        && prefs.marketing is bool
+        && prefs.nearbyAlerts is bool
+        && prefs.checkpoint is bool
+        && prefs.accident is bool
+        && prefs.roadClosed is bool
+        && prefs.slippery is bool
+        && prefs.importantIncidents is bool;
+    }
+
+    function validNotificationPreferences(prefs) {
+      return prefs is map
+        && (
+          validLegacyNotificationPreferences(prefs)
+          || validExtendedNotificationPreferences(prefs)
+        );
     }
 
     function validSubscriptionTimestamp(value) {

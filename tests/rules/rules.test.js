@@ -752,6 +752,20 @@ function defaultNotificationPreferences(overrides = {}) {
   }
 }
 
+/** 058B extended preference map (legacy 8 + nearby 6). */
+function extendedNotificationPreferences(overrides = {}) {
+  return {
+    ...defaultNotificationPreferences(),
+    nearbyAlerts: false,
+    checkpoint: true,
+    accident: true,
+    roadClosed: true,
+    slippery: true,
+    importantIncidents: true,
+    ...overrides,
+  }
+}
+
 function baseSubscription(uid, extras = {}) {
   const now = Date.now()
   return {
@@ -1168,6 +1182,106 @@ describe("Firestore notificationSubscriptions — negative", () => {
           notificationPreferences: {
             helperLifecycle: true,
             announcements: false,
+          },
+        })
+      )
+    )
+  })
+
+  it("058B: create with extended nearby preferences succeeds", async () => {
+    const db = testEnv.authenticatedContext("rider-a").firestore()
+    await assertSucceeds(
+      setDoc(
+        doc(db, "notificationSubscriptions", "sub-ext-create"),
+        baseSubscription("rider-a", {
+          notificationPreferences: extendedNotificationPreferences({
+            nearbyAlerts: true,
+            checkpoint: false,
+          }),
+        })
+      )
+    )
+  })
+
+  it("058B: old client legacy preferences still allowed", async () => {
+    const db = testEnv.authenticatedContext("rider-b").firestore()
+    await assertSucceeds(
+      setDoc(
+        doc(db, "notificationSubscriptions", "sub-legacy-ok"),
+        baseSubscription("rider-b", {
+          notificationPreferences: defaultNotificationPreferences(),
+        })
+      )
+    )
+  })
+
+  it("058B: update to extended preferences succeeds", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(
+        doc(ctx.firestore(), "notificationSubscriptions", "sub-ext-upd"),
+        baseSubscription("rider-a")
+      )
+    })
+    const db = testEnv.authenticatedContext("rider-a").firestore()
+    await assertSucceeds(
+      updateDoc(doc(db, "notificationSubscriptions", "sub-ext-upd"), {
+        notificationPreferences: extendedNotificationPreferences({
+          nearbyAlerts: true,
+          accident: false,
+        }),
+        updatedAt: Date.now(),
+        lastSeenAt: Date.now(),
+      })
+    )
+  })
+
+  it("058B: locationGeohash on subscription rejected", async () => {
+    const db = testEnv.authenticatedContext("rider-a").firestore()
+    await assertFails(
+      setDoc(doc(db, "notificationSubscriptions", "sub-loc-geo"), {
+        ...baseSubscription("rider-a", {
+          notificationPreferences: extendedNotificationPreferences(),
+        }),
+        locationGeohash: "sydr",
+      })
+    )
+  })
+
+  it("058B: locationUpdatedAt on subscription rejected", async () => {
+    const db = testEnv.authenticatedContext("rider-a").firestore()
+    await assertFails(
+      setDoc(doc(db, "notificationSubscriptions", "sub-loc-at"), {
+        ...baseSubscription("rider-a", {
+          notificationPreferences: extendedNotificationPreferences(),
+        }),
+        locationUpdatedAt: Date.now(),
+      })
+    )
+  })
+
+  it("058B: invalid nearby preference type rejected", async () => {
+    const db = testEnv.authenticatedContext("rider-a").firestore()
+    await assertFails(
+      setDoc(
+        doc(db, "notificationSubscriptions", "sub-bad-nearby-type"),
+        baseSubscription("rider-a", {
+          notificationPreferences: extendedNotificationPreferences({
+            nearbyAlerts: "yes",
+          }),
+        })
+      )
+    )
+  })
+
+  it("058B: unknown preference field rejected", async () => {
+    const db = testEnv.authenticatedContext("rider-a").firestore()
+    await assertFails(
+      setDoc(
+        doc(db, "notificationSubscriptions", "sub-unk-pref"),
+        baseSubscription("rider-a", {
+          notificationPreferences: {
+            ...extendedNotificationPreferences(),
+            spamAllLebanon: true,
           },
         })
       )

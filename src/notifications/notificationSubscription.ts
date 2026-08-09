@@ -1,19 +1,39 @@
 /**
  * Installation ID, token hashing, and subscription registration helpers.
- * Production Firestore writes stay disabled until Task 034C rules ship.
+ * 058B: server-side disable/re-enable + preference updates (no location / no nearby send).
  */
 
-import { collection, doc, serverTimestamp, setDoc } from "firebase/firestore"
+import {
+  collection,
+  doc,
+  getDoc,
+  serverTimestamp,
+  setDoc,
+  updateDoc,
+} from "firebase/firestore"
 import { getToken, type Messaging } from "firebase/messaging"
 import { db, requireAuthUid } from "../firebase"
 import { subscriptionIdFromToken } from "./notificationCrypto"
 import {
+  mergePreferencesForReenable,
+  normalizeNotificationPreferences,
+  subscriptionDisableUpdateFields,
+  type NotificationPreferences,
+} from "./notificationPreferences"
+
+export {
+  mergePreferencesForReenable,
+  subscriptionDisableUpdateFields,
+} from "./notificationPreferences"
+import {
   evaluateNotificationSupport,
+  getStoredSubscriptionId,
   hasVapidKeyConfigured,
   markPermissionDeniedLocal,
   readVapidKey,
   setLocalEnabledFlag,
   setServerRegisteredFlag,
+  setStoredSubscriptionId,
   type NotificationSupportResult,
 } from "./notificationSupport"
 import {
@@ -52,6 +72,18 @@ export type RegisterOutcome =
       messageAr: string
     }
 
+export type DisableOutcome =
+  | { ok: true }
+  | { ok: false; reason: "auth_failed" | "no_subscription" | "write_failed"; messageAr: string }
+
+export type PreferencesUpdateOutcome =
+  | { ok: true; preferences: NotificationPreferences }
+  | {
+      ok: false
+      reason: "auth_failed" | "no_subscription" | "write_failed"
+      messageAr: string
+    }
+
 export async function waitForServiceWorkerRegistration(
   timeoutMs = 8000
 ): Promise<ServiceWorkerRegistration | null> {
@@ -70,6 +102,13 @@ export async function waitForServiceWorkerRegistration(
   }
 }
 
+function preferencesForFirestoreWrite(
+  prefs: NotificationPreferences
+): NotificationPreferences {
+  // Always persist the full additive set (legacy + nearby). Rules accept legacy-only OR extended.
+  return normalizeNotificationPreferences(prefs)
+}
+
 function buildSubscriptionPayload(input: {
   uid: string
   token: string
@@ -77,6 +116,8 @@ function buildSubscriptionPayload(input: {
   deviceId: string
   support: NotificationSupportResult
   preserveCreatedAt: boolean
+  notificationPreferences: NotificationPreferences
+  enabled?: boolean
 }) {
   const nowFields = {
     updatedAt: serverTimestamp(),
@@ -90,19 +131,10 @@ function buildSubscriptionPayload(input: {
     platform: detectPlatform(input.support),
     browser: detectBrowserLabel(),
     locale: "ar",
-    enabled: true,
+    enabled: input.enabled !== false,
     permissionState: "granted" as const,
     browserSupportState: input.support.code,
-    notificationPreferences: {
-      helperLifecycle: true,
-      ownerLifecycle: true,
-      stolenNearby: false,
-      criticalRoads: false,
-      sharedRides: false,
-      communityRides: false,
-      announcements: false,
-      marketing: false,
-    },
+    notificationPreferences: preferencesForFirestoreWrite(input.notificationPreferences),
     appVersion: import.meta.env.VITE_APP_VERSION || "web",
     ...nowFields,
   }
@@ -112,14 +144,44 @@ function buildSubscriptionPayload(input: {
   return { ...base, createdAt: serverTimestamp() }
 }
 
+async function resolveSubscriptionRef(options: {
+  messaging: Messaging | null
+  preferStoredId?: boolean
+}): Promise<{ id: string; ref: ReturnType<typeof doc> } | null> {
+  const stored = options.preferStoredId !== false ? getStoredSubscriptionId() : null
+  if (stored) {
+    return { id: stored, ref: doc(db, "notificationSubscriptions", stored) }
+  }
+
+  if (!options.messaging) return null
+  const registration = await waitForServiceWorkerRegistration()
+  if (!registration || !hasVapidKeyConfigured()) return null
+
+  let token: string
+  try {
+    token = await getToken(options.messaging, {
+      vapidKey: readVapidKey(),
+      serviceWorkerRegistration: registration,
+    })
+  } catch {
+    return null
+  }
+  if (!token?.trim()) return null
+  const id = await subscriptionIdFromToken(token)
+  if (!id) return null
+  return { id, ref: doc(db, "notificationSubscriptions", id) }
+}
+
 /**
  * Request permission (must run from a user gesture), then getToken + register.
- * Does not send notifications. Does not write production Firestore until allowed.
+ * Re-enable preserves existing notificationPreferences when the doc already exists.
  */
 export async function enableNotificationsFromUserGesture(options: {
   messaging: Messaging | null
   deviceId: string
   requestPermission?: () => Promise<NotificationPermission>
+  /** Optional prefs to apply on first create (defaults otherwise). */
+  initialPreferences?: Partial<NotificationPreferences>
 }): Promise<RegisterOutcome> {
   const support = evaluateNotificationSupport()
 
@@ -241,9 +303,9 @@ export async function enableNotificationsFromUserGesture(options: {
   const supportAfter = evaluateNotificationSupport()
 
   if (!ALLOW_PRODUCTION_SUBSCRIPTION_WRITE) {
-    // Token acquired; do not persist token outside Firestore. Re-getToken in 034C.
     setLocalEnabledFlag(true)
     setServerRegisteredFlag(false)
+    if (subscriptionId) setStoredSubscriptionId(subscriptionId)
     return {
       ok: true,
       mode: "local_pending_rules",
@@ -254,17 +316,37 @@ export async function enableNotificationsFromUserGesture(options: {
   try {
     const id = subscriptionId || doc(collection(db, "notificationSubscriptions")).id
     const ref = doc(db, "notificationSubscriptions", id)
+
+    let preserveCreatedAt = false
+    let prefs = mergePreferencesForReenable(null, options.initialPreferences)
+
+    try {
+      const existing = await getDoc(ref)
+      if (existing.exists()) {
+        preserveCreatedAt = true
+        prefs = mergePreferencesForReenable(
+          existing.data().notificationPreferences,
+          undefined
+        )
+      }
+    } catch {
+      /* create path if read fails */
+    }
+
     const payload = buildSubscriptionPayload({
       uid,
       token,
       installationId,
       deviceId: options.deviceId,
       support: supportAfter,
-      preserveCreatedAt: false,
+      preserveCreatedAt,
+      notificationPreferences: prefs,
+      enabled: true,
     })
     await setDoc(ref, payload, { merge: true })
     setLocalEnabledFlag(true)
     setServerRegisteredFlag(true)
+    setStoredSubscriptionId(id)
     return { ok: true, mode: "firestore", subscriptionId: id }
   } catch {
     setLocalEnabledFlag(true)
@@ -277,8 +359,149 @@ export async function enableNotificationsFromUserGesture(options: {
   }
 }
 
-/** Local-only disable intent until server delete is available in 034C/I. */
+/**
+ * Disable notifications: set enabled:false on the subscription doc (token retained).
+ * Also clears local enabled intent. Does not delete the document.
+ */
+export async function disableNotificationsOnServer(options: {
+  messaging: Messaging | null
+}): Promise<DisableOutcome> {
+  try {
+    await requireAuthUid()
+  } catch {
+    return {
+      ok: false,
+      reason: "auth_failed",
+      messageAr: "تعذّر التحقق من الجلسة. أعد فتح التطبيق ثم حاول مرة أخرى.",
+    }
+  }
+
+  if (!ALLOW_PRODUCTION_SUBSCRIPTION_WRITE) {
+    setLocalEnabledFlag(false)
+    return { ok: true }
+  }
+
+  const resolved = await resolveSubscriptionRef({ messaging: options.messaging })
+  if (!resolved) {
+    setLocalEnabledFlag(false)
+    setServerRegisteredFlag(false)
+    return {
+      ok: false,
+      reason: "no_subscription",
+      messageAr: "ما لقينا اشتراك إشعارات على هذا الجهاز.",
+    }
+  }
+
+  try {
+    await updateDoc(resolved.ref, {
+      ...subscriptionDisableUpdateFields(),
+      updatedAt: serverTimestamp(),
+      lastSeenAt: serverTimestamp(),
+    })
+    setLocalEnabledFlag(false)
+    setServerRegisteredFlag(true)
+    setStoredSubscriptionId(resolved.id)
+    return { ok: true }
+  } catch {
+    // Fallback: merge write if update fails (doc missing fields edge cases).
+    try {
+      await setDoc(
+        resolved.ref,
+        {
+          ...subscriptionDisableUpdateFields(),
+          updatedAt: serverTimestamp(),
+          lastSeenAt: serverTimestamp(),
+        },
+        { merge: true }
+      )
+      setLocalEnabledFlag(false)
+      setServerRegisteredFlag(true)
+      setStoredSubscriptionId(resolved.id)
+      return { ok: true }
+    } catch {
+      return {
+        ok: false,
+        reason: "write_failed",
+        messageAr: "تعذّر إيقاف الإشعارات على الخادم. حاول مرة أخرى.",
+      }
+    }
+  }
+}
+
+/** @deprecated Prefer disableNotificationsOnServer — local-only leaves server enabled. */
 export function disableNotificationsLocally(): void {
   setLocalEnabledFlag(false)
   setServerRegisteredFlag(false)
+}
+
+/** Load normalized preferences from the current subscription (or defaults). */
+export async function loadNotificationPreferences(options: {
+  messaging: Messaging | null
+}): Promise<NotificationPreferences> {
+  const defaults = defaultNotificationPreferences()
+  if (!ALLOW_PRODUCTION_SUBSCRIPTION_WRITE) return defaults
+
+  try {
+    await requireAuthUid()
+  } catch {
+    return defaults
+  }
+
+  const resolved = await resolveSubscriptionRef({ messaging: options.messaging })
+  if (!resolved) return defaults
+
+  try {
+    const snap = await getDoc(resolved.ref)
+    if (!snap.exists()) return defaults
+    return normalizeNotificationPreferences(snap.data().notificationPreferences)
+  } catch {
+    return defaults
+  }
+}
+
+/** Persist preference object; preserves token / enabled / ownership fields. */
+export async function updateNotificationPreferencesOnServer(options: {
+  messaging: Messaging | null
+  preferences: NotificationPreferences
+}): Promise<PreferencesUpdateOutcome> {
+  const prefs = preferencesForFirestoreWrite(options.preferences)
+
+  try {
+    await requireAuthUid()
+  } catch {
+    return {
+      ok: false,
+      reason: "auth_failed",
+      messageAr: "تعذّر التحقق من الجلسة. أعد فتح التطبيق ثم حاول مرة أخرى.",
+    }
+  }
+
+  if (!ALLOW_PRODUCTION_SUBSCRIPTION_WRITE) {
+    return { ok: true, preferences: prefs }
+  }
+
+  const resolved = await resolveSubscriptionRef({ messaging: options.messaging })
+  if (!resolved) {
+    return {
+      ok: false,
+      reason: "no_subscription",
+      messageAr: "فعّل الإشعارات أولاً قبل حفظ التفضيلات.",
+    }
+  }
+
+  try {
+    await updateDoc(resolved.ref, {
+      notificationPreferences: prefs,
+      updatedAt: serverTimestamp(),
+      lastSeenAt: serverTimestamp(),
+    })
+    setStoredSubscriptionId(resolved.id)
+    return { ok: true, preferences: prefs }
+  } catch {
+    return {
+      ok: false,
+      reason: "write_failed",
+      messageAr: "تعذّر حفظ التفضيلات. حاول مرة أخرى.",
+    }
+  }
 }
