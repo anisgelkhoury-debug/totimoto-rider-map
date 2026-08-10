@@ -122,8 +122,8 @@ function mockDeps(
 }
 
 describe("058E/H send gate + canary", () => {
-  it("1. canary allowlist helpers exist; production gate is boolean", () => {
-    assert.equal(typeof ALLOW_PRODUCTION_NEARBY_NOTIFICATION_SEND, "boolean")
+  it("1. production send gate false after canary; allowlist helpers work", () => {
+    assert.equal(ALLOW_PRODUCTION_NEARBY_NOTIFICATION_SEND, false)
     assert.equal(isNearbyCanaryRecipient("missing"), false)
     assert.equal(
       filterNearbyCanaryRecipients(
@@ -132,7 +132,7 @@ describe("058E/H send gate + canary", () => {
       ).map((r) => r.subscriptionId).join(","),
       "b"
     )
-    assert.equal(nearbyCanaryAllowlistSize(new Set(["x"])), 1)
+    assert.equal(nearbyCanaryAllowlistSize(new Set()), 0)
   })
 })
 

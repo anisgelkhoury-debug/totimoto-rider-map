@@ -6,22 +6,18 @@
  *   AND recipient subscriptionId ∈ NEARBY_NOTIFICATION_CANARY_SUBSCRIPTION_IDS
  *
  * Non-allowlisted eligible recipients never receive FCM.
- * After canary: set gate false and clear allowlist.
+ * After canary: gate false and allowlist empty (mandatory).
  */
 
 /** Flip true only for controlled canary / explicit send tasks. */
-export const ALLOW_PRODUCTION_NEARBY_NOTIFICATION_SEND: boolean = true
+export const ALLOW_PRODUCTION_NEARBY_NOTIFICATION_SEND: boolean = false
 
 /**
- * Temporary canary: only these subscription document ids may receive real nearby FCM.
- * Empty set ⇒ nobody receives real nearby FCM even if gate is true.
- * Do not put FCM tokens here.
+ * Temporary canary allowlist (subscription document ids only — never FCM tokens).
+ * Empty after 058H shutdown ⇒ nobody receives real nearby FCM even if gate were true.
  */
 export const NEARBY_NOTIFICATION_CANARY_SUBSCRIPTION_IDS: ReadonlySet<string> =
-  new Set([
-    // Device B (058G verified recipient) — subscription doc id only
-    "d5b037a3d04c2a75763a0e7c07d6a5ff",
-  ])
+  new Set([])
 
 export function isNearbyNotificationSendAllowed(
   override?: boolean
