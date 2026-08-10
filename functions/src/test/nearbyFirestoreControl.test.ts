@@ -85,7 +85,7 @@ describe("058K ops config + cache", () => {
     )
   })
 
-  it("11–12. cache TTL + expiry failure → Stage 0", async () => {
+  it("11–12. cache TTL + open-config bypass for kill switch", async () => {
     resetNearbyOpsConfigCache()
     let reads = 0
     const cfg1 = await loadNearbyOpsRolloutConfig({
@@ -94,16 +94,16 @@ describe("058K ops config + cache", () => {
       fetchRaw: async () => {
         reads += 1
         return {
-          enabled: true,
-          stage: 1,
-          allowlistedSubscriptionIds: ["a"],
+          enabled: false,
+          stage: 0,
         }
       },
     })
-    assert.equal(cfg1.stage, 1)
+    assert.equal(cfg1.stage, 0)
     assert.equal(reads, 1)
+    // Stage 0 may be served from cache within TTL.
     const cached = getCachedNearbyOpsConfig(NOW + 500)
-    assert.equal(cached?.stage, 1)
+    assert.equal(cached?.stage, 0)
     assert.equal(getCachedNearbyOpsConfig(NOW + 2000), null)
 
     const cfgFail = await loadNearbyOpsRolloutConfig({

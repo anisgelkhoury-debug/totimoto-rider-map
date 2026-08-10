@@ -72,15 +72,37 @@ export function setCachedNearbyOpsConfig(
  * - fetch failure → Stage 0 (and cache Stage 0 briefly so we don't hammer)
  * - expired + failure → Stage 0
  * - never returns a stale permissive config past TTL
+ *
+ * Kill-switch (058L): when the cached config would unlock delivery (Stage > 0),
+ * ALWAYS re-fetch. Ops `enabled:false` / Stage 0 then takes effect on the next
+ * Function invocation without waiting for the 45s TTL.
+ * Closed (Stage 0) configs may remain cached for TTL to limit reads.
  */
+export function isCachedConfigDeliveryUnlocked(
+  config: NearbyNormalizedRolloutConfig
+): boolean {
+  return (
+    config.enabled === true &&
+    config.stage > 0 &&
+    config.normalizeReason === "ok"
+  )
+}
+
 export async function loadNearbyOpsRolloutConfig(input: {
   fetchRaw: () => Promise<unknown>
   nowMs?: number
   ttlMs?: number
+  /** Force bypass cache (emergency / tests). */
+  forceRefresh?: boolean
 }): Promise<NearbyNormalizedRolloutConfig> {
   const nowMs = input.nowMs ?? Date.now()
-  const hit = getCachedNearbyOpsConfig(nowMs)
-  if (hit) return hit
+  if (!input.forceRefresh) {
+    const hit = getCachedNearbyOpsConfig(nowMs)
+    if (hit && !isCachedConfigDeliveryUnlocked(hit)) {
+      return hit
+    }
+    // Open cached config → fall through to re-fetch for fast ops kill.
+  }
 
   try {
     const raw = await input.fetchRaw()

@@ -85,6 +85,10 @@ import {
 import { getOrCreateInstallationId } from "./notifications/installationId"
 import { parseTrnSearchParams } from "./notifications/notificationPayload"
 import {
+  evaluateDeepLinkReportSelection,
+  logDeepLinkSelectionProof,
+} from "./notifications/deepLinkProof"
+import {
   countUnresolvedByFamily,
   filterAndSortReports,
 } from "./utils/reportListQuery"
@@ -524,6 +528,12 @@ function App() {
 
   const applyDeepLinkReportId = (reportId: string | null) => {
     if (!reportId) return false
+    const proof = evaluateDeepLinkReportSelection({
+      requestedReportId: reportId,
+      reports,
+    })
+    logDeepLinkSelectionProof(proof, import.meta.env.DEV === true)
+    if (!proof.selected) return false
     const found = reports.find((r: any) => String(r.id) === String(reportId))
     if (!found) return false
     setSelectedReport(found)
