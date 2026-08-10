@@ -238,11 +238,15 @@ Ops cache/fail-closed, atomic reserve/release/commit/idempotency, concurrent rac
 
 ## 36. Commit hash
 
-(Filled after commit.)
+`d4f602a` (`feat: add atomic nearby notification rollout control`)
 
 ## 37. Git status
 
-(Filled after commit.)
+```
+On branch feature/nearby-rollout-firestore-control
+058K tracked files committed.
+Unrelated local dirty/untracked: .firebase cache, other architecture MDs, scripts/
+```
 
 ## 38. Final send gate proof
 
