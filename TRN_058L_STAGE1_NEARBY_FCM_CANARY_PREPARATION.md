@@ -209,11 +209,15 @@ Self-exclusion ordering; Stage 1 B-only; gate/Stage 0 override; deep-link proof;
 
 ## 39. Commit hash
 
-(Filled after commit.)
+`60095bb` (`test: prepare stage one nearby notification canary`)
 
 ## 40. Git status
 
-(Filled after commit.)
+```
+On branch feature/nearby-stage1-canary
+058L Phase A files committed.
+Unrelated local dirty/untracked ignored.
+```
 
 ## 41. GO / NO-GO for infrastructure adoption
 
