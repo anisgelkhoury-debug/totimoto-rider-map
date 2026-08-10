@@ -25,14 +25,22 @@ import {
   processNearbyReportCreated,
   type NearbyNotifyOutcome,
 } from "./nearby/processNearbyReport"
-import { ALLOW_PRODUCTION_NEARBY_NOTIFICATION_SEND } from "./nearby/sendGate"
+import {
+  ALLOW_PRODUCTION_NEARBY_NOTIFICATION_SEND,
+  nearbyCanaryAllowlistSize,
+  NEARBY_NOTIFICATION_CANARY_SUBSCRIPTION_IDS,
+} from "./nearby/sendGate"
 import type { PreferenceKey, ReportSnapshot } from "./shared/report"
 import type { LifecycleNotifyOutcome } from "./shared/processLifecycle"
 import type { NearbyRecipientSubscriptionDoc } from "./shared/recipientTargeting"
 import type { SubscriptionDoc } from "./shared/subscriptions"
 
-/** Re-export for tests / ops visibility. Default false. */
-export { ALLOW_PRODUCTION_NEARBY_NOTIFICATION_SEND }
+/** Re-export for tests / ops visibility. */
+export {
+  ALLOW_PRODUCTION_NEARBY_NOTIFICATION_SEND,
+  NEARBY_NOTIFICATION_CANARY_SUBSCRIPTION_IDS,
+  nearbyCanaryAllowlistSize,
+}
 
 initializeApp()
 
@@ -243,11 +251,14 @@ function logNearbyOutcome(outcome: NearbyNotifyOutcome): void {
     category: outcome.category || "",
     candidateCount: outcome.candidateCount,
     eligibleCount: outcome.eligibleCount,
+    allowlistedEligibleCount: outcome.allowlistedEligibleCount,
     attempted: outcome.attempted,
     success: outcome.success,
     failed: outcome.failed,
     disabledTokens: outcome.disabledTokens,
     sendGate: outcome.sendGate,
+    canaryMode: outcome.sendGate === true,
+    canaryAllowlistSize: nearbyCanaryAllowlistSize(),
   })
 }
 

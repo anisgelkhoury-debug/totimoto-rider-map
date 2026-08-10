@@ -29,7 +29,12 @@ import {
   processNearbyReportCreated,
   type NearbyNotifyDeps,
 } from "../nearby/processNearbyReport"
-import { ALLOW_PRODUCTION_NEARBY_NOTIFICATION_SEND } from "../nearby/sendGate"
+import {
+  ALLOW_PRODUCTION_NEARBY_NOTIFICATION_SEND,
+  filterNearbyCanaryRecipients,
+  isNearbyCanaryRecipient,
+  nearbyCanaryAllowlistSize,
+} from "../nearby/sendGate"
 import type { NearbyRecipientSubscriptionDoc } from "../shared/recipientTargeting"
 
 const NOW = 1_700_000_000_000
@@ -116,9 +121,18 @@ function mockDeps(
   }
 }
 
-describe("058E send gate", () => {
-  it("1. send gate false by default", () => {
-    assert.equal(ALLOW_PRODUCTION_NEARBY_NOTIFICATION_SEND, false)
+describe("058E/H send gate + canary", () => {
+  it("1. canary allowlist helpers exist; production gate is boolean", () => {
+    assert.equal(typeof ALLOW_PRODUCTION_NEARBY_NOTIFICATION_SEND, "boolean")
+    assert.equal(isNearbyCanaryRecipient("missing"), false)
+    assert.equal(
+      filterNearbyCanaryRecipients(
+        [{ subscriptionId: "a" }, { subscriptionId: "b" }],
+        new Set(["b"])
+      ).map((r) => r.subscriptionId).join(","),
+      "b"
+    )
+    assert.equal(nearbyCanaryAllowlistSize(new Set(["x"])), 1)
   })
 })
 
@@ -307,11 +321,15 @@ describe("058E dry-run / send path", () => {
     assert.equal(deps.claims.length, 0)
   })
 
-  it("37. sender gate true fixture → expected send path", async () => {
-    const deps = mockDeps([sub("a"), sub("b")], { allowSend: true })
+  it("37. sender gate true + canary allowlist → expected send path", async () => {
+    const deps = mockDeps([sub("a"), sub("b")], {
+      allowSend: true,
+      canarySubscriptionIds: new Set(["a", "b"]),
+    })
     const out = await processNearbyReportCreated("r1", baseReport(), deps)
     assert.equal(out.status, "sent")
     assert.equal(out.success, 2)
+    assert.equal(out.allowlistedEligibleCount, 2)
     assert.equal(deps.sends.length, 2)
     assert.equal(deps.claims.length, 2)
   })
@@ -321,7 +339,10 @@ describe("058E dry-run / send path", () => {
       buildNearbyReportEventKey("r1", "sub-a"),
       "nearby_report:r1:sub-a"
     )
-    const deps = mockDeps([sub("a")], { allowSend: true })
+    const deps = mockDeps([sub("a")], {
+      allowSend: true,
+      canarySubscriptionIds: new Set(["a"]),
+    })
     await processNearbyReportCreated("r1", baseReport(), deps)
     const again = await processNearbyReportCreated("r1", baseReport(), deps)
     assert.equal(again.status, "skipped")
@@ -329,9 +350,71 @@ describe("058E dry-run / send path", () => {
     assert.equal(deps.sends.length, 1)
   })
 
+  it("058H. send true + non-allowlisted eligible → no FCM", async () => {
+    const deps = mockDeps([sub("a"), sub("b")], {
+      allowSend: true,
+      canarySubscriptionIds: new Set(["only-other"]),
+    })
+    const out = await processNearbyReportCreated("r1", baseReport(), deps)
+    assert.equal(out.status, "skipped")
+    assert.equal(out.reason, "no_canary_recipients")
+    assert.equal(out.eligibleCount, 2)
+    assert.equal(out.allowlistedEligibleCount, 0)
+    assert.equal(out.attempted, 0)
+    assert.equal(deps.sends.length, 0)
+    assert.equal(deps.claims.length, 0)
+  })
+
+  it("058H. send true + only Device B allowlisted → one FCM", async () => {
+    const deps = mockDeps(
+      [
+        sub("device-a", { uid: "owner-1" }),
+        sub("device-b", { uid: "rider-b" }),
+        sub("other", { uid: "rider-c" }),
+      ],
+      {
+        allowSend: true,
+        canarySubscriptionIds: new Set(["device-b"]),
+      }
+    )
+    const out = await processNearbyReportCreated("r1", baseReport(), deps)
+    // self-reporter device-a excluded first → eligible device-b + other
+    assert.equal(out.eligibleCount, 2)
+    assert.equal(out.allowlistedEligibleCount, 1)
+    assert.equal(out.status, "sent")
+    assert.equal(out.attempted, 1)
+    assert.equal(out.success, 1)
+    assert.equal(deps.sends.length, 1)
+    assert.equal(deps.sends[0], "token-device-b")
+  })
+
+  it("058H. self reporter excluded before canary send", async () => {
+    const deps = mockDeps([sub("self", { uid: "owner-1" })], {
+      allowSend: true,
+      canarySubscriptionIds: new Set(["self"]),
+    })
+    const out = await processNearbyReportCreated("r1", baseReport(), deps)
+    assert.equal(out.status, "no_recipients")
+    assert.equal(deps.sends.length, 0)
+  })
+
+  it("058H. accident Arabic copy + deep link exact", () => {
+    const copy = nearbyNotificationCopyForCategory("accident")
+    assert.equal(copy?.title, "حادث قريب منك")
+    assert.equal(
+      copy?.body,
+      "بلاغ من دراج عن حادث قريب من منطقتك. انتبه على الطريق."
+    )
+    assert.equal(
+      buildNearbyReportDeepLink("abc123", "accident"),
+      "https://app.totimoto.com/?report=abc123&notification=nearby_accident"
+    )
+  })
+
   it("28. invalid token cleanup reused", async () => {
     const deps = mockDeps([sub("a")], {
       allowSend: true,
+      canarySubscriptionIds: new Set(["a"]),
       sendDataMessage: async () => ({
         success: false,
         errorCode: "messaging/registration-token-not-registered",

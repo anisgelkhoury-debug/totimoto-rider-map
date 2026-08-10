@@ -1,5 +1,5 @@
 /**
- * TRN 058E — client-side guardrail: nearby send gate stays OFF in Functions source.
+ * TRN 058E/058H — nearby send gate + canary allowlist guardrails.
  */
 import { describe, it } from "node:test"
 import assert from "node:assert/strict"
@@ -9,25 +9,36 @@ import { fileURLToPath } from "node:url"
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "../..")
 
-describe("058E nearby send gate guardrails", () => {
-  it("42. existing assistance tests path untouched; send gate false in source", () => {
+describe("058E/H nearby send gate guardrails", () => {
+  it("42. canary allowlist architecture present; assistance Functions untouched", () => {
     const gate = readFileSync(
       join(root, "functions/src/nearby/sendGate.ts"),
       "utf8"
     )
-    assert.match(
-      gate,
-      /ALLOW_PRODUCTION_NEARBY_NOTIFICATION_SEND:\s*boolean\s*=\s*false/
-    )
+    assert.match(gate, /NEARBY_NOTIFICATION_CANARY_SUBSCRIPTION_IDS/)
+    assert.match(gate, /isNearbyCanaryRecipient/)
+    assert.match(gate, /ALLOW_PRODUCTION_NEARBY_NOTIFICATION_SEND/)
+    // Never embed FCM tokens in canary source
+    assert.doesNotMatch(gate, /AAAA[A-Za-z0-9_-]{100,}/)
     const index = readFileSync(join(root, "functions/src/index.ts"), "utf8")
     assert.match(index, /onReportLifecycleUpdated/)
     assert.match(index, /onReportCreatedNearbyNotify/)
     assert.equal(index.includes("ALLOW_PRODUCTION_NEARBY_NOTIFICATION_SEND"), true)
+    const process = readFileSync(
+      join(root, "functions/src/nearby/processNearbyReport.ts"),
+      "utf8"
+    )
+    assert.match(process, /filterNearbyCanaryRecipients/)
+    assert.match(process, /no_canary_recipients/)
   })
 
   it("no production nearby send from client modules", () => {
     const app = readFileSync(join(root, "src/App.tsx"), "utf8")
     assert.equal(app.includes("onReportCreatedNearbyNotify"), false)
     assert.equal(app.includes("sendEachForMulticast"), false)
+    assert.equal(
+      app.includes("NEARBY_NOTIFICATION_CANARY_SUBSCRIPTION_IDS"),
+      false
+    )
   })
 })

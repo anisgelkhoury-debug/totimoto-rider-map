@@ -25,7 +25,11 @@ import {
   passesNearbyTrustGate,
 } from "./policy"
 import { parseNearbyReportCreate } from "./reportParse"
-import { isNearbyNotificationSendAllowed } from "./sendGate"
+import {
+  filterNearbyCanaryRecipients,
+  isNearbyNotificationSendAllowed,
+  NEARBY_NOTIFICATION_CANARY_SUBSCRIPTION_IDS,
+} from "./sendGate"
 
 export type NearbySendResult = {
   success: boolean
@@ -54,6 +58,8 @@ export type NearbyNotifyDeps = {
   disableSubscription: (subscriptionId: string) => Promise<void>
   /** Test override for ALLOW_PRODUCTION_NEARBY_NOTIFICATION_SEND */
   allowSend?: boolean
+  /** Test override for canary subscription allowlist */
+  canarySubscriptionIds?: ReadonlySet<string>
   now?: () => number
 }
 
@@ -69,6 +75,8 @@ export type NearbyNotifyOutcome = {
   category?: string
   candidateCount: number
   eligibleCount: number
+  /** Eligible recipients that also pass the canary allowlist (send path only). */
+  allowlistedEligibleCount: number
   attempted: number
   success: number
   failed: number
@@ -82,6 +90,7 @@ function emptyOutcome(
   return {
     candidateCount: 0,
     eligibleCount: 0,
+    allowlistedEligibleCount: 0,
     attempted: 0,
     success: 0,
     failed: 0,
@@ -252,11 +261,36 @@ export async function processNearbyReportCreated(
       category: report.reportCategory,
       candidateCount: loaded.candidates.length,
       eligibleCount: eligible.length,
+      allowlistedEligibleCount: 0,
       sendGate: false,
     })
   }
 
-  return sendToEligible(report, eligible, deps, loaded.candidates.length, nowMs)
+  const canarySet =
+    deps.canarySubscriptionIds ?? NEARBY_NOTIFICATION_CANARY_SUBSCRIPTION_IDS
+  const canaryEligible = filterNearbyCanaryRecipients(eligible, canarySet)
+
+  if (canaryEligible.length === 0) {
+    return emptyOutcome({
+      status: "skipped",
+      reason: "no_canary_recipients",
+      category: report.reportCategory,
+      candidateCount: loaded.candidates.length,
+      eligibleCount: eligible.length,
+      allowlistedEligibleCount: 0,
+      sendGate: true,
+    })
+  }
+
+  return sendToEligible(
+    report,
+    canaryEligible,
+    deps,
+    loaded.candidates.length,
+    eligible.length,
+    canaryEligible.length,
+    nowMs
+  )
 }
 
 async function sendToEligible(
@@ -265,9 +299,11 @@ async function sendToEligible(
     reportCategory: string
     createdAtMs: number
   },
-  eligible: EligibleNearbyRecipient[],
+  canaryEligible: EligibleNearbyRecipient[],
   deps: NearbyNotifyDeps,
   candidateCount: number,
+  eligibleCount: number,
+  allowlistedEligibleCount: number,
   nowMs: number
 ): Promise<NearbyNotifyOutcome> {
   const payload = buildNearbyReportPayload({
@@ -281,7 +317,8 @@ async function sendToEligible(
       reason: "unsafe_payload",
       category: report.reportCategory,
       candidateCount,
-      eligibleCount: eligible.length,
+      eligibleCount,
+      allowlistedEligibleCount,
       sendGate: true,
     })
   }
@@ -293,7 +330,7 @@ async function sendToEligible(
   let duplicates = 0
   let transientFailures = 0
 
-  for (const recipient of eligible) {
+  for (const recipient of canaryEligible) {
     const eventKey = buildNearbyReportEventKey(
       report.reportId,
       recipient.subscriptionId
@@ -353,7 +390,8 @@ async function sendToEligible(
       reason: "all_duplicate_events",
       category: report.reportCategory,
       candidateCount,
-      eligibleCount: eligible.length,
+      eligibleCount,
+      allowlistedEligibleCount,
       sendGate: true,
     })
   }
@@ -364,7 +402,8 @@ async function sendToEligible(
       reason: "transient_all_failed_retryable",
       category: report.reportCategory,
       candidateCount,
-      eligibleCount: eligible.length,
+      eligibleCount,
+      allowlistedEligibleCount,
       attempted,
       success,
       failed,
@@ -379,7 +418,8 @@ async function sendToEligible(
       reason: "all_sends_failed",
       category: report.reportCategory,
       candidateCount,
-      eligibleCount: eligible.length,
+      eligibleCount,
+      allowlistedEligibleCount,
       attempted,
       success,
       failed,
@@ -392,7 +432,8 @@ async function sendToEligible(
     status: failed > 0 ? "partial" : "sent",
     category: report.reportCategory,
     candidateCount,
-    eligibleCount: eligible.length,
+    eligibleCount,
+    allowlistedEligibleCount,
     attempted,
     success,
     failed,
