@@ -569,11 +569,15 @@ Log/metric fields only (see `buildNearbyObservabilityPayload`):
 
 ## 40. Commit hash
 
-(Filled after local commit.)
+`878fdd0` (`design: prepare limited nearby notification rollout`)
 
 ## 41. Git status
 
-(Filled after local commit.)
+```
+On branch feature/nearby-limited-rollout-design
+Clean for 058I tracked files.
+Unrelated local untracked: architecture MDs, scripts/, modified .firebase hosting cache (not committed).
+```
 
 ## 42. GO / NO-GO for 058J implementation
 
