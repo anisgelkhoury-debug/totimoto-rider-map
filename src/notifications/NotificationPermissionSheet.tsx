@@ -3,6 +3,8 @@
  * Does not call Notification.requestPermission by itself — parent handles enable.
  */
 
+import { useEffect, useRef } from "react"
+
 type Props = {
   open: boolean
   busy?: boolean
@@ -11,6 +13,9 @@ type Props = {
   onDismiss: () => void
 }
 
+/** Ignore backdrop dismiss briefly after open (mobile ghost-tap after prior modal). */
+const BACKDROP_DISMISS_GUARD_MS = 450
+
 export function NotificationPermissionSheet({
   open,
   busy = false,
@@ -18,6 +23,12 @@ export function NotificationPermissionSheet({
   onEnable,
   onDismiss,
 }: Props) {
+  const openedAtRef = useRef(0)
+
+  useEffect(() => {
+    if (open) openedAtRef.current = Date.now()
+  }, [open])
+
   if (!open) return null
 
   return (
@@ -34,7 +45,9 @@ export function NotificationPermissionSheet({
         direction: "rtl",
       }}
       onClick={(e) => {
-        if (e.target === e.currentTarget && !busy) onDismiss()
+        if (e.target !== e.currentTarget || busy) return
+        if (Date.now() - openedAtRef.current < BACKDROP_DISMISS_GUARD_MS) return
+        onDismiss()
       }}
     >
       <div

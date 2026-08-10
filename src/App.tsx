@@ -73,6 +73,7 @@ import { storagePathFromUrlOrPath } from "./utils/storagePath"
 import { NotificationPermissionSheet } from "./notifications/NotificationPermissionSheet"
 import { NotificationSettingsPanel } from "./notifications/NotificationSettingsPanel"
 import { enableNotificationsFromUserGesture } from "./notifications/notificationSubscription"
+import { shouldCloseSettingsBeforeNotificationEnable } from "./notifications/notificationSupport"
 import { maybeUpdateNotificationLocationHeartbeat } from "./notifications/notificationLocationWrite"
 import {
   evaluateNotificationSupport,
@@ -630,6 +631,7 @@ const [showInstallGuide, setShowInstallGuide] = useState(false)
 const [showNotifPrompt, setShowNotifPrompt] = useState(false)
 const [notifPromptBusy, setNotifPromptBusy] = useState(false)
 const [notifPromptError, setNotifPromptError] = useState("")
+const [notifSettingsError, setNotifSettingsError] = useState("")
 const [notifSettingsTick, setNotifSettingsTick] = useState(0)
 const [notifMessaging, setNotifMessaging] = useState<Awaited<
   ReturnType<typeof getFirebaseMessagingIfSupported>
@@ -761,16 +763,23 @@ function dismissNotificationPrompt() {
   setNotifSettingsTick((n) => n + 1)
 }
 
-async function confirmEnableNotifications() {
+async function runEnableNotifications(options?: {
+  /** When true, surface errors on the permission sheet; else on settings panel. */
+  fromPromptSheet?: boolean
+}) {
   if (notifPromptBusy) return
   setNotifPromptBusy(true)
   setNotifPromptError("")
+  setNotifSettingsError("")
   markPromptAskedThisSession()
 
   try {
     const support = evaluateNotificationSupport()
     if (support.code === "ios_requires_install") {
       setShowNotifPrompt(false)
+      if (shouldCloseSettingsBeforeNotificationEnable()) {
+        setShowCommunityCenter(false)
+      }
       setShowInstallGuide(true)
       return
     }
@@ -787,16 +796,30 @@ async function confirmEnableNotifications() {
         setShowInstallGuide(true)
         return
       }
-      setNotifPromptError(result.messageAr)
+      if (options?.fromPromptSheet) {
+        setNotifPromptError(result.messageAr)
+      } else {
+        setNotifSettingsError(result.messageAr)
+      }
       setNotifSettingsTick((n) => n + 1)
       return
     }
 
     setShowNotifPrompt(false)
+    setNotifSettingsError("")
     setNotifSettingsTick((n) => n + 1)
   } finally {
     setNotifPromptBusy(false)
   }
+}
+
+async function confirmEnableNotifications() {
+  await runEnableNotifications({ fromPromptSheet: true })
+}
+
+/** Settings → تفعيل: enable in-place (keep settings open; no modal swap ghost-dismiss). */
+async function enableNotificationsFromSettings() {
+  await runEnableNotifications({ fromPromptSheet: false })
 }
 
 async function submitFeedback() {
@@ -3289,10 +3312,13 @@ setReportImagePreview(URL.createObjectURL(compressedFile))
           messaging={notifMessaging}
           hasMyLocation={Boolean(myLocation)}
           refreshTick={notifSettingsTick}
+          activationBusy={notifPromptBusy}
+          activationErrorAr={notifSettingsError}
           containerStyle={{ paddingTop: 10, paddingBottom: 10 }}
           onRequestEnable={() => {
-            setShowCommunityCenter(false)
-            openNotificationPrompt({ force: true })
+            // Keep settings open — closing then opening another sheet in the
+            // same tap dismisses the new sheet on mobile (looks like no-op).
+            void enableNotificationsFromSettings()
           }}
           onOpenInstallGuide={() => {
             setShowCommunityCenter(false)

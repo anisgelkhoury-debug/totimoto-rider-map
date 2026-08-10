@@ -247,6 +247,16 @@ export function resolveSettingsNotificationState(
   return "inactive"
 }
 
+/**
+ * Settings → تفعيل الإشعارات must NOT close the parent sheet before/while
+ * starting activation. Closing + opening another modal in the same tap causes
+ * mobile browsers to deliver the same gesture to the new backdrop (instant dismiss
+ * → looks like "nothing happens").
+ */
+export function shouldCloseSettingsBeforeNotificationEnable(): boolean {
+  return false
+}
+
 export function settingsStateLabelAr(state: SettingsNotificationState): string {
   switch (state) {
     case "unsupported":

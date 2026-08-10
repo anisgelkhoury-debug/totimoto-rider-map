@@ -39,9 +39,14 @@ type Props = {
   hasMyLocation?: boolean
   /** Bump from parent after enable/prompt flows. */
   refreshTick?: number
+  /** Parent runs enable from this user gesture (must keep settings open). */
   onRequestEnable: () => void
   onOpenInstallGuide: () => void
   onStatusChange?: () => void
+  /** Parent-driven activation busy (settings enable path). */
+  activationBusy?: boolean
+  /** Parent-driven activation error Arabic (settings enable path). */
+  activationErrorAr?: string
   containerStyle?: CSSProperties
 }
 
@@ -128,6 +133,8 @@ export function NotificationSettingsPanel({
   onRequestEnable,
   onOpenInstallGuide,
   onStatusChange,
+  activationBusy = false,
+  activationErrorAr = "",
   containerStyle,
 }: Props) {
   const [notifState, setNotifState] = useState<SettingsNotificationState>(() =>
@@ -268,20 +275,30 @@ export function NotificationSettingsPanel({
         {(notifState === "inactive" || notifState === "needs_setup") && (
           <button
             type="button"
-            onClick={onRequestEnable}
+            disabled={activationBusy}
+            onClick={() => {
+              if (import.meta.env.DEV) {
+                console.info("[TRN NOTIF] activate_clicked", { notifState })
+              }
+              onRequestEnable()
+            }}
             style={{
               flex: 1,
               minWidth: 110,
               padding: "10px 8px",
               borderRadius: 12,
               border: "none",
-              background: "#0f172a",
+              background: activationBusy ? "#64748b" : "#0f172a",
               color: "white",
               fontWeight: "bold",
               fontSize: 13,
             }}
           >
-            {notifState === "needs_setup" ? C.retry : C.enable}
+            {activationBusy
+              ? C.enabling
+              : notifState === "needs_setup"
+                ? C.retry
+                : C.enable}
           </button>
         )}
         {notifState === "needs_install" && (
@@ -327,6 +344,12 @@ export function NotificationSettingsPanel({
           <div style={{ fontSize: 12, color: "#b91c1c", lineHeight: 1.5 }}>{C.deniedHint}</div>
         )}
       </div>
+
+      {activationErrorAr ? (
+        <div style={{ fontSize: 12, color: "#b91c1c", marginBottom: 8, lineHeight: 1.5 }}>
+          {activationErrorAr}
+        </div>
+      ) : null}
 
       {inlineErr ? (
         <div style={{ fontSize: 12, color: "#b91c1c", marginBottom: 8, lineHeight: 1.5 }}>

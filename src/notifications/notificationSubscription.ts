@@ -218,22 +218,33 @@ export async function enableNotificationsFromUserGesture(options: {
       ok: false,
       reason: "permission_denied",
       messageAr:
-        "تم رفض الإشعارات من إعدادات المتصفح أو الجهاز. يمكنك تفعيلها لاحقاً من هناك.",
+        "الإشعارات موقوفة من إعدادات المتصفح. فعّلها للموقع وحاول مرة ثانية.",
     }
   }
 
-  const requestPermission =
-    options.requestPermission ||
-    (() => Notification.requestPermission())
+  if (import.meta.env.DEV) {
+    console.info("[TRN NOTIF] activate_start", {
+      permission: support.permission,
+      supportCode: support.code,
+    })
+  }
 
-  let permission: NotificationPermission
-  try {
-    permission = await requestPermission()
-  } catch {
-    return {
-      ok: false,
-      reason: "permission_dismissed",
-      messageAr: "لم يتم تفعيل الإشعارات. يمكنك المحاولة لاحقاً.",
+  // Already granted → continue to token/subscription (no second browser prompt).
+  // default → request from this user gesture. denied → already returned above.
+  let permission: NotificationPermission =
+    support.permission === "granted" ? "granted" : "default"
+  if (permission !== "granted") {
+    const requestPermission =
+      options.requestPermission ||
+      (() => Notification.requestPermission())
+    try {
+      permission = await requestPermission()
+    } catch {
+      return {
+        ok: false,
+        reason: "permission_dismissed",
+        messageAr: "تعذر تفعيل الإشعارات. حاول مرة ثانية.",
+      }
     }
   }
 
@@ -243,14 +254,14 @@ export async function enableNotificationsFromUserGesture(options: {
       ok: false,
       reason: "permission_denied",
       messageAr:
-        "تم رفض الإشعارات من إعدادات المتصفح أو الجهاز. يمكنك تفعيلها لاحقاً من هناك.",
+        "الإشعارات موقوفة من إعدادات المتصفح. فعّلها للموقع وحاول مرة ثانية.",
     }
   }
   if (permission !== "granted") {
     return {
       ok: false,
       reason: "permission_dismissed",
-      messageAr: "لم يتم تفعيل الإشعارات. يمكنك المحاولة لاحقاً من الإعدادات.",
+      messageAr: "تعذر تفعيل الإشعارات. حاول مرة ثانية.",
     }
   }
 
@@ -267,7 +278,7 @@ export async function enableNotificationsFromUserGesture(options: {
     return {
       ok: false,
       reason: "service_worker_unavailable",
-      messageAr: "تعذّر تجهيز خدمة الخلفية. أعد فتح التطبيق ثم حاول مرة أخرى.",
+      messageAr: "تعذر تفعيل الإشعارات. حاول مرة ثانية.",
     }
   }
 
@@ -277,19 +288,28 @@ export async function enableNotificationsFromUserGesture(options: {
       vapidKey: readVapidKey(),
       serviceWorkerRegistration: registration,
     })
+    if (import.meta.env.DEV) {
+      console.info("[TRN NOTIF] token_result: success")
+    }
   } catch {
+    if (import.meta.env.DEV) {
+      console.info("[TRN NOTIF] token_result: fail")
+    }
     return {
       ok: false,
       reason: "get_token_failed",
-      messageAr: "تعذّر تفعيل الإشعارات الآن. حاول مرة أخرى لاحقاً.",
+      messageAr: "تعذر تفعيل الإشعارات. حاول مرة ثانية.",
     }
   }
 
   if (!token || !token.trim()) {
+    if (import.meta.env.DEV) {
+      console.info("[TRN NOTIF] token_result: empty")
+    }
     return {
       ok: false,
       reason: "empty_token",
-      messageAr: "تعذّر تفعيل الإشعارات الآن. حاول مرة أخرى لاحقاً.",
+      messageAr: "تعذر تفعيل الإشعارات. حاول مرة ثانية.",
     }
   }
 
@@ -354,14 +374,23 @@ export async function enableNotificationsFromUserGesture(options: {
     setServerRegisteredFlag(true)
     setStoredSubscriptionId(id)
     setCachedNearbyAlertsPref(prefs.nearbyAlerts === true)
+    if (import.meta.env.DEV) {
+      console.info("[TRN NOTIF] subscription_write: success", {
+        mode: "firestore",
+        reused: preserveCreatedAt,
+      })
+    }
     return { ok: true, mode: "firestore", subscriptionId: id }
   } catch {
     setLocalEnabledFlag(true)
     setServerRegisteredFlag(false)
+    if (import.meta.env.DEV) {
+      console.info("[TRN NOTIF] subscription_write: fail")
+    }
     return {
       ok: false,
       reason: "write_failed",
-      messageAr: "تم السماح بالإشعارات لكن تعذّر حفظ الإعداد. سنكمّل التفعيل قريباً.",
+      messageAr: "تعذر تفعيل الإشعارات. حاول مرة ثانية.",
     }
   }
 }
