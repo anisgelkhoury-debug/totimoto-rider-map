@@ -19,10 +19,10 @@ import {
 import { isPermanentInvalidTokenError } from "../shared/subscriptions"
 import {
   nearbyBudgetActionAfterSend,
-  parseNearbyBudgetState,
   type NearbyBudgetDecisionReason,
   type NearbyBudgetState,
 } from "./nearbyBudget"
+import { deserializeNearbyBudgetDoc } from "./budgetPersistence"
 import {
   EMPTY_NEARBY_OBSERVABILITY_COUNTS,
   type NearbyObservabilityCounts,
@@ -59,8 +59,9 @@ export type NearbySendResult = {
 
 export type NearbyBudgetReserveResult = {
   reserved: boolean
-  reason: NearbyBudgetDecisionReason
-  /** Opaque handle for release (e.g. prior state). */
+  reason: NearbyBudgetDecisionReason | "REJECT_BUDGET_TRANSACTION_FAILED"
+  reservationId?: string
+  /** Opaque prior state for legacy in-memory release; prefer reservationId. */
   releaseHandle?: NearbyBudgetState
 }
 
@@ -90,26 +91,33 @@ export type NearbyNotifyDeps = {
   canarySubscriptionIds?: ReadonlySet<string>
   /**
    * Optional rollout config source. Default = Stage 0 (fail closed).
-   * Must not create production Firestore docs in 058J.
+   * Only invoked when master send gate is true.
    */
   getRolloutConfig?: () =>
     | NearbyNormalizedRolloutConfig
     | Promise<NearbyNormalizedRolloutConfig | unknown>
     | unknown
   /**
-   * Atomic budget reservation. When omitted on send path, budget check is
-   * skipped (legacy canary tests). Production wiring belongs in a later task
-   * with a real Firestore transaction — gate remains false so this is unused.
+   * Atomic budget reservation (Firestore txn in production wiring).
+   * Only invoked when master send gate is true.
    */
   reserveNearbyBudget?: (input: {
+    reportId: string
     subscriptionId: string
     severity: NonNullable<ReturnType<typeof nearbySeverityForCategory>>
     nowMs: number
-    budgetRaw: unknown
+    budgetRaw?: unknown
   }) => Promise<NearbyBudgetReserveResult>
   releaseNearbyBudget?: (input: {
     subscriptionId: string
-    releaseHandle: NearbyBudgetState
+    reservationId?: string
+    releaseHandle?: NearbyBudgetState
+    nowMs: number
+  }) => Promise<void>
+  commitNearbyBudget?: (input: {
+    subscriptionId: string
+    reservationId: string
+    nowMs: number
   }) => Promise<void>
   now?: () => number
 }
@@ -237,7 +245,6 @@ export async function processNearbyReportCreated(
 ): Promise<NearbyNotifyOutcome> {
   const nowMs = (deps.now ?? Date.now)()
   const sendGate = isNearbyNotificationSendAllowed(deps.allowSend)
-  const rolloutConfig = await resolveRolloutConfig(deps)
 
   const report = parseNearbyReportCreate(reportId, data)
   if (!report) {
@@ -245,7 +252,7 @@ export async function processNearbyReportCreated(
       status: "skipped",
       reason: "malformed_report",
       sendGate,
-      rolloutStage: rolloutConfig.stage,
+      rolloutStage: 0,
     })
   }
 
@@ -261,7 +268,7 @@ export async function processNearbyReportCreated(
       reason: "category_ineligible",
       category: report.reportCategory,
       sendGate,
-      rolloutStage: rolloutConfig.stage,
+      rolloutStage: 0,
     })
   }
 
@@ -271,7 +278,7 @@ export async function processNearbyReportCreated(
       reason: "category_send_disabled_v1",
       category: report.reportCategory,
       sendGate,
-      rolloutStage: rolloutConfig.stage,
+      rolloutStage: 0,
     })
   }
 
@@ -287,7 +294,7 @@ export async function processNearbyReportCreated(
       reason: "report_stale",
       category: report.reportCategory,
       sendGate,
-      rolloutStage: rolloutConfig.stage,
+      rolloutStage: 0,
     })
   }
 
@@ -303,7 +310,7 @@ export async function processNearbyReportCreated(
       reason: trust.reason || "trust_failed",
       category: report.reportCategory,
       sendGate,
-      rolloutStage: rolloutConfig.stage,
+      rolloutStage: 0,
     })
   }
 
@@ -314,7 +321,7 @@ export async function processNearbyReportCreated(
       reason: "no_radius",
       category: report.reportCategory,
       sendGate,
-      rolloutStage: rolloutConfig.stage,
+      rolloutStage: 0,
     })
   }
 
@@ -330,7 +337,7 @@ export async function processNearbyReportCreated(
       reason: loaded.reason,
       category: report.reportCategory,
       sendGate,
-      rolloutStage: rolloutConfig.stage,
+      rolloutStage: 0,
     })
   }
 
@@ -354,11 +361,11 @@ export async function processNearbyReportCreated(
       candidateCount: loaded.candidates.length,
       eligibleCount: 0,
       sendGate,
-      rolloutStage: rolloutConfig.stage,
+      rolloutStage: 0,
     })
   }
 
-  // Dry-run: never claim events / never FCM / never budget mutate while gate is false.
+  // Dry-run: never claim events / never FCM / never budget mutate / never ops read.
   if (!sendGate) {
     return emptyOutcome({
       status: "dry_run",
@@ -370,9 +377,11 @@ export async function processNearbyReportCreated(
       rolloutEligibleCount: 0,
       rolloutRejectedCount: 0,
       sendGate: false,
-      rolloutStage: rolloutConfig.stage,
+      rolloutStage: 0,
     })
   }
+
+  const rolloutConfig = await resolveRolloutConfig(deps)
 
   // KEY 2 — staged rollout (default Stage 0 ⇒ nobody).
   const rolloutFiltered = filterNearbyRolloutEligible({
@@ -496,20 +505,20 @@ async function sendToEligible(
   let dedupeRejectedCount = 0
 
   for (const recipient of canaryEligible) {
+    let reservationId: string | undefined
     let releaseHandle: NearbyBudgetState | undefined
 
     if (deps.reserveNearbyBudget) {
       const budgetRaw =
         (recipient as { nearbyNotificationBudget?: unknown })
           .nearbyNotificationBudget ?? null
-      // Ensure malformed budget fails closed via parse inside reserve impl,
-      // or pre-check here:
-      const parsed = parseNearbyBudgetState(budgetRaw)
-      if (!parsed.ok && budgetRaw != null) {
+      const decoded = deserializeNearbyBudgetDoc(budgetRaw)
+      if (!decoded.ok && budgetRaw != null) {
         cooldownRejectedCount += 1
         continue
       }
       const reserved = await deps.reserveNearbyBudget({
+        reportId: report.reportId,
         subscriptionId: recipient.subscriptionId,
         severity,
         nowMs,
@@ -528,6 +537,7 @@ async function sendToEligible(
         }
         continue
       }
+      reservationId = reserved.reservationId
       releaseHandle = reserved.releaseHandle
     }
 
@@ -548,7 +558,6 @@ async function sendToEligible(
       duplicates += 1
       dedupeRejectedCount += 1
       if (
-        releaseHandle &&
         deps.releaseNearbyBudget &&
         nearbyBudgetActionAfterSend({
           fcmSuccess: false,
@@ -558,7 +567,9 @@ async function sendToEligible(
       ) {
         await deps.releaseNearbyBudget({
           subscriptionId: recipient.subscriptionId,
+          reservationId,
           releaseHandle,
+          nowMs,
         })
       }
       continue
@@ -574,6 +585,13 @@ async function sendToEligible(
 
     if (result.success) {
       success += 1
+      if (reservationId && deps.commitNearbyBudget) {
+        await deps.commitNearbyBudget({
+          subscriptionId: recipient.subscriptionId,
+          reservationId,
+          nowMs,
+        })
+      }
       if (deps.markEventComplete) {
         await deps.markEventComplete(eventKey, "sent", {
           attempted: 1,
@@ -586,10 +604,12 @@ async function sendToEligible(
     }
 
     failed += 1
-    if (action === "release_reservation" && releaseHandle && deps.releaseNearbyBudget) {
+    if (action === "release_reservation" && deps.releaseNearbyBudget) {
       await deps.releaseNearbyBudget({
         subscriptionId: recipient.subscriptionId,
+        reservationId,
         releaseHandle,
+        nowMs,
       })
     }
 

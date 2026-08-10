@@ -543,5 +543,10 @@ service cloud.firestore {
     match /notificationEvents/{eventId} {
       allow read, write: if false;
     }
+
+    // 058K: operational nearby rollout config — Admin only. No client read/write.
+    match /systemConfig/{docId} {
+      allow read, write: if false;
+    }
   }
 }

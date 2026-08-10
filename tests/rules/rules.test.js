@@ -1450,6 +1450,38 @@ describe("Firestore notificationSubscriptions — negative", () => {
   })
 })
 
+describe("Firestore systemConfig — 058K ops config deny", () => {
+  it("058K: client cannot read systemConfig/nearbyNotifications", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), "systemConfig", "nearbyNotifications"), {
+        enabled: false,
+        stage: 0,
+      })
+    })
+    const db = testEnv.authenticatedContext("rider-a").firestore()
+    await assertFails(getDoc(doc(db, "systemConfig", "nearbyNotifications")))
+  })
+
+  it("058K: client cannot write systemConfig/nearbyNotifications", async () => {
+    const db = testEnv.authenticatedContext("rider-a").firestore()
+    await assertFails(
+      setDoc(doc(db, "systemConfig", "nearbyNotifications"), {
+        enabled: true,
+        stage: 1,
+        allowlistedSubscriptionIds: ["x"],
+      })
+    )
+  })
+
+  it("058K: unauthenticated cannot access systemConfig", async () => {
+    const db = testEnv.unauthenticatedContext().firestore()
+    await assertFails(getDoc(doc(db, "systemConfig", "nearbyNotifications")))
+    await assertFails(
+      setDoc(doc(db, "systemConfig", "nearbyNotifications"), { stage: 0 })
+    )
+  })
+})
+
 describe("Firestore notificationEvents — client deny", () => {
   const eventDoc = {
     type: "helper_accepted",
