@@ -270,11 +270,15 @@ Heartbeat + geo fan-out dominate; budget txs secondary unless CRITICAL mass-noti
 
 ## 45. Commit hash
 
-(Filled after commit.)
+`4025b1c` (`feat: add nearby notification rollout controls`)
 
 ## 46. Git status
 
-(Filled after commit.)
+```
+On branch feature/nearby-rollout-control
+058J tracked files committed.
+Unrelated local dirty/untracked: .firebase cache, other architecture MDs, scripts/
+```
 
 ## 47. Production send gate final proof
 
