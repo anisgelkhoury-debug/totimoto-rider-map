@@ -165,11 +165,11 @@ describe("058I rollout design helpers", () => {
   })
 
   it("hard dedupe policy unchanged; processNearbyReport not importing rolloutDesign", () => {
-    assert.equal(NEARBY_COOLDOWN_POLICY.mode, "postponed_v1")
     assert.match(
       NEARBY_COOLDOWN_POLICY.hardDedupe,
       /nearby_report:\{reportId\}:\{subscriptionId\}/
     )
+    assert.equal(NEARBY_COOLDOWN_POLICY.mode, "hybrid_f_v1_helpers")
     const processSrc = readFileSync(
       join(ROOT, "functions/src/nearby/processNearbyReport.ts"),
       "utf8"

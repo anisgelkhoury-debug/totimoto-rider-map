@@ -1,6 +1,9 @@
 /**
- * TRN 058E — nearby report notification orchestration.
- * Evaluates recipients; sends FCM only when send gate is true.
+ * TRN 058E/H/J — nearby report notification orchestration.
+ * Evaluates recipients; sends FCM only when send gate is true AND rollout unlocks.
+ *
+ * 058J: fail-closed staged rollout + optional budget reservation hooks.
+ * Production defaults: gate false, Stage 0 config — no real FCM.
  */
 
 import {
@@ -15,6 +18,16 @@ import {
 } from "../shared/recipientTargeting"
 import { isPermanentInvalidTokenError } from "../shared/subscriptions"
 import {
+  nearbyBudgetActionAfterSend,
+  parseNearbyBudgetState,
+  type NearbyBudgetDecisionReason,
+  type NearbyBudgetState,
+} from "./nearbyBudget"
+import {
+  EMPTY_NEARBY_OBSERVABILITY_COUNTS,
+  type NearbyObservabilityCounts,
+} from "./nearbyObservability"
+import {
   assertNearbyPayloadSafe,
   buildNearbyReportEventKey,
   buildNearbyReportPayload,
@@ -22,9 +35,17 @@ import {
 import {
   isNearbyCategorySendCapable,
   isNearbyReportFreshEnough,
+  nearbySeverityForCategory,
   passesNearbyTrustGate,
 } from "./policy"
 import { parseNearbyReportCreate } from "./reportParse"
+import {
+  NEARBY_ROLLOUT_DEFAULT_CONFIG,
+  normalizeNearbyRolloutConfig,
+  type NearbyNormalizedRolloutConfig,
+  type NearbyRolloutStage,
+} from "./rolloutConfig"
+import { filterNearbyRolloutEligible } from "./rolloutEligibility"
 import {
   filterNearbyCanaryRecipients,
   isNearbyNotificationSendAllowed,
@@ -34,6 +55,13 @@ import {
 export type NearbySendResult = {
   success: boolean
   errorCode?: string
+}
+
+export type NearbyBudgetReserveResult = {
+  reserved: boolean
+  reason: NearbyBudgetDecisionReason
+  /** Opaque handle for release (e.g. prior state). */
+  releaseHandle?: NearbyBudgetState
 }
 
 export type NearbyNotifyDeps = {
@@ -60,6 +88,29 @@ export type NearbyNotifyDeps = {
   allowSend?: boolean
   /** Test override for canary subscription allowlist */
   canarySubscriptionIds?: ReadonlySet<string>
+  /**
+   * Optional rollout config source. Default = Stage 0 (fail closed).
+   * Must not create production Firestore docs in 058J.
+   */
+  getRolloutConfig?: () =>
+    | NearbyNormalizedRolloutConfig
+    | Promise<NearbyNormalizedRolloutConfig | unknown>
+    | unknown
+  /**
+   * Atomic budget reservation. When omitted on send path, budget check is
+   * skipped (legacy canary tests). Production wiring belongs in a later task
+   * with a real Firestore transaction — gate remains false so this is unused.
+   */
+  reserveNearbyBudget?: (input: {
+    subscriptionId: string
+    severity: NonNullable<ReturnType<typeof nearbySeverityForCategory>>
+    nowMs: number
+    budgetRaw: unknown
+  }) => Promise<NearbyBudgetReserveResult>
+  releaseNearbyBudget?: (input: {
+    subscriptionId: string
+    releaseHandle: NearbyBudgetState
+  }) => Promise<void>
   now?: () => number
 }
 
@@ -77,26 +128,71 @@ export type NearbyNotifyOutcome = {
   eligibleCount: number
   /** Eligible recipients that also pass the canary allowlist (send path only). */
   allowlistedEligibleCount: number
+  rolloutRejectedCount: number
+  rolloutEligibleCount: number
+  cooldownRejectedCount: number
+  hourlyBudgetRejectedCount: number
+  dailyBudgetRejectedCount: number
+  criticalWindowRejectedCount: number
+  dedupeRejectedCount: number
   attempted: number
   success: number
   failed: number
   disabledTokens: number
   sendGate: boolean
+  rolloutStage: NearbyRolloutStage
 }
 
 function emptyOutcome(
-  partial: Partial<NearbyNotifyOutcome> & { status: NearbyNotifyOutcome["status"] }
+  partial: Partial<NearbyNotifyOutcome> & {
+    status: NearbyNotifyOutcome["status"]
+  }
 ): NearbyNotifyOutcome {
   return {
     candidateCount: 0,
     eligibleCount: 0,
     allowlistedEligibleCount: 0,
+    rolloutRejectedCount: 0,
+    rolloutEligibleCount: 0,
+    cooldownRejectedCount: 0,
+    hourlyBudgetRejectedCount: 0,
+    dailyBudgetRejectedCount: 0,
+    criticalWindowRejectedCount: 0,
+    dedupeRejectedCount: 0,
     attempted: 0,
     success: 0,
     failed: 0,
     disabledTokens: 0,
     sendGate: false,
+    rolloutStage: 0,
     ...partial,
+  }
+}
+
+async function resolveRolloutConfig(
+  deps: NearbyNotifyDeps
+): Promise<NearbyNormalizedRolloutConfig> {
+  if (!deps.getRolloutConfig) return { ...NEARBY_ROLLOUT_DEFAULT_CONFIG }
+  try {
+    const raw = await deps.getRolloutConfig()
+    if (
+      raw &&
+      typeof raw === "object" &&
+      "normalizeReason" in (raw as object) &&
+      "stage" in (raw as object)
+    ) {
+      // Already normalized.
+      const n = raw as NearbyNormalizedRolloutConfig
+      if (typeof n.stage === "number" && typeof n.normalizeReason === "string") {
+        return n
+      }
+    }
+    return normalizeNearbyRolloutConfig(raw)
+  } catch {
+    return {
+      ...NEARBY_ROLLOUT_DEFAULT_CONFIG,
+      normalizeReason: "rollout_config_read_failed",
+    }
   }
 }
 
@@ -132,7 +228,7 @@ async function loadCandidates(
 
 /**
  * Process a newly created report for nearby alerts.
- * When send gate is false: evaluate + return dry_run (no events, no FCM).
+ * When send gate is false: evaluate + return dry_run (no events, no FCM, no budget writes).
  */
 export async function processNearbyReportCreated(
   reportId: string,
@@ -141,6 +237,7 @@ export async function processNearbyReportCreated(
 ): Promise<NearbyNotifyOutcome> {
   const nowMs = (deps.now ?? Date.now)()
   const sendGate = isNearbyNotificationSendAllowed(deps.allowSend)
+  const rolloutConfig = await resolveRolloutConfig(deps)
 
   const report = parseNearbyReportCreate(reportId, data)
   if (!report) {
@@ -148,6 +245,7 @@ export async function processNearbyReportCreated(
       status: "skipped",
       reason: "malformed_report",
       sendGate,
+      rolloutStage: rolloutConfig.stage,
     })
   }
 
@@ -163,6 +261,7 @@ export async function processNearbyReportCreated(
       reason: "category_ineligible",
       category: report.reportCategory,
       sendGate,
+      rolloutStage: rolloutConfig.stage,
     })
   }
 
@@ -172,6 +271,7 @@ export async function processNearbyReportCreated(
       reason: "category_send_disabled_v1",
       category: report.reportCategory,
       sendGate,
+      rolloutStage: rolloutConfig.stage,
     })
   }
 
@@ -187,6 +287,7 @@ export async function processNearbyReportCreated(
       reason: "report_stale",
       category: report.reportCategory,
       sendGate,
+      rolloutStage: rolloutConfig.stage,
     })
   }
 
@@ -202,6 +303,7 @@ export async function processNearbyReportCreated(
       reason: trust.reason || "trust_failed",
       category: report.reportCategory,
       sendGate,
+      rolloutStage: rolloutConfig.stage,
     })
   }
 
@@ -212,6 +314,7 @@ export async function processNearbyReportCreated(
       reason: "no_radius",
       category: report.reportCategory,
       sendGate,
+      rolloutStage: rolloutConfig.stage,
     })
   }
 
@@ -227,6 +330,7 @@ export async function processNearbyReportCreated(
       reason: loaded.reason,
       category: report.reportCategory,
       sendGate,
+      rolloutStage: rolloutConfig.stage,
     })
   }
 
@@ -250,10 +354,11 @@ export async function processNearbyReportCreated(
       candidateCount: loaded.candidates.length,
       eligibleCount: 0,
       sendGate,
+      rolloutStage: rolloutConfig.stage,
     })
   }
 
-  // Dry-run: never claim events / never FCM while gate is false.
+  // Dry-run: never claim events / never FCM / never budget mutate while gate is false.
   if (!sendGate) {
     return emptyOutcome({
       status: "dry_run",
@@ -262,13 +367,44 @@ export async function processNearbyReportCreated(
       candidateCount: loaded.candidates.length,
       eligibleCount: eligible.length,
       allowlistedEligibleCount: 0,
+      rolloutEligibleCount: 0,
+      rolloutRejectedCount: 0,
       sendGate: false,
+      rolloutStage: rolloutConfig.stage,
     })
   }
 
+  // KEY 2 — staged rollout (default Stage 0 ⇒ nobody).
+  const rolloutFiltered = filterNearbyRolloutEligible({
+    compileTimeSendGate: true,
+    config: rolloutConfig,
+    reportCategory: report.reportCategory,
+    recipients: eligible,
+  })
+
+  if (rolloutFiltered.eligible.length === 0) {
+    return emptyOutcome({
+      status: "skipped",
+      reason: "no_rollout_recipients",
+      category: report.reportCategory,
+      candidateCount: loaded.candidates.length,
+      eligibleCount: eligible.length,
+      allowlistedEligibleCount: 0,
+      rolloutEligibleCount: 0,
+      rolloutRejectedCount: rolloutFiltered.rejectedCount,
+      sendGate: true,
+      rolloutStage: rolloutConfig.stage,
+    })
+  }
+
+  // Legacy canary allowlist (empty ⇒ nobody). Keeps mistaken gate+stage flips fail-closed
+  // until ops intentionally populate canary or a later task retires it.
   const canarySet =
     deps.canarySubscriptionIds ?? NEARBY_NOTIFICATION_CANARY_SUBSCRIPTION_IDS
-  const canaryEligible = filterNearbyCanaryRecipients(eligible, canarySet)
+  const canaryEligible = filterNearbyCanaryRecipients(
+    rolloutFiltered.eligible,
+    canarySet
+  )
 
   if (canaryEligible.length === 0) {
     return emptyOutcome({
@@ -278,7 +414,10 @@ export async function processNearbyReportCreated(
       candidateCount: loaded.candidates.length,
       eligibleCount: eligible.length,
       allowlistedEligibleCount: 0,
+      rolloutEligibleCount: rolloutFiltered.eligible.length,
+      rolloutRejectedCount: rolloutFiltered.rejectedCount,
       sendGate: true,
+      rolloutStage: rolloutConfig.stage,
     })
   }
 
@@ -286,9 +425,14 @@ export async function processNearbyReportCreated(
     report,
     canaryEligible,
     deps,
-    loaded.candidates.length,
-    eligible.length,
-    canaryEligible.length,
+    {
+      candidateCount: loaded.candidates.length,
+      eligibleCount: eligible.length,
+      allowlistedEligibleCount: canaryEligible.length,
+      rolloutEligibleCount: rolloutFiltered.eligible.length,
+      rolloutRejectedCount: rolloutFiltered.rejectedCount,
+    },
+    rolloutConfig.stage,
     nowMs
   )
 }
@@ -301,9 +445,14 @@ async function sendToEligible(
   },
   canaryEligible: EligibleNearbyRecipient[],
   deps: NearbyNotifyDeps,
-  candidateCount: number,
-  eligibleCount: number,
-  allowlistedEligibleCount: number,
+  countsBase: {
+    candidateCount: number
+    eligibleCount: number
+    allowlistedEligibleCount: number
+    rolloutEligibleCount: number
+    rolloutRejectedCount: number
+  },
+  rolloutStage: NearbyRolloutStage,
   nowMs: number
 ): Promise<NearbyNotifyOutcome> {
   const payload = buildNearbyReportPayload({
@@ -316,10 +465,21 @@ async function sendToEligible(
       status: "failed",
       reason: "unsafe_payload",
       category: report.reportCategory,
-      candidateCount,
-      eligibleCount,
-      allowlistedEligibleCount,
+      ...countsBase,
       sendGate: true,
+      rolloutStage,
+    })
+  }
+
+  const severity = nearbySeverityForCategory(report.reportCategory)
+  if (!severity) {
+    return emptyOutcome({
+      status: "failed",
+      reason: "unknown_severity",
+      category: report.reportCategory,
+      ...countsBase,
+      sendGate: true,
+      rolloutStage,
     })
   }
 
@@ -329,8 +489,48 @@ async function sendToEligible(
   let disabledTokens = 0
   let duplicates = 0
   let transientFailures = 0
+  let cooldownRejectedCount = 0
+  let hourlyBudgetRejectedCount = 0
+  let dailyBudgetRejectedCount = 0
+  let criticalWindowRejectedCount = 0
+  let dedupeRejectedCount = 0
 
   for (const recipient of canaryEligible) {
+    let releaseHandle: NearbyBudgetState | undefined
+
+    if (deps.reserveNearbyBudget) {
+      const budgetRaw =
+        (recipient as { nearbyNotificationBudget?: unknown })
+          .nearbyNotificationBudget ?? null
+      // Ensure malformed budget fails closed via parse inside reserve impl,
+      // or pre-check here:
+      const parsed = parseNearbyBudgetState(budgetRaw)
+      if (!parsed.ok && budgetRaw != null) {
+        cooldownRejectedCount += 1
+        continue
+      }
+      const reserved = await deps.reserveNearbyBudget({
+        subscriptionId: recipient.subscriptionId,
+        severity,
+        nowMs,
+        budgetRaw,
+      })
+      if (!reserved.reserved) {
+        cooldownRejectedCount += 1
+        if (reserved.reason === "REJECT_HOURLY_BUDGET") {
+          hourlyBudgetRejectedCount += 1
+        }
+        if (reserved.reason === "REJECT_DAILY_BUDGET") {
+          dailyBudgetRejectedCount += 1
+        }
+        if (reserved.reason === "REJECT_CRITICAL_WINDOW") {
+          criticalWindowRejectedCount += 1
+        }
+        continue
+      }
+      releaseHandle = reserved.releaseHandle
+    }
+
     const eventKey = buildNearbyReportEventKey(
       report.reportId,
       recipient.subscriptionId
@@ -346,11 +546,32 @@ async function sendToEligible(
     })
     if (claim === "duplicate") {
       duplicates += 1
+      dedupeRejectedCount += 1
+      if (
+        releaseHandle &&
+        deps.releaseNearbyBudget &&
+        nearbyBudgetActionAfterSend({
+          fcmSuccess: false,
+          permanentInvalidToken: false,
+          eventClaim: "duplicate",
+        }) === "release_reservation"
+      ) {
+        await deps.releaseNearbyBudget({
+          subscriptionId: recipient.subscriptionId,
+          releaseHandle,
+        })
+      }
       continue
     }
 
     attempted += 1
     const result = await deps.sendDataMessage(recipient.token, payload)
+    const action = nearbyBudgetActionAfterSend({
+      fcmSuccess: result.success,
+      permanentInvalidToken: isPermanentInvalidTokenError(result.errorCode),
+      eventClaim: "claimed",
+    })
+
     if (result.success) {
       success += 1
       if (deps.markEventComplete) {
@@ -365,6 +586,13 @@ async function sendToEligible(
     }
 
     failed += 1
+    if (action === "release_reservation" && releaseHandle && deps.releaseNearbyBudget) {
+      await deps.releaseNearbyBudget({
+        subscriptionId: recipient.subscriptionId,
+        releaseHandle,
+      })
+    }
+
     if (isPermanentInvalidTokenError(result.errorCode)) {
       await deps.disableSubscription(recipient.subscriptionId)
       disabledTokens += 1
@@ -384,15 +612,41 @@ async function sendToEligible(
     }
   }
 
+  const obs: NearbyObservabilityCounts = {
+    ...EMPTY_NEARBY_OBSERVABILITY_COUNTS,
+    ...countsBase,
+    cooldownRejectedCount,
+    hourlyBudgetRejectedCount,
+    dailyBudgetRejectedCount,
+    criticalWindowRejectedCount,
+    dedupeRejectedCount,
+    attempted,
+    success,
+    failed,
+    disabledTokens,
+  }
+
   if (attempted === 0 && duplicates > 0) {
     return emptyOutcome({
       status: "skipped",
       reason: "all_duplicate_events",
       category: report.reportCategory,
-      candidateCount,
-      eligibleCount,
-      allowlistedEligibleCount,
+      ...obs,
+      allowlistedEligibleCount: countsBase.allowlistedEligibleCount,
       sendGate: true,
+      rolloutStage,
+    })
+  }
+
+  if (attempted === 0 && cooldownRejectedCount > 0) {
+    return emptyOutcome({
+      status: "skipped",
+      reason: "all_budget_rejected",
+      category: report.reportCategory,
+      ...obs,
+      allowlistedEligibleCount: countsBase.allowlistedEligibleCount,
+      sendGate: true,
+      rolloutStage,
     })
   }
 
@@ -401,43 +655,43 @@ async function sendToEligible(
       status: "failed",
       reason: "transient_all_failed_retryable",
       category: report.reportCategory,
-      candidateCount,
-      eligibleCount,
-      allowlistedEligibleCount,
-      attempted,
-      success,
-      failed,
-      disabledTokens,
+      ...obs,
+      allowlistedEligibleCount: countsBase.allowlistedEligibleCount,
       sendGate: true,
+      rolloutStage,
     })
   }
 
-  if (success === 0) {
+  if (success === 0 && attempted > 0) {
     return emptyOutcome({
       status: "failed",
       reason: "all_sends_failed",
       category: report.reportCategory,
-      candidateCount,
-      eligibleCount,
-      allowlistedEligibleCount,
-      attempted,
-      success,
-      failed,
-      disabledTokens,
+      ...obs,
+      allowlistedEligibleCount: countsBase.allowlistedEligibleCount,
       sendGate: true,
+      rolloutStage,
+    })
+  }
+
+  if (attempted === 0) {
+    return emptyOutcome({
+      status: "skipped",
+      reason: "no_send_attempts",
+      category: report.reportCategory,
+      ...obs,
+      allowlistedEligibleCount: countsBase.allowlistedEligibleCount,
+      sendGate: true,
+      rolloutStage,
     })
   }
 
   return emptyOutcome({
     status: failed > 0 ? "partial" : "sent",
     category: report.reportCategory,
-    candidateCount,
-    eligibleCount,
-    allowlistedEligibleCount,
-    attempted,
-    success,
-    failed,
-    disabledTokens,
+    ...obs,
+    allowlistedEligibleCount: countsBase.allowlistedEligibleCount,
     sendGate: true,
+    rolloutStage,
   })
 }

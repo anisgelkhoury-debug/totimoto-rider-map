@@ -1393,6 +1393,61 @@ describe("Firestore notificationSubscriptions — negative", () => {
       })
     )
   })
+
+  it("058J: client cannot create nearbyNotificationBudget", async () => {
+    const db = testEnv.authenticatedContext("rider-a").firestore()
+    await assertFails(
+      setDoc(doc(db, "notificationSubscriptions", "sub-budget-create"), {
+        ...baseSubscription("rider-a"),
+        nearbyNotificationBudget: {
+          hourCount: 0,
+          dayCount: 0,
+        },
+      })
+    )
+  })
+
+  it("058J: client cannot add or mutate nearbyNotificationBudget", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(
+        doc(ctx.firestore(), "notificationSubscriptions", "sub-budget-mut"),
+        {
+          ...baseSubscription("rider-a"),
+          nearbyNotificationBudget: {
+            hourWindowStartMs: 1,
+            hourCount: 1,
+            dayWindowStartMs: 1,
+            dayCount: 1,
+            lastSentAtMs: 1,
+            criticalWindowStartMs: null,
+            criticalCount: 0,
+          },
+        }
+      )
+    })
+    const db = testEnv.authenticatedContext("rider-a").firestore()
+    await assertFails(
+      updateDoc(doc(db, "notificationSubscriptions", "sub-budget-mut"), {
+        nearbyNotificationBudget: {
+          hourWindowStartMs: 1,
+          hourCount: 99,
+          dayWindowStartMs: 1,
+          dayCount: 1,
+          lastSentAtMs: 1,
+          criticalWindowStartMs: null,
+          criticalCount: 0,
+        },
+        updatedAt: Date.now(),
+      })
+    )
+    await assertSucceeds(
+      updateDoc(doc(db, "notificationSubscriptions", "sub-budget-mut"), {
+        enabled: false,
+        updatedAt: Date.now(),
+        lastSeenAt: Date.now(),
+      })
+    )
+  })
 })
 
 describe("Firestore notificationEvents — client deny", () => {

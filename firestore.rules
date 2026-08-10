@@ -411,7 +411,7 @@ service cloud.firestore {
         && (!hasAt || validSubscriptionTimestamp(data.locationUpdatedAt));
     }
 
-    function subscriptionFieldKeysOnly(data) {
+    function subscriptionClientFieldKeysOnly(data) {
       return data.keys().hasOnly([
         'uid',
         'installationId',
@@ -431,6 +431,31 @@ service cloud.firestore {
         'locationGeohash',
         'locationUpdatedAt'
       ]);
+    }
+
+    // 058J: nearbyNotificationBudget is server-owned (Admin only). Clients may
+    // retain an existing map unchanged but must never create or mutate it.
+    function subscriptionFieldKeysOnly(data) {
+      return data.keys().hasOnly([
+        'uid',
+        'installationId',
+        'deviceId',
+        'token',
+        'platform',
+        'browser',
+        'locale',
+        'enabled',
+        'permissionState',
+        'browserSupportState',
+        'notificationPreferences',
+        'createdAt',
+        'updatedAt',
+        'lastSeenAt',
+        'appVersion',
+        'locationGeohash',
+        'locationUpdatedAt',
+        'nearbyNotificationBudget'
+      ]) || subscriptionClientFieldKeysOnly(data);
     }
 
     function validSubscriptionShape(data) {
@@ -466,7 +491,8 @@ service cloud.firestore {
       let data = request.resource.data;
       return signedIn()
         && data.uid == request.auth.uid
-        && validSubscriptionShape(data);
+        && validSubscriptionShape(data)
+        && !('nearbyNotificationBudget' in data);
     }
 
     function validSubscriptionUpdate() {
@@ -477,7 +503,15 @@ service cloud.firestore {
         && data.uid == resource.data.uid
         && data.installationId == resource.data.installationId
         && data.createdAt == resource.data.createdAt
-        && !affected.hasAny(['uid', 'installationId', 'createdAt'])
+        && !affected.hasAny(['uid', 'installationId', 'createdAt', 'nearbyNotificationBudget'])
+        && (
+          !('nearbyNotificationBudget' in resource.data)
+          || data.nearbyNotificationBudget == resource.data.nearbyNotificationBudget
+        )
+        && (
+          !('nearbyNotificationBudget' in data)
+          || ('nearbyNotificationBudget' in resource.data)
+        )
         && affected.hasOnly([
           'deviceId',
           'token',
