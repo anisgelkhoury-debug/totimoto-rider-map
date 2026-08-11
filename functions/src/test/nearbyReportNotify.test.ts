@@ -29,6 +29,7 @@ import {
   processNearbyReportCreated,
   type NearbyNotifyDeps,
 } from "../nearby/processNearbyReport"
+import { normalizeNearbyRolloutConfig } from "../nearby/rolloutConfig"
 import {
   ALLOW_PRODUCTION_NEARBY_NOTIFICATION_SEND,
   filterNearbyCanaryRecipients,
@@ -39,6 +40,15 @@ import type { NearbyRecipientSubscriptionDoc } from "../shared/recipientTargetin
 
 const NOW = 1_700_000_000_000
 const ROOT = join(__dirname, "../../..")
+
+/** 058J: send-path tests must unlock Stage 1 allowlist (gate alone is not enough). */
+function stage1Rollout(ids: string[]) {
+  return normalizeNearbyRolloutConfig({
+    enabled: true,
+    stage: 1,
+    subscriptionAllowlist: ids,
+  })
+}
 
 function baseReport(
   overrides: Record<string, unknown> = {}
@@ -325,6 +335,7 @@ describe("058E dry-run / send path", () => {
     const deps = mockDeps([sub("a"), sub("b")], {
       allowSend: true,
       canarySubscriptionIds: new Set(["a", "b"]),
+      getRolloutConfig: () => stage1Rollout(["a", "b"]),
     })
     const out = await processNearbyReportCreated("r1", baseReport(), deps)
     assert.equal(out.status, "sent")
@@ -342,6 +353,7 @@ describe("058E dry-run / send path", () => {
     const deps = mockDeps([sub("a")], {
       allowSend: true,
       canarySubscriptionIds: new Set(["a"]),
+      getRolloutConfig: () => stage1Rollout(["a"]),
     })
     await processNearbyReportCreated("r1", baseReport(), deps)
     const again = await processNearbyReportCreated("r1", baseReport(), deps)
@@ -354,6 +366,7 @@ describe("058E dry-run / send path", () => {
     const deps = mockDeps([sub("a"), sub("b")], {
       allowSend: true,
       canarySubscriptionIds: new Set(["only-other"]),
+      getRolloutConfig: () => stage1Rollout(["a", "b"]),
     })
     const out = await processNearbyReportCreated("r1", baseReport(), deps)
     assert.equal(out.status, "skipped")
@@ -375,6 +388,7 @@ describe("058E dry-run / send path", () => {
       {
         allowSend: true,
         canarySubscriptionIds: new Set(["device-b"]),
+        getRolloutConfig: () => stage1Rollout(["device-b", "other"]),
       }
     )
     const out = await processNearbyReportCreated("r1", baseReport(), deps)
@@ -392,9 +406,23 @@ describe("058E dry-run / send path", () => {
     const deps = mockDeps([sub("self", { uid: "owner-1" })], {
       allowSend: true,
       canarySubscriptionIds: new Set(["self"]),
+      getRolloutConfig: () => stage1Rollout(["self"]),
     })
     const out = await processNearbyReportCreated("r1", baseReport(), deps)
     assert.equal(out.status, "no_recipients")
+    assert.equal(deps.sends.length, 0)
+  })
+
+  it("058J. gate true + default Stage 0 → no FCM (two-key)", async () => {
+    const deps = mockDeps([sub("a")], {
+      allowSend: true,
+      canarySubscriptionIds: new Set(["a"]),
+      // no getRolloutConfig ⇒ Stage 0
+    })
+    const out = await processNearbyReportCreated("r1", baseReport(), deps)
+    assert.equal(out.status, "skipped")
+    assert.equal(out.reason, "no_rollout_recipients")
+    assert.equal(out.rolloutStage, 0)
     assert.equal(deps.sends.length, 0)
   })
 
@@ -415,6 +443,7 @@ describe("058E dry-run / send path", () => {
     const deps = mockDeps([sub("a")], {
       allowSend: true,
       canarySubscriptionIds: new Set(["a"]),
+      getRolloutConfig: () => stage1Rollout(["a"]),
       sendDataMessage: async () => ({
         success: false,
         errorCode: "messaging/registration-token-not-registered",
@@ -516,7 +545,7 @@ describe("058E architecture invariants", () => {
   })
 
   it("cooldown postponed documented", () => {
-    assert.equal(NEARBY_COOLDOWN_POLICY.mode, "postponed_v1")
+    assert.equal(NEARBY_COOLDOWN_POLICY.mode, "hybrid_f_v1_helpers")
   })
 
   it("41. assistance Functions export untouched in nearby process", () => {

@@ -128,11 +128,12 @@ export function passesNearbyTrustGate(input: {
 }
 
 /**
- * Cooldown/budget postponed: would need subscriptionId+time index / N history reads.
- * V1 hard guarantee is per report×subscription notificationEvents claim only.
+ * Cooldown/budget: pure helpers in nearbyBudget.ts (058J).
+ * Hard guarantee remains per report×subscription notificationEvents claim.
+ * Rolling budget is not persisted in production send path while gate is false.
  */
 export const NEARBY_COOLDOWN_POLICY = {
-  mode: "postponed_v1",
+  mode: "hybrid_f_v1_helpers",
   hardDedupe: "nearby_report:{reportId}:{subscriptionId}",
-  note: "No rolling budget query in 058E to avoid N+1 event history reads.",
+  note: "058J pure budget + reservation helpers; production send remains gate-closed.",
 } as const

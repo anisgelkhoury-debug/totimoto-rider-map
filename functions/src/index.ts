@@ -26,10 +26,17 @@ import {
   type NearbyNotifyOutcome,
 } from "./nearby/processNearbyReport"
 import {
+  commitNearbyNotificationBudget,
+  releaseNearbyNotificationBudget,
+  reserveNearbyNotificationBudget,
+} from "./nearby/firestoreBudget"
+import { fetchNearbyOpsConfigFromFirestore } from "./nearby/opsRolloutConfig"
+import {
   ALLOW_PRODUCTION_NEARBY_NOTIFICATION_SEND,
   nearbyCanaryAllowlistSize,
   NEARBY_NOTIFICATION_CANARY_SUBSCRIPTION_IDS,
 } from "./nearby/sendGate"
+import type { NearbySeverity } from "./nearby/policy"
 import type { PreferenceKey, ReportSnapshot } from "./shared/report"
 import type { LifecycleNotifyOutcome } from "./shared/processLifecycle"
 import type { NearbyRecipientSubscriptionDoc } from "./shared/recipientTargeting"
@@ -225,6 +232,52 @@ const nearbyDeps = {
   listSubscriptionsByGeohashRange,
   sendDataMessage,
   disableSubscription,
+  getRolloutConfig: () => fetchNearbyOpsConfigFromFirestore(db),
+  reserveNearbyBudget: async (input: {
+    reportId: string
+    subscriptionId: string
+    severity: NearbySeverity
+    nowMs: number
+  }) => {
+    const result = await reserveNearbyNotificationBudget({
+      db,
+      reportId: input.reportId,
+      subscriptionId: input.subscriptionId,
+      severity: input.severity,
+      nowMs: input.nowMs,
+    })
+    return {
+      reserved: result.reserved,
+      reason: result.reason,
+      reservationId: result.reservationId,
+      releaseHandle: result.previous,
+    }
+  },
+  releaseNearbyBudget: async (input: {
+    subscriptionId: string
+    reservationId?: string
+    nowMs: number
+  }) => {
+    if (!input.reservationId) return
+    await releaseNearbyNotificationBudget({
+      db,
+      subscriptionId: input.subscriptionId,
+      reservationId: input.reservationId,
+      nowMs: input.nowMs,
+    })
+  },
+  commitNearbyBudget: async (input: {
+    subscriptionId: string
+    reservationId: string
+    nowMs: number
+  }) => {
+    await commitNearbyNotificationBudget({
+      db,
+      subscriptionId: input.subscriptionId,
+      reservationId: input.reservationId,
+      nowMs: input.nowMs,
+    })
+  },
 }
 
 function logOutcome(label: string, outcome: LifecycleNotifyOutcome): void {
@@ -252,12 +305,19 @@ function logNearbyOutcome(outcome: NearbyNotifyOutcome): void {
     candidateCount: outcome.candidateCount,
     eligibleCount: outcome.eligibleCount,
     allowlistedEligibleCount: outcome.allowlistedEligibleCount,
+    rolloutRejectedCount: outcome.rolloutRejectedCount,
+    rolloutEligibleCount: outcome.rolloutEligibleCount,
+    cooldownRejectedCount: outcome.cooldownRejectedCount,
+    hourlyBudgetRejectedCount: outcome.hourlyBudgetRejectedCount,
+    dailyBudgetRejectedCount: outcome.dailyBudgetRejectedCount,
+    criticalWindowRejectedCount: outcome.criticalWindowRejectedCount,
+    dedupeRejectedCount: outcome.dedupeRejectedCount,
     attempted: outcome.attempted,
     success: outcome.success,
     failed: outcome.failed,
     disabledTokens: outcome.disabledTokens,
     sendGate: outcome.sendGate,
-    canaryMode: outcome.sendGate === true,
+    rolloutStage: outcome.rolloutStage,
     canaryAllowlistSize: nearbyCanaryAllowlistSize(),
   })
 }
