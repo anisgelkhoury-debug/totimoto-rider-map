@@ -42,6 +42,11 @@ export type HeartbeatWriteDecisionInput = {
   lastWrittenAtMs: number | null
   nowMs: number
   intervalMs?: number
+  /**
+   * Explicit re-enable / resume: bypass same-cell 15-minute throttle.
+   * Still requires a valid precision-6 candidate geohash.
+   */
+  forceWrite?: boolean
 }
 
 /** Validate stored / candidate notification location geohash. */
@@ -90,13 +95,16 @@ export function isHeartbeatDue(input: {
 }
 
 /**
- * Write when first time, coarse cell changed, or interval elapsed in same cell.
+ * Write when first time, coarse cell changed, interval elapsed in same cell,
+ * or an explicit forceWrite (nearbyAlerts OFF→ON / due resume).
  */
 export function shouldWriteLocationHeartbeat(
   input: HeartbeatWriteDecisionInput
 ): boolean {
   const candidate = normalizeLocationGeohash(input.candidateGeohash)
   if (!candidate) return false
+
+  if (input.forceWrite === true) return true
 
   const last = input.lastWrittenGeohash
     ? normalizeLocationGeohash(input.lastWrittenGeohash)

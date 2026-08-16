@@ -18,6 +18,8 @@ import {
   markHeartbeatWriteCommitted,
   resetHeartbeatMemoryState,
   setCachedNearbyAlertsPref,
+  consumeForceLocationHeartbeat,
+  peekForceLocationHeartbeat,
 } from "./locationHeartbeatState"
 import {
   getStoredSubscriptionId,
@@ -143,20 +145,42 @@ export type MaybeHeartbeatInput = {
   /** Override subscription enabled; default local+server flags */
   subscriptionEnabled?: boolean
   nowMs?: number
+  /** Bypass same-cell 15m throttle (nearbyAlerts re-enable / due resume). */
+  forceWrite?: boolean
 }
 
 /**
  * Evaluate gates + throttle, then optionally overwrite locationGeohash/locationUpdatedAt.
- * Concurrent callers share one inflight promise (StrictMode-safe).
+ * Concurrent callers share one inflight promise (StrictMode-safe), except forceWrite
+ * which waits for any in-flight attempt then runs its own write path.
  */
 export function maybeUpdateNotificationLocationHeartbeat(
   input: MaybeHeartbeatInput
 ): Promise<HeartbeatWriteResult> {
-  if (inflight) return inflight
+  const wantsForce =
+    input.forceWrite === true || peekForceLocationHeartbeat()
+  if (inflight) {
+    if (!wantsForce) return inflight
+    return inflight.then(() =>
+      maybeUpdateNotificationLocationHeartbeat({
+        ...input,
+        forceWrite: true,
+      })
+    )
+  }
   inflight = runHeartbeat(input).finally(() => {
     inflight = null
   })
   return inflight
+}
+
+function logHeartbeatDiag(payload: Record<string, unknown>): void {
+  if (!import.meta.env.DEV) return
+  try {
+    console.info("[TRN HB]", payload)
+  } catch {
+    /* ignore */
+  }
 }
 
 async function runHeartbeat(input: MaybeHeartbeatInput): Promise<HeartbeatWriteResult> {
@@ -171,6 +195,8 @@ async function runHeartbeat(input: MaybeHeartbeatInput): Promise<HeartbeatWriteR
     input.messaging,
     input.nearbyAlerts
   )
+  const forceWrite =
+    input.forceWrite === true || consumeForceLocationHeartbeat()
 
   const gate: HeartbeatGateInput = {
     subscriptionEnabled,
@@ -181,21 +207,25 @@ async function runHeartbeat(input: MaybeHeartbeatInput): Promise<HeartbeatWriteR
   }
 
   if (!canAttemptLocationHeartbeat(gate)) {
-    return {
-      ok: true,
+    const reason = !subscriptionEnabled
+      ? "subscription_disabled"
+      : !nearbyAlerts
+        ? "nearby_off"
+        : !documentVisible
+          ? "document_hidden"
+          : "invalid_location"
+    logHeartbeatDiag({
       wrote: false,
-      reason: !subscriptionEnabled
-        ? "subscription_disabled"
-        : !nearbyAlerts
-          ? "nearby_off"
-          : !documentVisible
-            ? "document_hidden"
-            : "invalid_location",
-    }
+      reason,
+      forceWrite,
+      visible: documentVisible,
+    })
+    return { ok: true, wrote: false, reason }
   }
 
   const geohash = encodeNotificationLocationGeohash(input.lat, input.lng)
   if (!geohash) {
+    logHeartbeatDiag({ wrote: false, reason: "invalid_location", forceWrite })
     return { ok: true, wrote: false, reason: "invalid_location" }
   }
 
@@ -206,24 +236,41 @@ async function runHeartbeat(input: MaybeHeartbeatInput): Promise<HeartbeatWriteR
       lastWrittenGeohash: mem.lastGeohash,
       lastWrittenAtMs: mem.lastWrittenAtMs,
       nowMs,
+      forceWrite,
     })
   ) {
+    logHeartbeatDiag({
+      wrote: false,
+      reason: "throttled",
+      forceWrite,
+      geohashLen: geohash.length,
+      memAgeMs:
+        mem.lastWrittenAtMs != null ? nowMs - mem.lastWrittenAtMs : null,
+    })
     return { ok: true, wrote: false, reason: "throttled", geohash }
   }
 
   if (!ALLOW_PRODUCTION_SUBSCRIPTION_WRITE) {
     markHeartbeatWriteCommitted(geohash, nowMs)
+    logHeartbeatDiag({
+      wrote: true,
+      reason: "local_only",
+      forceWrite,
+      geohashLen: geohash.length,
+    })
     return { ok: true, wrote: true, reason: "local_only", geohash }
   }
 
   try {
     await requireAuthUid()
   } catch {
+    logHeartbeatDiag({ wrote: false, reason: "auth_failed", forceWrite })
     return { ok: false, wrote: false, reason: "auth_failed" }
   }
 
   const id = await resolveSubscriptionId(input.messaging)
   if (!id) {
+    logHeartbeatDiag({ wrote: false, reason: "no_subscription", forceWrite })
     return { ok: false, wrote: false, reason: "no_subscription" }
   }
 
@@ -236,8 +283,21 @@ async function runHeartbeat(input: MaybeHeartbeatInput): Promise<HeartbeatWriteR
     })
     markHeartbeatWriteCommitted(geohash, nowMs)
     setStoredSubscriptionId(id)
+    logHeartbeatDiag({
+      wrote: true,
+      reason: forceWrite ? "forced" : "ok",
+      forceWrite,
+      geohashLen: geohash.length,
+      subPrefix: id.slice(0, 8),
+    })
     return { ok: true, wrote: true, geohash }
   } catch {
+    logHeartbeatDiag({
+      wrote: false,
+      reason: "write_failed",
+      forceWrite,
+      subPrefix: id.slice(0, 8),
+    })
     return { ok: false, wrote: false, reason: "write_failed" }
   }
 }

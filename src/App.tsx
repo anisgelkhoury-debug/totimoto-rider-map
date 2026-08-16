@@ -678,7 +678,7 @@ useEffect(() => {
 }, [myLocation, notifMessaging, notifSettingsTick])
 
 useEffect(() => {
-  const onVisibility = () => {
+  const onForeground = () => {
     if (document.visibilityState !== "visible" || !myLocation) return
     void maybeUpdateNotificationLocationHeartbeat({
       messaging: notifMessaging,
@@ -687,8 +687,13 @@ useEffect(() => {
       documentVisible: true,
     })
   }
-  document.addEventListener("visibilitychange", onVisibility)
-  return () => document.removeEventListener("visibilitychange", onVisibility)
+  document.addEventListener("visibilitychange", onForeground)
+  // iOS Home Screen PWA often resumes via pageshow (bfcache) more than visibilityalone.
+  window.addEventListener("pageshow", onForeground)
+  return () => {
+    document.removeEventListener("visibilitychange", onForeground)
+    window.removeEventListener("pageshow", onForeground)
+  }
 }, [myLocation, notifMessaging])
 
 const [fullImageUrl, setFullImageUrl] = useState<string | null>(null)

@@ -26,6 +26,9 @@ import {
   resetHeartbeatMemoryState,
   setCachedNearbyAlertsPref,
   getCachedNearbyAlertsPref,
+  requestForceLocationHeartbeat,
+  peekForceLocationHeartbeat,
+  consumeForceLocationHeartbeat,
 } from "../../src/notifications/locationHeartbeatState.ts"
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "../..")
@@ -331,5 +334,142 @@ describe("058C scope guardrails", () => {
     const watches = app.match(/watchPosition/g) || []
     assert.equal(watches.length, 1)
     assert.match(app, /maybeUpdateNotificationLocationHeartbeat/)
+    assert.match(app, /pageshow/)
+    assert.match(app, /visibilitychange/)
+  })
+})
+
+describe("058L-HB-DIAG force re-enable heartbeat", () => {
+  beforeEach(() => {
+    resetHeartbeatMemoryState()
+    while (peekForceLocationHeartbeat()) consumeForceLocationHeartbeat()
+  })
+
+  it("A. OFF→ON forceWrite bypasses same-cell throttle when location available", () => {
+    const g = encodeNotificationLocationGeohash(LAT, LNG)
+    assert.equal(
+      shouldWriteLocationHeartbeat({
+        candidateGeohash: g,
+        lastWrittenGeohash: g,
+        lastWrittenAtMs: 1_000_000,
+        nowMs: 1_000_000 + 60_000,
+        forceWrite: true,
+      }),
+      true
+    )
+  })
+
+  it("B. stale same-cell memory does not suppress explicit re-enable force", () => {
+    const g = encodeNotificationLocationGeohash(LAT, LNG)
+    markHeartbeatWriteCommitted(g, Date.now())
+    requestForceLocationHeartbeat()
+    assert.equal(peekForceLocationHeartbeat(), true)
+    assert.equal(getHeartbeatMemoryState().lastWrittenAtMs, null)
+    assert.equal(consumeForceLocationHeartbeat(), true)
+    assert.equal(peekForceLocationHeartbeat(), false)
+  })
+
+  it("C. normal same-cell updates remain throttled to 15 minutes", () => {
+    const g = encodeNotificationLocationGeohash(LAT, LNG)
+    assert.equal(
+      shouldWriteLocationHeartbeat({
+        candidateGeohash: g,
+        lastWrittenGeohash: g,
+        lastWrittenAtMs: 1_000_000,
+        nowMs: 1_000_000 + 14 * 60 * 1000,
+        forceWrite: false,
+      }),
+      false
+    )
+    assert.equal(
+      shouldWriteLocationHeartbeat({
+        candidateGeohash: g,
+        lastWrittenGeohash: g,
+        lastWrittenAtMs: 1_000_000,
+        nowMs: 1_000_000 + LOCATION_HEARTBEAT_INTERVAL_MS,
+        forceWrite: false,
+      }),
+      true
+    )
+  })
+
+  it("D. iOS-style resume path wired; due heartbeat still interval-based", () => {
+    const app = readFileSync(join(root, "src/App.tsx"), "utf8")
+    assert.match(app, /addEventListener\("pageshow"/)
+    const g = encodeNotificationLocationGeohash(LAT, LNG)
+    assert.equal(
+      shouldWriteLocationHeartbeat({
+        candidateGeohash: g,
+        lastWrittenGeohash: g,
+        lastWrittenAtMs: 1_000_000,
+        nowMs: 1_000_000 + LOCATION_HEARTBEAT_INTERVAL_MS + 1,
+      }),
+      true
+    )
+  })
+
+  it("E. hidden document cannot heartbeat", () => {
+    assert.equal(
+      canAttemptLocationHeartbeat({
+        subscriptionEnabled: true,
+        nearbyAlerts: true,
+        documentVisible: false,
+        lat: LAT,
+        lng: LNG,
+      }),
+      false
+    )
+  })
+
+  it("F. no raw coordinates in force/write path", () => {
+    const writeSrc = readFileSync(
+      join(root, "src/notifications/notificationLocationWrite.ts"),
+      "utf8"
+    )
+    assert.match(writeSrc, /forceWrite/)
+    assert.equal(writeSrc.includes("latitude:"), false)
+    assert.equal(writeSrc.includes("longitude:"), false)
+    assert.equal(writeSrc.includes("helperLat"), false)
+  })
+
+  it("G. disable clears heartbeat fields (subscription helper)", () => {
+    const sub = readFileSync(
+      join(root, "src/notifications/notificationSubscription.ts"),
+      "utf8"
+    )
+    assert.match(sub, /subscriptionLocationClearFields/)
+    assert.match(sub, /locationGeohash:\s*deleteField/)
+    assert.match(sub, /locationUpdatedAt:\s*deleteField/)
+  })
+
+  it("H. no second geolocation watcher introduced", () => {
+    const files = [
+      "src/notifications/locationHeartbeat.ts",
+      "src/notifications/locationHeartbeatState.ts",
+      "src/notifications/notificationLocationWrite.ts",
+      "src/notifications/NotificationSettingsPanel.tsx",
+    ]
+    for (const f of files) {
+      const src = readFileSync(join(root, f), "utf8")
+      assert.equal(src.includes("watchPosition"), false, f)
+      assert.equal(src.includes("getCurrentPosition"), false, f)
+    }
+    const panel = readFileSync(
+      join(root, "src/notifications/NotificationSettingsPanel.tsx"),
+      "utf8"
+    )
+    assert.match(panel, /requestForceLocationHeartbeat/)
+    assert.match(panel, /turningNearbyOn/)
+  })
+
+  it("send gate remains false", () => {
+    const gate = readFileSync(
+      join(root, "functions/src/nearby/sendGate.ts"),
+      "utf8"
+    )
+    assert.match(
+      gate,
+      /ALLOW_PRODUCTION_NEARBY_NOTIFICATION_SEND:\s*boolean\s*=\s*false/
+    )
   })
 })

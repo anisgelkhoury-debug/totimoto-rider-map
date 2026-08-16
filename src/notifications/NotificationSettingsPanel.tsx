@@ -17,6 +17,7 @@ import {
 import {
   getHeartbeatMemoryState,
   setCachedNearbyAlertsPref,
+  requestForceLocationHeartbeat,
 } from "./locationHeartbeatState"
 import {
   nearbyLocationStatusLabelAr,
@@ -178,6 +179,8 @@ export function NotificationSettingsPanel({
     setInlineErr("")
     setInlineMsg("")
     const prev = prefs
+    const turningNearbyOn =
+      prev.nearbyAlerts !== true && next.nearbyAlerts === true
     setPrefs(next)
     setCachedNearbyAlertsPref(next.nearbyAlerts === true)
     const result = await updateNotificationPreferencesOnServer({
@@ -193,6 +196,9 @@ export function NotificationSettingsPanel({
     }
     setPrefs(result.preferences)
     setCachedNearbyAlertsPref(result.preferences.nearbyAlerts === true)
+    if (turningNearbyOn && result.preferences.nearbyAlerts === true) {
+      requestForceLocationHeartbeat()
+    }
     onStatusChange?.()
     return true
   }

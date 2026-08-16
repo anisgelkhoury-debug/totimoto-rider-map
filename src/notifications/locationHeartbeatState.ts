@@ -16,6 +16,9 @@ let memory: HeartbeatMemoryState = {
   lastWrittenAtMs: null,
 }
 
+/** One-shot: next heartbeat bypasses same-cell interval throttle. */
+let forceNextHeartbeatWrite = false
+
 export function getHeartbeatMemoryState(): HeartbeatMemoryState {
   return { ...memory }
 }
@@ -26,6 +29,26 @@ export function markHeartbeatWriteCommitted(geohash: string, atMs: number): void
 
 export function resetHeartbeatMemoryState(): void {
   memory = { lastGeohash: null, lastWrittenAtMs: null }
+}
+
+/**
+ * Call when nearbyAlerts turns ON (or explicit user re-enable).
+ * Clears stale in-memory throttle so the next attempt can write immediately.
+ */
+export function requestForceLocationHeartbeat(): void {
+  forceNextHeartbeatWrite = true
+  resetHeartbeatMemoryState()
+}
+
+export function peekForceLocationHeartbeat(): boolean {
+  return forceNextHeartbeatWrite
+}
+
+/** Consume the one-shot force flag (false after read). */
+export function consumeForceLocationHeartbeat(): boolean {
+  const v = forceNextHeartbeatWrite
+  forceNextHeartbeatWrite = false
+  return v
 }
 
 export function setCachedNearbyAlertsPref(enabled: boolean): void {
