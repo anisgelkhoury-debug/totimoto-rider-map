@@ -74,6 +74,16 @@ import { NotificationPermissionSheet } from "./notifications/NotificationPermiss
 import { NotificationSettingsPanel } from "./notifications/NotificationSettingsPanel"
 import { enableNotificationsFromUserGesture } from "./notifications/notificationSubscription"
 import { shouldCloseSettingsBeforeNotificationEnable } from "./notifications/notificationSupport"
+import {
+  SETTINGS_SHEET_BACKDROP_STYLE,
+  SETTINGS_SHEET_PANEL_STYLE,
+  SETTINGS_SHEET_HEADER_STYLE,
+  SETTINGS_SHEET_TITLE_STYLE,
+  SETTINGS_SHEET_TOP_CLOSE_STYLE,
+  SETTINGS_SHEET_BODY_STYLE,
+  SETTINGS_SHEET_FOOTER_STYLE,
+  SETTINGS_SHEET_CLOSE_BUTTON_STYLE,
+} from "./ui/settingsSheetLayout"
 import { maybeUpdateNotificationLocationHeartbeat } from "./notifications/notificationLocationWrite"
 import {
   evaluateNotificationSupport,
@@ -3293,122 +3303,116 @@ setReportImagePreview(URL.createObjectURL(compressedFile))
 
 {showCommunityCenter && (
   <div
-    style={{
-      position: "fixed",
-      inset: 0,
-      background: "rgba(0,0,0,.55)",
-      zIndex: 999999,
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      padding: 20,
-      direction: "rtl",
-    }}
+    style={SETTINGS_SHEET_BACKDROP_STYLE}
+    role="presentation"
   >
     <div
-      style={{
-        background: "white",
-        width: "100%",
-        maxWidth: 420,
-        borderRadius: 24,
-        padding: 22,
-        textAlign: "center",
-      }}
+      role="dialog"
+      aria-modal="true"
+      aria-label="الإعدادات"
+      style={SETTINGS_SHEET_PANEL_STYLE}
     >
-      <h2>الإعدادات</h2>
-
-      <div style={{ ...communityBtnStyle, paddingTop: 4, paddingBottom: 4 }}>
-        <NotificationSettingsPanel
-          messaging={notifMessaging}
-          hasMyLocation={Boolean(myLocation)}
-          refreshTick={notifSettingsTick}
-          activationBusy={notifPromptBusy}
-          activationErrorAr={notifSettingsError}
-          containerStyle={{ paddingTop: 10, paddingBottom: 10 }}
-          onRequestEnable={() => {
-            // Keep settings open — closing then opening another sheet in the
-            // same tap dismisses the new sheet on mobile (looks like no-op).
-            void enableNotificationsFromSettings()
-          }}
-          onOpenInstallGuide={() => {
-            setShowCommunityCenter(false)
-            setShowInstallGuide(true)
-          }}
-          onStatusChange={() => setNotifSettingsTick((n) => n + 1)}
-        />
+      <div style={SETTINGS_SHEET_HEADER_STYLE}>
+        <button
+          type="button"
+          aria-label="إغلاق"
+          onClick={() => setShowCommunityCenter(false)}
+          style={SETTINGS_SHEET_TOP_CLOSE_STYLE}
+        >
+          ×
+        </button>
+        <h2 style={SETTINGS_SHEET_TITLE_STYLE}>الإعدادات</h2>
       </div>
 
-      <button
-  onClick={() => {
-    setShowCommunityCenter(false)
-    setShowContactModal(true)
-  }}
-  style={communityBtnStyle}
->
-  📞 معلومات التواصل
-</button>
+      <div style={SETTINGS_SHEET_BODY_STYLE}>
+        <div style={{ ...communityBtnStyle, paddingTop: 4, paddingBottom: 4 }}>
+          <NotificationSettingsPanel
+            messaging={notifMessaging}
+            hasMyLocation={Boolean(myLocation)}
+            refreshTick={notifSettingsTick}
+            activationBusy={notifPromptBusy}
+            activationErrorAr={notifSettingsError}
+            containerStyle={{ paddingTop: 10, paddingBottom: 10 }}
+            onRequestEnable={() => {
+              // Keep settings open — closing then opening another sheet in the
+              // same tap dismisses the new sheet on mobile (looks like no-op).
+              void enableNotificationsFromSettings()
+            }}
+            onOpenInstallGuide={() => {
+              setShowCommunityCenter(false)
+              setShowInstallGuide(true)
+            }}
+            onStatusChange={() => setNotifSettingsTick((n) => n + 1)}
+          />
+        </div>
 
-      <button
-        onClick={() => setShowLegalPage("privacy")}
-        style={communityBtnStyle}
-      >
-        📜 سياسة الخصوصية
-      </button>
+        <button
+          onClick={() => {
+            setShowCommunityCenter(false)
+            setShowContactModal(true)
+          }}
+          style={communityBtnStyle}
+        >
+          📞 معلومات التواصل
+        </button>
 
-      <button
-        onClick={() => setShowLegalPage("terms")}
-        style={communityBtnStyle}
-      >
-        📄 شروط الاستخدام
-      </button>
+        <button
+          onClick={() => setShowLegalPage("privacy")}
+          style={communityBtnStyle}
+        >
+          📜 سياسة الخصوصية
+        </button>
 
-      <button
-        onClick={() => setShowLegalPage("emergency")}
-        style={communityBtnStyle}
-      >
-        🚨 تنبيه الطوارئ
-      </button>
+        <button
+          onClick={() => setShowLegalPage("terms")}
+          style={communityBtnStyle}
+        >
+          📄 شروط الاستخدام
+        </button>
 
-      <button
-        onClick={() => setShowLegalPage("founders")}
-        style={communityBtnStyle}
-      >
-        👥 المؤسسون الأوائل
-      </button>
+        <button
+          onClick={() => setShowLegalPage("emergency")}
+          style={communityBtnStyle}
+        >
+          🚨 تنبيه الطوارئ
+        </button>
 
-<button
-  onClick={handleInstallApp}
-  style={{
-    ...communityBtnStyle,
-    position: "relative",
-    zIndex: 999999,
-    pointerEvents: "auto",
-  }}
->
-  📲 حمّل تطبيق توتيموتو
-</button>
+        <button
+          onClick={() => setShowLegalPage("founders")}
+          style={communityBtnStyle}
+        >
+          👥 المؤسسون الأوائل
+        </button>
 
-      <button
-        onClick={() => setShowLegalPage("feedback")}
-        style={communityBtnStyle}
-      >
-        💡 ساعدنا نحسن توتيموتو
-      </button>
+        <button
+          onClick={handleInstallApp}
+          style={{
+            ...communityBtnStyle,
+            position: "relative",
+            zIndex: 999999,
+            pointerEvents: "auto",
+          }}
+        >
+          📲 حمّل تطبيق توتيموتو
+        </button>
 
-      <button
-        onClick={() => setShowCommunityCenter(false)}
-        style={{
-          width: "100%",
-          marginTop: 14,
-          padding: 14,
-          borderRadius: 16,
-          border: "none",
-          background: "#e5e7eb",
-          fontWeight: "bold",
-        }}
-      >
-        إغلاق
-      </button>
+        <button
+          onClick={() => setShowLegalPage("feedback")}
+          style={communityBtnStyle}
+        >
+          💡 ساعدنا نحسن توتيموتو
+        </button>
+      </div>
+
+      <div style={SETTINGS_SHEET_FOOTER_STYLE}>
+        <button
+          type="button"
+          onClick={() => setShowCommunityCenter(false)}
+          style={SETTINGS_SHEET_CLOSE_BUTTON_STYLE}
+        >
+          إغلاق
+        </button>
+      </div>
     </div>
   </div>
 )}
