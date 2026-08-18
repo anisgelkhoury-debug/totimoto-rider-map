@@ -8,7 +8,7 @@
   "scripts": {
     "build": "tsc",
     "lint": "eslint src --ext .ts --max-warnings 0",
-    "test": "npm run build && node --test lib/test/helperAccepted.test.js lib/test/lifecycle.test.js lib/test/riderWeather.test.js lib/test/confirmationAggregates.test.js lib/test/notificationPreferences.test.js lib/test/recipientTargeting.test.js lib/test/nearbyReportNotify.test.js lib/test/nearbyRolloutDesign.test.js lib/test/nearbyRolloutControl.test.js lib/test/nearbyFirestoreControl.test.js lib/test/nearbyStage1CanaryPrep.test.js",
+    "test": "npm run build && node --test lib/test/helperAccepted.test.js lib/test/lifecycle.test.js lib/test/riderWeather.test.js lib/test/confirmationAggregates.test.js lib/test/notificationPreferences.test.js lib/test/recipientTargeting.test.js lib/test/nearbyReportNotify.test.js lib/test/nearbyRolloutDesign.test.js lib/test/nearbyRolloutControl.test.js lib/test/nearbyFirestoreControl.test.js lib/test/nearbyStage1CanaryPrep.test.js lib/test/nearbyMultideviceControls.test.js",
     "serve": "npm run build && firebase emulators:start --only functions,firestore"
   },
   "dependencies": {
