@@ -221,20 +221,38 @@ Unrelated local dirty/untracked ignored.
 
 ## 41. GO / NO-GO for infrastructure adoption
 
-**GO** for Deploy 1 (gate false + rules + nearby Function) after merge approval.
+**DONE.** Deploy 1 adopted 058K/058L with gate false (`cc6d97b` merge + nearby Function `00004-cuy`).
 
 ## 42. GO / NO-GO for live Stage-1 canary
 
-**NO-GO until** Deploy 1 verified + Anis/strategist **explicit** Phase C approval.
+**PASS (complete).** Controlled two-device accident canary ran, then mandatory shutdown.
 
-## 43. Exact blockers
+## 43. Live Stage-1 canary result (privacy-safe)
 
-- 058K not in production Function yet  
-- Rules for budget/systemConfig not deployed  
-- Live self-exclusion not proven  
-- Exact deep-link report open not proven live  
-- No Phase C approval  
+| Fact | Result |
+|---|---|
+| Category | accident only |
+| Device A (Android reporter) | self-exclusion **PASS** · FCM 0 · nearby event 0 · budget Δ0 |
+| Device B (iPhone recipient) | **exactly 1** FCM · 1 `notificationEvent` `sent` |
+| Function counts | candidate=3 · eligible=1 · attempted=1 · success=1 · failed=0 · disabledTokens=0 |
+| Budget B | hourly +1 · daily +1 · pending cleared |
+| Duplicate / non-allowlisted | none |
+| Exact report card on tap | **PASS** (user-observed) |
+| Report id prefix | `YGyTAOSPwXq9` |
 
-## 44. Exact operator steps after approval
+No full UIDs, tokens, or subscription IDs are recorded here.
 
-See Deploy 1 → stop → approval → Deploy 2 canary → ops kill → gate false. Never skip Deploy 1 dry-run proof.
+## 44. Mandatory shutdown (stable production)
+
+| Control | Final |
+|---|---|
+| `ALLOW_PRODUCTION_NEARBY_NOTIFICATION_SEND` | **`false`** |
+| Compile-time canary Set | **empty** |
+| Ops `systemConfig/nearbyNotifications` | **enabled=false · stage=0 · allowlist empty** |
+| Real nearby FCM | **OFF** |
+| Nearby Function | **ACTIVE** `onreportcreatednearbynotify-00006-wab` |
+| Hosting/rules/other Functions | not redeployed for shutdown |
+| Functions tests | **170/170** |
+
+Git milestone HEAD after client heartbeat + settings fixes: `3c56aaf`.
+Temporary canary gate/allowlist was never left committed. Source on `main` remains fail-closed.
