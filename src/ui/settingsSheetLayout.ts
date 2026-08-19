@@ -1,6 +1,7 @@
 /**
- * TRN — Settings sheet mobile viewport layout (pure styles/helpers).
- * Keeps إغلاق reachable on iPhone PWA without changing notification logic.
+ * TRN — Settings sheet viewport layout (pure styles/helpers).
+ * Keeps إغلاق reachable on iPhone PWA and desktop Chrome without
+ * changing notification logic.
  */
 
 import type { CSSProperties } from "react"
@@ -12,8 +13,10 @@ export const SETTINGS_SHEET_BACKDROP_STYLE: CSSProperties = {
   background: "rgba(0,0,0,.55)",
   zIndex: 999999,
   display: "flex",
+  flexDirection: "column",
   alignItems: "center",
   justifyContent: "center",
+  overflow: "hidden",
   paddingTop: "max(12px, env(safe-area-inset-top, 0px))",
   paddingBottom: "max(12px, env(safe-area-inset-bottom, 0px))",
   paddingLeft: "max(12px, env(safe-area-inset-left, 0px))",
@@ -23,8 +26,9 @@ export const SETTINGS_SHEET_BACKDROP_STYLE: CSSProperties = {
 }
 
 /**
- * Modal panel — capped to dynamic viewport; column flex so body scrolls
- * and footer stays visible. Desktop keeps maxWidth; mobile uses near-full height.
+ * Modal panel — capped to the backdrop content box (browser viewport minus
+ * padding), not document/page height. Column flex so the body scrolls and
+ * the footer stays visible. Desktop keeps maxWidth 420 and stays centered.
  */
 export const SETTINGS_SHEET_PANEL_STYLE: CSSProperties = {
   background: "white",
@@ -36,9 +40,11 @@ export const SETTINGS_SHEET_PANEL_STYLE: CSSProperties = {
   flexDirection: "column",
   overflow: "hidden",
   boxSizing: "border-box",
-  // Prefer dvh; 94vh fallback for older engines. Safe-area handled by backdrop padding.
-  maxHeight: "min(94vh, calc(100dvh - 24px))",
+  // 100% = backdrop content box (fixed inset 0, padded). vh/dvh remain as
+  // fallbacks. flex-shrink on the column main axis lets Chrome actually cap.
+  maxHeight: "min(100%, 94vh, calc(100dvh - 24px))",
   minHeight: 0,
+  flexShrink: 1,
 }
 
 export const SETTINGS_SHEET_HEADER_STYLE: CSSProperties = {
@@ -126,6 +132,7 @@ export function settingsSheetUsesViewportCap(
 ): boolean {
   const maxHeight = String(panel.maxHeight ?? "")
   return (
+    maxHeight.includes("100%") ||
     maxHeight.includes("100dvh") ||
     maxHeight.includes("vh") ||
     maxHeight.includes("dvh")
@@ -153,4 +160,82 @@ export function settingsSheetAccountsForSafeAreaBottom(
 ): boolean {
   const pad = String(footer.paddingBottom ?? "")
   return pad.includes("safe-area-inset-bottom")
+}
+
+export function settingsSheetBackdropIsViewportBound(
+  backdrop: CSSProperties = SETTINGS_SHEET_BACKDROP_STYLE
+): boolean {
+  return (
+    backdrop.position === "fixed" &&
+    backdrop.inset === 0 &&
+    backdrop.overflow === "hidden" &&
+    backdrop.flexDirection === "column"
+  )
+}
+
+export function settingsSheetPanelCappedToContainingBlock(
+  panel: CSSProperties = SETTINGS_SHEET_PANEL_STYLE
+): boolean {
+  const maxHeight = String(panel.maxHeight ?? "")
+  return maxHeight.includes("100%") && panel.minHeight === 0
+}
+
+export type SettingsSheetViewportInput = {
+  viewportHeight: number
+  paddingTop: number
+  paddingBottom: number
+  headerHeight: number
+  footerHeight: number
+  bodyContentHeight: number
+}
+
+export type SettingsSheetViewportLayout = {
+  innerHeight: number
+  panelHeight: number
+  bodyHeight: number
+  bodyScrolls: boolean
+  panelExceedsViewport: boolean
+  footerTop: number
+  footerBottom: number
+  footerReachable: boolean
+  headerVisible: boolean
+}
+
+/**
+ * Pure model of the capped flex sheet inside a centered, padded, fixed backdrop.
+ * Panel height = min(available inner box, content); body gets the remainder.
+ */
+export function layoutSettingsSheetInViewport(
+  input: SettingsSheetViewportInput
+): SettingsSheetViewportLayout {
+  const innerHeight = Math.max(
+    0,
+    input.viewportHeight - input.paddingTop - input.paddingBottom
+  )
+  const naturalHeight =
+    input.headerHeight + input.bodyContentHeight + input.footerHeight
+  const panelHeight = Math.min(innerHeight, naturalHeight)
+  const bodyHeight = Math.max(
+    0,
+    panelHeight - input.headerHeight - input.footerHeight
+  )
+  const offsetY = input.paddingTop + (innerHeight - panelHeight) / 2
+  const footerTop = offsetY + panelHeight - input.footerHeight
+  const footerBottom = offsetY + panelHeight
+  const headerTop = offsetY
+  const headerBottom = offsetY + input.headerHeight
+
+  return {
+    innerHeight,
+    panelHeight,
+    bodyHeight,
+    bodyScrolls: input.bodyContentHeight > bodyHeight + 0.5,
+    panelExceedsViewport: panelHeight > input.viewportHeight + 0.5,
+    footerTop,
+    footerBottom,
+    footerReachable:
+      footerTop >= -0.5 && footerBottom <= input.viewportHeight + 0.5,
+    headerVisible:
+      headerTop >= -0.5 && headerBottom <= input.viewportHeight + 0.5,
+  }
 }
